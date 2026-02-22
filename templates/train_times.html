@@ -1,0 +1,732 @@
+<!-- region TT BLOCK 1 -->
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <title>לוז רכבות</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      direction: rtl;
+      text-align: right;
+    }
+
+    .tables-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 24px;
+      margin-top: 25px;
+    }
+
+    .table-box {
+      flex: 1;
+      min-width: 420px;
+    }
+
+    .table-box h3 {
+      text-align: center;
+      font-size: 24px;
+      margin: 0 0 20px 0;
+    }
+
+    .table-box h4 {
+      text-align: center;
+      font-size: 16px;
+      font-weight: 700;
+      margin: 12px 0 0 0;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      background: #f7f7f7;
+      border-radius: 8px;
+      color: #333;
+    }
+
+    .v-sep {
+      width: 1px;
+      background: #999;
+      align-self: stretch;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th, td {
+      border: 1px solid #444;
+      padding: 8px 12px;
+      text-align: center;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+    }
+
+    th {
+      background-color: #d9d9d9;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    /* --- header search icon + popup --- */
+    .th-wrap {
+      position: relative;
+      padding-right: 22px; /* room for the icon */
+    }
+
+    .th-search-btn {
+      position: absolute;
+      right: 6px;
+      bottom: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      user-select: none;
+      opacity: 0.85;
+    }
+    .th-search-btn:hover { opacity: 1; }
+
+    .hdr-popup {
+      position: absolute;
+      z-index: 9999;
+      width: 220px;
+      background: #fff;
+      border: 1px solid #bbb;
+      border-radius: 10px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.15);
+      padding: 10px;
+      display: none;
+    }
+
+    .hdr-popup .popup-title {
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .hdr-popup input {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      margin-bottom: 8px;
+    }
+
+    .hdr-popup .popup-list {
+      max-height: 180px;
+      overflow: auto;
+      border-top: 1px solid #eee;
+      padding-top: 6px;
+    }
+
+    .hdr-popup .popup-item {
+      padding: 6px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: right;
+    }
+    .hdr-popup .popup-item:hover {
+      background: #f2f2f2;
+    }
+
+    .hdr-popup .popup-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .hdr-popup .btn {
+      flex: 1;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #bbb;
+      cursor: pointer;
+      background: #fafafa;
+    }
+    .hdr-popup .btn:hover { background: #f0f0f0; }
+
+
+    #arrWrap table tbody tr:nth-child(even),
+    #depWrap table tbody tr:nth-child(even) {
+      background-color: #f7f7f7;
+    }
+
+    .meta {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #333;
+    }
+
+    body.loading .tables-row {
+      visibility: hidden;
+    }
+
+    #depWrap table th:nth-child(1),
+    #depWrap table td:nth-child(1),
+    #depWrap table th:nth-child(2),
+    #depWrap table td:nth-child(2),
+    #depWrap table th:nth-child(5),
+    #depWrap table td:nth-child(5),
+
+    #arrWrap table th:nth-child(1),
+    #arrWrap table td:nth-child(1),
+    #arrWrap table th:nth-child(2),
+    #arrWrap table td:nth-child(2),
+    #arrWrap table th:nth-child(5),
+    #arrWrap table td:nth-child(5) {
+      display: none;
+    }
+  </style>
+</head>
+<!-- endregion TT BLOCK 1 -->
+
+
+<!-- region TT BLOCK 2 -->
+<body class="loading">
+
+<h2 id="stationTitle">לוז רכבות</h2>
+
+<div class="meta" style="margin-top:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+  <label for="weekPeriodFilter" style="font-weight:700;">תקופת שבוע:</label>
+  <select id="weekPeriodFilter"></select>
+</div>
+<!-- endregion TT BLOCK 2 -->
+
+
+<!-- region TT BLOCK 3 -->
+<div class="tables-row">
+
+  <div class="table-box">
+    <h3>הגעה לתחנת הרכבת </h3>
+    <h4>מוצגות נסיעות רכבת ל-כיוון תל אביב בלבד</h4>
+    <div id="arrWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>שנה</th>
+            <th>חודש</th>
+            <th>תקופת שבוע</th>
+            <th>קוד תחנת הרכבת</th>
+            <th>שם תחנת הרכבת</th>
+            <th>
+              <div class="th-wrap">
+                מספר רכבת
+                <span class="th-search-btn" data-table="arr" data-col="train">🔍</span>
+              </div>
+            </th>
+            <th>
+              <div class="th-wrap">
+                זמן הגעה לתחנה (רישוי)
+                <span class="th-search-btn" data-table="arr" data-col="time">🔍</span>
+              </div>
+            </th>
+            <th>מספר עולים בתחנה</th>
+            <th>מספר יורדים בתחנה</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in arr_rows %}
+          <tr>
+            <td>{{ row.Year }}</td>
+            <td>{{ row.Month }}</td>
+            <td>{{ row.WeekPeriod }}</td>
+            <td>{{ row.train_station_code }}</td>
+            <td>{{ row.StationName }}</td>
+            <td>{{ row.Train_number }}</td>
+            <td>{{ row.Planned_Train_Arrivel_Time }}</td>
+            <td>{{ row.PassengersAscending }}</td>
+            <td>{{ row.PassengersDescending }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="v-sep"></div>
+
+  <div class="table-box">
+    <h3>יציאה מתחנת הרכבת</h3>
+    <h4>מוצגות נסיעות רכבת מ-כיוון תל אביב בלבד</h4>
+    <div id="depWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>שנה</th>
+            <th>חודש</th>
+            <th>תקופת שבוע</th>
+            <th>קוד תחנת הרכבת</th>
+            <th>שם תחנת הרכבת</th>
+            <th>
+              <div class="th-wrap">
+                מספר רכבת
+                <span class="th-search-btn" data-table="dep" data-col="train">🔍</span>
+              </div>
+            </th>
+
+            <th>
+              <div class="th-wrap">
+                זמן יציאה מהתחנה (רישוי)
+                <span class="th-search-btn" data-table="dep" data-col="time">🔍</span>
+              </div>
+            </th>
+            <th>מספר עולים בתחנה</th>
+            <th>מספר יורדים בתחנה</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in dep_rows %}
+          <tr>
+            <td>{{ row.Year }}</td>
+            <td>{{ row.Month }}</td>
+            <td>{{ row.WeekPeriod }}</td>
+            <td>{{ row.train_station_code }}</td>
+            <td>{{ row.StationName }}</td>
+            <td>{{ row.Train_number }}</td>
+            <td>{{ row.Planned_Train_Departure_Time }}</td>
+            <td>{{ row.PassengersAscending }}</td>
+            <td>{{ row.PassengersDescending }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<!-- endregion TT BLOCK 3 -->
+
+
+<script>
+// region TT BLOCK 4A
+const params = new URLSearchParams(window.location.search);
+const selectedStation = params.get("station") || "";
+const selectedYearStr = params.get("year") || "";
+const selectedMonthStr = params.get("month") || "";
+// endregion TT BLOCK 4A
+
+
+// region TT BLOCK 4B
+const norm = (s) => (s || "")
+  .replace(/\u00A0/g, " ")
+  .replace(/[\u200E\u200F\u202A-\u202E]/g, "")
+  .replace(/\s+/g, " ")
+  .trim();
+
+function getColIndexByHeader(tableEl, headerText) {
+  if (!tableEl) return -1;
+
+  const target = norm(headerText);
+
+  const ths = Array.from(tableEl.querySelectorAll("thead th"));
+
+  return ths.findIndex(th => {
+    // clean header text (remove the search icon + extra spaces)
+    const txt = norm(th.textContent).replace(/🔍/g, "").trim();
+
+    // allow exact OR "contains" (because now th has extra text)
+    return txt === target || txt.includes(target);
+  });
+}
+// endregion TT BLOCK 4B
+
+
+// region TT BLOCK 4C
+const YEAR_HDR       = "שנה";
+const MONTH_HDR      = "חודש";
+const WEEKPERIOD_HDR = "תקופת שבוע";
+const STATION_HDR    = "שם תחנת הרכבת";
+const TRAIN_HDR      = "מספר רכבת";
+const ARR_TIME_HDR   = "זמן הגעה לתחנה (רישוי)";
+const DEP_TIME_HDR   = "זמן יציאה מהתחנה (רישוי)";
+// endregion TT BLOCK 4C
+
+
+// region TT BLOCK 4D
+const depTable = document.querySelector("#depWrap table");
+const arrTable = document.querySelector("#arrWrap table");
+
+const IDX_ARR = {
+  YEAR:       getColIndexByHeader(arrTable, YEAR_HDR),
+  MONTH:      getColIndexByHeader(arrTable, MONTH_HDR),
+  WEEKPERIOD: getColIndexByHeader(arrTable, WEEKPERIOD_HDR),
+  STATION:    getColIndexByHeader(arrTable, STATION_HDR),
+  TRAIN:      getColIndexByHeader(arrTable, TRAIN_HDR),
+  TIME:       getColIndexByHeader(arrTable, ARR_TIME_HDR),
+};
+
+const IDX_DEP = {
+  YEAR:       getColIndexByHeader(depTable, YEAR_HDR),
+  MONTH:      getColIndexByHeader(depTable, MONTH_HDR),
+  WEEKPERIOD: getColIndexByHeader(depTable, WEEKPERIOD_HDR),
+  STATION:    getColIndexByHeader(depTable, STATION_HDR),
+  TRAIN:      getColIndexByHeader(depTable, TRAIN_HDR),
+  TIME:       getColIndexByHeader(depTable, DEP_TIME_HDR),
+};
+
+const idxOkArr = Object.values(IDX_ARR).every(i => i >= 0);
+const idxOkDep = Object.values(IDX_DEP).every(i => i >= 0);
+
+if (!idxOkArr) console.warn("ARR: missing headers", IDX_ARR);
+if (!idxOkDep) console.warn("DEP: missing headers", IDX_DEP);
+// endregion TT BLOCK 4D
+
+
+// region TT BLOCK 4E
+function filterTable(tableEl, idxMap, weekPeriod, trainPrefix, timePrefix) {
+  if (!tableEl) return;
+
+  const wpSel = norm(weekPeriod);
+  const trSel = norm(trainPrefix);
+  const tmSel = norm(timePrefix);
+
+  const rows = tableEl.tBodies?.[0] ? Array.from(tableEl.tBodies[0].rows) : [];
+
+  // must have WeekPeriod index at least
+  if (!idxMap || idxMap.WEEKPERIOD < 0) {
+    rows.forEach(r => r.style.display = "none");
+    return;
+  }
+
+  rows.forEach(r => {
+    const cells = Array.from(r.cells);
+
+    const wp = norm(cells[idxMap.WEEKPERIOD]?.textContent);
+
+    // These may be missing if idx is -1 (we'll handle safely)
+    const tr = (idxMap.TRAIN >= 0) ? norm(cells[idxMap.TRAIN]?.textContent) : "";
+    const tm = (idxMap.TIME  >= 0) ? norm(cells[idxMap.TIME]?.textContent)  : "";
+
+    const okWeek  = (!wpSel || wp === wpSel);
+    const okTrain = (!trSel || tr.startsWith(trSel));
+    const okTime  = (!tmSel || tm.startsWith(tmSel));
+
+    r.style.display = (okWeek && okTrain && okTime) ? "" : "none";
+  });
+}
+
+// endregion TT BLOCK 4E
+
+
+
+// region TT BLOCK 4F
+const weekFilter  = document.getElementById("weekPeriodFilter");
+if (weekFilter) {
+  weekFilter.style.cssText = "margin:10px 10px; padding:4px; border-radius:6px; cursor:pointer;";
+}
+// endregion TT BLOCK 4F
+
+
+// region TT BLOCK 4G
+function getYearMonthPairsForStation(station) {
+  const stSel = norm(station);
+  const pairs = [];
+
+  // helper: collect from a table using its own idx map
+  function collectFrom(tableEl, idxMap) {
+    if (!tableEl || !idxMap || Object.values(idxMap).some(i => i < 0)) return;
+
+    const rows = tableEl.tBodies?.[0] ? Array.from(tableEl.tBodies[0].rows) : [];
+    rows.forEach(r => {
+      const cells = Array.from(r.cells);
+
+      const st = norm(cells[idxMap.STATION]?.textContent);
+      if (st !== stSel) return;
+
+      const y = parseInt(norm(cells[idxMap.YEAR]?.textContent), 10);
+      const m = parseInt(norm(cells[idxMap.MONTH]?.textContent), 10);
+      if (Number.isFinite(y) && Number.isFinite(m)) pairs.push({ y, m });
+    });
+  }
+
+  collectFrom(arrTable, IDX_ARR);
+  collectFrom(depTable, IDX_DEP);
+
+  return pairs;
+}
+
+function populateYearFilter() {
+  if (!yearFilter) return;
+
+  const pairs = getYearMonthPairsForStation(selectedStation);
+  const years = Array.from(new Set(pairs.map(p => p.y))).sort((a, b) => a - b);
+
+  yearFilter.innerHTML = "";
+  years.forEach(y => {
+    const opt = document.createElement("option");
+    opt.value = String(y);
+    opt.textContent = String(y);
+    yearFilter.appendChild(opt);
+  });
+
+  if (selectedYearStr && years.includes(parseInt(selectedYearStr, 10))) {
+    yearFilter.value = selectedYearStr;
+  } else if (years.length) {
+    yearFilter.value = String(years[0]);
+  }
+}
+
+function populateMonthFilter() {
+  if (!monthFilter || !yearFilter) return;
+
+  const ySel = parseInt(yearFilter.value, 10);
+  const pairs = getYearMonthPairsForStation(selectedStation);
+
+  const months = Array.from(new Set(
+    pairs.filter(p => p.y === ySel).map(p => p.m)
+  )).sort((a, b) => a - b);
+
+  monthFilter.innerHTML = "";
+  months.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = String(m);
+    opt.textContent = String(m).padStart(2, "0");
+    monthFilter.appendChild(opt);
+  });
+
+  const mUrl = parseInt(selectedMonthStr, 10);
+  if (Number.isFinite(mUrl) && months.includes(mUrl) && String(ySel) === selectedYearStr) {
+    monthFilter.value = selectedMonthStr;
+  } else if (months.length) {
+    monthFilter.value = String(months[0]);
+  }
+}
+// endregion TT BLOCK 4G
+
+
+// region TT BLOCK 4H
+function getWeekPeriodsFromRenderedTables() {
+  const set = new Set();
+
+  function collectFrom(tableEl, idxMap) {
+    if (!tableEl || !idxMap || idxMap.WEEKPERIOD < 0) return;
+
+    const rows = tableEl.tBodies?.[0] ? Array.from(tableEl.tBodies[0].rows) : [];
+    rows.forEach(r => {
+      const cells = Array.from(r.cells);
+      const wp = norm(cells[idxMap.WEEKPERIOD]?.textContent);
+      if (wp) set.add(wp);
+    });
+  }
+
+  collectFrom(arrTable, IDX_ARR);
+  collectFrom(depTable, IDX_DEP);
+
+  return Array.from(set);
+}
+
+function populateWeekFilter() {
+  if (!weekFilter) return;
+
+  const options = getWeekPeriodsFromRenderedTables();
+
+  weekFilter.innerHTML = "";
+
+  // "All" option
+  const allOpt = document.createElement("option");
+  allOpt.value = "";
+  allOpt.textContent = "הכל";
+  weekFilter.appendChild(allOpt);
+
+  options.sort((a, b) =>
+    (a === "יום חול" ? -1 : b === "יום חול" ? 1 : a.localeCompare(b, "he"))
+  );
+
+  options.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v;
+    weekFilter.appendChild(opt);
+  });
+
+  // default
+  if (options.includes("הכל")) weekFilter.value = "הכל";
+  else weekFilter.value = "";
+}
+
+const activeHdrFilters = {
+  arr: { train: "", time: "" },
+  dep: { train: "", time: "" },
+};
+
+function uniqueValuesFromTable(tableEl, colIdx) {
+  if (!tableEl || colIdx < 0) return [];
+  const rows = tableEl.tBodies?.[0] ? Array.from(tableEl.tBodies[0].rows) : [];
+  const vals = [];
+  rows.forEach(r => {
+    const v = norm(r.cells[colIdx]?.textContent);
+    if (v) vals.push(v);
+  });
+  return Array.from(new Set(vals));
+}
+
+function buildPopup() {
+  const popup = document.createElement("div");
+  popup.className = "hdr-popup";
+  popup.innerHTML = `
+    <div class="popup-title">חיפוש</div>
+    <input type="text" placeholder="הקלד/י..." />
+    <div class="popup-list"></div>
+    <div class="popup-actions">
+      <button class="btn btn-clear" type="button">נקה</button>
+      <button class="btn btn-close" type="button">סגור</button>
+    </div>
+  `;
+  document.body.appendChild(popup);
+  return popup;
+}
+
+const hdrPopup = buildPopup();
+
+function openPopup(anchorEl, allValues, onPick, onClear) {
+  const rect = anchorEl.getBoundingClientRect();
+  hdrPopup.style.left = (rect.left + window.scrollX) + "px";
+  hdrPopup.style.top  = (rect.bottom + window.scrollY + 6) + "px";
+  hdrPopup.style.display = "block";
+
+  const input = hdrPopup.querySelector("input");
+  const list  = hdrPopup.querySelector(".popup-list");
+  const btnClear = hdrPopup.querySelector(".btn-clear");
+  const btnClose = hdrPopup.querySelector(".btn-close");
+
+  function render(prefix) {
+    const p = norm(prefix);
+    const filtered = !p ? allValues : allValues.filter(v => norm(v).startsWith(p));
+    list.innerHTML = "";
+
+    // limit to keep UI clean
+    filtered.slice(0, 200).forEach(v => {
+      const item = document.createElement("div");
+      item.className = "popup-item";
+      item.textContent = v;
+      item.addEventListener("click", () => {
+        onPick(v);
+        hdrPopup.style.display = "none";
+      });
+      list.appendChild(item);
+    });
+
+    if (filtered.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.padding = "6px 8px";
+      empty.style.color = "#666";
+      empty.textContent = "אין תוצאות";
+      list.appendChild(empty);
+    }
+  }
+
+  input.value = "";
+  render("");
+
+  input.oninput = () => render(input.value);
+
+  btnClear.onclick = () => {
+    onClear();
+    hdrPopup.style.display = "none";
+  };
+
+  btnClose.onclick = () => {
+    hdrPopup.style.display = "none";
+  };
+
+  // focus after open
+  setTimeout(() => input.focus(), 0);
+}
+
+// close popup when clicking outside
+document.addEventListener("click", (e) => {
+  const isClickInside = hdrPopup.contains(e.target);
+  const isIcon = e.target.classList?.contains("th-search-btn");
+  if (!isClickInside && !isIcon) hdrPopup.style.display = "none";
+});
+
+function initHeaderSearchButtons() {
+  const icons = Array.from(document.querySelectorAll(".th-search-btn"));
+
+  icons.forEach(icon => {
+    icon.addEventListener("click", (e) => {
+      e.stopPropagation();
+
+      const whichTable = icon.getAttribute("data-table"); // "arr" or "dep"
+      const whichCol   = icon.getAttribute("data-col");   // "train" or "time"
+
+      const tableEl = (whichTable === "arr") ? arrTable : depTable;
+      const idxMap  = (whichTable === "arr") ? IDX_ARR   : IDX_DEP;
+
+      const colIdx = (whichCol === "train") ? idxMap.TRAIN : idxMap.TIME;
+      const allVals = uniqueValuesFromTable(tableEl, colIdx).sort((a,b)=>a.localeCompare(b,"he"));
+
+      openPopup(
+        icon,
+        allVals,
+        (picked) => {
+          activeHdrFilters[whichTable][whichCol] = picked;
+          applyAllFilters();
+        },
+        () => {
+          activeHdrFilters[whichTable][whichCol] = "";
+          applyAllFilters();
+        }
+      );
+    });
+  });
+}
+
+// endregion TT BLOCK 4H
+
+
+// region TT BLOCK 4I
+function applyAllFilters() {
+  const wVal = weekFilter ? weekFilter.value : "";
+
+  // header search selections
+  const arrTrain = activeHdrFilters.arr.train;
+  const arrTime  = activeHdrFilters.arr.time;
+
+  const depTrain = activeHdrFilters.dep.train;
+  const depTime  = activeHdrFilters.dep.time;
+
+  filterTable(arrTable, IDX_ARR, wVal, arrTrain, arrTime);
+  filterTable(depTable, IDX_DEP, wVal, depTrain, depTime);
+
+  updateTitle();
+}
+// endregion TT BLOCK 4I
+
+
+// region TT BLOCK 4J
+function updateTitle() {
+  const titleEl = document.getElementById("stationTitle");
+  if (!titleEl) return;
+
+  const yNum = parseInt(selectedYearStr, 10);
+  const mNum = parseInt(selectedMonthStr, 10);
+  const hasYM = Number.isFinite(yNum) && Number.isFinite(mNum);
+  const ymTxt = hasYM ? (" | " + yNum + "-" + String(mNum).padStart(2, "0")) : "";
+
+  titleEl.innerText = selectedStation
+    ? ("לוז רכבות: " + selectedStation + ymTxt)
+    : ("לוז רכבות" + ymTxt);
+}
+// endregion TT BLOCK 4J
+
+
+// region TT BLOCK 4K
+populateWeekFilter();
+applyAllFilters();
+initHeaderSearchButtons();
+// endregion TT BLOCK 4K
+
+
+// region TT BLOCK 4L
+if (weekFilter) {
+  weekFilter.addEventListener("change", applyAllFilters);
+}
+// endregion TT BLOCK 4L
+
+
+// region TT BLOCK 4M
+document.body.classList.remove("loading");
+// endregion TT BLOCK 4M
+
+</script>
+
+</body>
+</html>
+

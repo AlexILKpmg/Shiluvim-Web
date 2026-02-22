@@ -1,0 +1,955 @@
+<!-- region COV BLOCK 1 -->
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <title>סנכרון רכבות ואוטובוסים</title>
+<!-- endregion COV BLOCK 1 -->
+
+
+<!-- region COV BLOCK 2 -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            direction: rtl;
+            text-align: right;
+        }
+
+        svg text {
+            cursor: default;
+            user-select: none;
+        }
+
+        .train-item {
+            cursor: pointer;
+        }
+
+        .layout-row {
+            display: flex;
+            gap: 28px;
+            align-items: flex-start;
+            width: 100%;
+        }
+
+        .viz-wrap {
+            flex: 0 0 auto;
+        }
+
+        .table-wrap {
+            flex: 1 1 auto;
+            min-width: 520px;
+            max-width: 980px;
+        }
+
+        .table-wrap h3 {
+            margin: 20px 0 8px 0;
+            text-align: right;
+        }
+
+        .table-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 8px 0 10px 0;
+        }
+
+        #clearBusSelectionBtn {
+            padding: 6px 10px;
+            cursor: pointer;
+            border: 1px solid #999;
+            background: #fff;
+            border-radius: 6px;
+        }
+
+        #selectionHint {
+            font-size: 12px;
+            color: #333;
+        }
+
+        .table-scroll {
+            max-height: 900px;
+            overflow: auto;
+            border: 1px solid #bbb;
+            border-radius: 8px;
+        }
+
+        #busTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #busTable th, #busTable td {
+            border-bottom: 1px solid #ddd;
+            padding: 8px 10px;
+            font-size: 12px;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        #busTable th {
+            position: sticky;
+            top: 0;
+            background: #f3f3f3;
+            z-index: 2;
+            font-weight: 700;
+        }
+
+        #busTable tbody tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        #busTable tbody tr:hover {
+            background: #eef6ff;
+        }
+    </style>
+</head>
+<!-- endregion COV BLOCK 2 -->
+
+
+<!-- region COV BLOCK 3 -->
+<body>
+
+<h2 id="stationTitle"></h2>
+<h3 style="text-align:center;">זמני רכבות (רישוי) ואוטובוסים</h3>
+<!-- endregion COV BLOCK 3 -->
+
+
+<!-- region COV BLOCK 4 -->
+<div class="layout-row">
+
+    <div class="viz-wrap" style="display:flex; justify-content:center;">
+
+        <svg id="arrowSVG" width="240" height="1960" style="margin-top:20px;">
+
+          <line x1="120" y1="30" x2="120" y2="1920" stroke="#0077cc" stroke-width="6"/>
+          <polygon points="120,1960 100,1920 140,1920" fill="#0077cc"/>
+
+          <text x="100" y="40"  font-size="14">05:00</text>
+          <text x="100" y="197" font-size="14">07:00</text>
+          <text x="100" y="354" font-size="14">09:00</text>
+          <text x="100" y="511" font-size="14">11:00</text>
+          <text x="100" y="668" font-size="14">13:00</text>
+          <text x="100" y="825" font-size="14">15:00</text>
+          <text x="100" y="982" font-size="14">17:00</text>
+          <text x="100" y="1139" font-size="14">19:00</text>
+          <text x="100" y="1296" font-size="14">21:00</text>
+          <text x="100" y="1453" font-size="14">23:00</text>
+          <text x="100" y="1610" font-size="14">01:00</text>
+          <text x="100" y="1767" font-size="14">03:00</text>
+          <text x="100" y="1924" font-size="14">05:00</text>
+
+        </svg>
+
+    </div>
+
+    <div class="table-wrap">
+
+        <h3 id="tableTitle">טבלת נסיעות</h3>
+
+        <div class="table-actions">
+            <button id="clearBusSelectionBtn" type="button">הצג הכל</button>
+            <span id="selectionHint">מוצגות כל הנסיעות</span>
+        </div>
+
+        <div class="table-scroll">
+            <table id="busTable">
+                <thead>
+                    <tr id="busTableHeaderRow"></tr>
+                </thead>
+                <tbody id="busTableBody"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+</div>
+<!-- endregion COV BLOCK 4 -->
+
+
+<script>
+// region COV 5A
+function extractHHMM(timeValue) {
+    if (timeValue === null || timeValue === undefined) return null;
+
+    let s = String(timeValue).trim();
+    if (!s) return null;
+
+    if (s.includes("T")) s = s.split("T").pop();
+    if (s.includes(" ")) s = s.split(" ").pop();
+    if (s.includes("+")) s = s.split("+")[0];
+    if (s.includes(".")) s = s.split(".")[0];
+
+    const match = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (!match) return null;
+
+    const hh = parseInt(match[1], 10);
+    const mm = parseInt(match[2], 10);
+    if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
+
+    const hh2 = ((hh % 24) + 24) % 24;
+    return String(hh2).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+}
+// endregion COV 5A
+
+
+// region COV 5B
+function timeToY(timeValue) {
+    const hhmm = extractHHMM(timeValue);
+    if (!hhmm) return null;
+
+    const parts = hhmm.split(":").map(Number);
+    if (parts.length < 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) return null;
+
+    const h = parts[0];
+    const m = parts[1];
+
+    let minutes = h * 60 + m;
+    const anchor = 5 * 60;
+
+    if (minutes < anchor) {
+        minutes += 24 * 60;
+    }
+
+    const relative = minutes - anchor;
+
+    const topY = 40;
+    const bottomY = 1920;
+    const fraction = relative / (24 * 60);
+
+    return topY + fraction * (bottomY - topY);
+}
+// endregion COV 5B
+
+
+// region COV 5C
+const BUS_TO_RAIL_JSON = {{ bus_to_rail_df_js|safe }};
+const RAIL_TO_BUS_JSON = {{ rail_to_bus_df_js|safe }};
+const TRAIN_PERC = {{ train_perc_js|safe }};
+
+const params = new URLSearchParams(window.location.search);
+const station = params.get("station");
+
+const yearStr = params.get("year");
+const monthStr = params.get("month");
+
+const selectedYear  = yearStr  ? parseInt(yearStr, 10)  : null;
+const selectedMonth = monthStr ? parseInt(monthStr, 10) : null;
+
+let activeYear  = Number.isFinite(selectedYear)  ? selectedYear  : null;
+let activeMonth = Number.isFinite(selectedMonth) ? selectedMonth : null;
+
+function toIntAny(v) {
+    const n = parseInt(String(v ?? "").trim(), 10);
+    return Number.isFinite(n) ? n : null;
+}
+
+function buildPercKeyForLookup(row, trainId) {
+    const y = Number.isFinite(activeYear) ? activeYear : toIntAny(row["שנה"]);
+    const m = Number.isFinite(activeMonth) ? activeMonth : toIntAny(row["חודש"]);
+    const dir = String(row["כיוון נסיעת הרכבת"] ?? "").trim().replace(/\s+/g, " ");
+
+    if (y === null || m === null || !trainId || !dir) return null;
+    return String(y) + "_" + String(m) + "_" + String(trainId).trim() + "_" + dir;
+}
+
+function updateTitleFromState() {
+    const titleEl = document.getElementById("stationTitle");
+    if (!titleEl) return;
+
+    const hasYM = Number.isFinite(activeYear) && Number.isFinite(activeMonth);
+    const ymTxt = hasYM ? (" | " + activeYear + "-" + String(activeMonth).padStart(2, "0")) : "";
+
+    titleEl.innerText = station
+        ? ("סנכרון: " + station + ymTxt)
+        : ("סנכרון" + ymTxt);
+}
+// endregion COV 5C
+
+
+// region COV 5D
+let activeDirection = "לכיוון תל אביב";
+let activeTrain = null;
+let activeBusRowKey = null;
+
+function getMasterData() {
+    return (activeDirection === "לכיוון תל אביב") ? BUS_TO_RAIL_JSON : RAIL_TO_BUS_JSON;
+}
+
+let stationTimes = [];
+
+function rebuildStationTimes() {
+    const data = getMasterData();
+
+    stationTimes = data.filter(t => {
+        const st = String(t["שם תחנת הרכבת"] ?? "").trim();
+        if (!station || st !== station) return false;
+
+        if (Number.isFinite(activeYear)) {
+            const y = toIntAny(t["שנה"]);
+            if (y !== null && y !== activeYear) return false;
+        }
+        if (Number.isFinite(activeMonth)) {
+            const m = toIntAny(t["חודש"]);
+            if (m !== null && m !== activeMonth) return false;
+        }
+
+        return true;
+    });
+}
+
+const svg = document.getElementById("arrowSVG");
+// endregion COV 5D
+
+
+// region COV 5E
+function applyBusFilter() {
+    const buses = svg.querySelectorAll(".bus-item");
+    buses.forEach(b => {
+        const tid = b.getAttribute("data-train") || "";
+        b.style.display = (!activeTrain || tid === activeTrain) ? "" : "none";
+    });
+}
+
+function clearTrainOutlines() {
+    const trains = svg.querySelectorAll(".train-item");
+    trains.forEach(t => {
+        t.setAttribute("stroke", "none");
+        t.setAttribute("stroke-width", "0");
+    });
+}
+
+function applyPercFilter() {
+    const percs = svg.querySelectorAll(".perc-item");
+    percs.forEach(p => {
+        const tid = p.getAttribute("data-train") || "";
+        p.style.display = (activeTrain && tid === activeTrain) ? "" : "none";
+    });
+}
+
+function setActiveTrain(trainId) {
+    activeTrain = trainId ? String(trainId) : null;
+
+    applyBusFilter();
+    applyPercFilter();
+
+    clearTrainOutlines();
+    if (activeTrain) {
+        const selected = svg.querySelectorAll('.train-item[data-train="' + activeTrain + '"]');
+        selected.forEach(t => {
+            t.setAttribute("stroke", "#cc0000");
+            t.setAttribute("stroke-width", "1.5");
+        });
+    }
+}
+// endregion COV 5E
+
+
+// region COV 5F
+const resetBtn = document.createElement("button");
+resetBtn.textContent = "איפוס סינון רכבות";
+resetBtn.style.cssText =
+    "margin: 10px 0 0 0; padding: 6px 10px; cursor:pointer; border:1px solid #999; background:#fff; border-radius:6px;";
+
+const h3 = document.querySelector("h3");
+if (h3 && h3.parentNode) {
+    h3.parentNode.insertBefore(resetBtn, h3.nextSibling);
+}
+
+resetBtn.addEventListener("click", () => {
+    setActiveTrain(null);
+});
+
+const dirSelect = document.createElement("select");
+dirSelect.innerHTML = `
+    <option value="לכיוון תל אביב">לכיוון תל אביב</option>
+    <option value="מכיוון תל אביב">מכיוון תל אביב</option>`;
+dirSelect.style.cssText =
+    "margin:10px 10px; padding:4px; border-radius:6px; cursor:pointer;";
+resetBtn.parentNode.insertBefore(dirSelect, resetBtn.nextSibling);
+
+const yearSelect = document.createElement("select");
+yearSelect.style.cssText =
+    "margin:10px 10px; padding:4px; border-radius:6px; cursor:pointer;";
+
+const monthSelect = document.createElement("select");
+monthSelect.style.cssText =
+    "margin:10px 10px; padding:4px; border-radius:6px; cursor:pointer;";
+
+resetBtn.parentNode.insertBefore(yearSelect, dirSelect.nextSibling);
+resetBtn.parentNode.insertBefore(monthSelect, yearSelect.nextSibling);
+
+let activeWeek = "יום חול";
+
+const weekSelect = document.createElement("select");
+weekSelect.style.cssText =
+    "margin:10px 10px; padding:4px; border-radius:6px; cursor:pointer;";
+
+resetBtn.parentNode.insertBefore(weekSelect, monthSelect.nextSibling);
+
+dirSelect.value = activeDirection;
+// endregion COV 5F
+
+
+// region COV 5G
+function getYearMonthPairsForStation(stName) {
+    const stSel = String(stName ?? "").trim();
+    const pairs = [];
+
+    [BUS_TO_RAIL_JSON, RAIL_TO_BUS_JSON].forEach(arr => {
+        (arr || []).forEach(r => {
+            const st = String(r["שם תחנת הרכבת"] ?? "").trim();
+            if (st !== stSel) return;
+
+            const y = toIntAny(r["שנה"]);
+            const m = toIntAny(r["חודש"]);
+            if (y !== null && m !== null) pairs.push({ y, m });
+        });
+    });
+
+    return pairs;
+}
+
+function populateYearDropdown() {
+    const pairs = getYearMonthPairsForStation(station);
+    const years = Array.from(new Set(pairs.map(p => p.y))).sort((a, b) => a - b);
+
+    yearSelect.innerHTML = "";
+    years.forEach(y => {
+        const opt = document.createElement("option");
+        opt.value = String(y);
+        opt.textContent = String(y);
+        yearSelect.appendChild(opt);
+    });
+
+    if (Number.isFinite(activeYear) && years.includes(activeYear)) {
+        yearSelect.value = String(activeYear);
+    } else if (Number.isFinite(selectedYear) && years.includes(selectedYear)) {
+        yearSelect.value = String(selectedYear);
+        activeYear = selectedYear;
+    } else if (years.length) {
+        yearSelect.value = String(years[0]);
+        activeYear = years[0];
+    } else {
+        activeYear = null;
+    }
+}
+
+function populateMonthDropdown() {
+    const ySel = parseInt(yearSelect.value, 10);
+    const pairs = getYearMonthPairsForStation(station);
+
+    const months = Array.from(new Set(
+        pairs.filter(p => p.y === ySel).map(p => p.m)
+    )).sort((a, b) => a - b);
+
+    monthSelect.innerHTML = "";
+    months.forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = String(m);
+        opt.textContent = String(m).padStart(2, "0");
+        monthSelect.appendChild(opt);
+    });
+
+    if (Number.isFinite(activeMonth) && months.includes(activeMonth)) {
+        monthSelect.value = String(activeMonth);
+    } else if (
+        Number.isFinite(selectedMonth) &&
+        months.includes(selectedMonth) &&
+        String(ySel) === String(selectedYear)
+    ) {
+        monthSelect.value = String(selectedMonth);
+        activeMonth = selectedMonth;
+    } else if (months.length) {
+        monthSelect.value = String(months[0]);
+        activeMonth = months[0];
+    } else {
+        activeMonth = null;
+    }
+}
+// endregion COV 5G
+
+
+// region COV 5H
+function populateWeekDropdown() {
+    weekSelect.innerHTML = "";
+
+    const set = new Set();
+    stationTimes.forEach(r => {
+        const v = String(r["תקופת שבוע"] ?? "").trim();
+        if (v) set.add(v);
+    });
+
+    const weeks = Array.from(set).sort();
+
+    weeks.forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        weekSelect.appendChild(opt);
+    });
+
+    if (weeks.includes("יום חול")) {
+        activeWeek = "יום חול";
+    } else if (weeks.length) {
+        activeWeek = weeks[0];
+    }
+
+    weekSelect.value = activeWeek;
+}
+
+function getFilteredTimes() {
+    return stationTimes.filter(r => String(r["תקופת שבוע"] ?? "").trim() === activeWeek);
+}
+
+function refreshAllAfterFilterChange() {
+    activeBusRowKey = null;
+    updateSelectionHint();
+
+    rebuildStationTimes();
+    populateWeekDropdown();
+
+    setActiveTrain(null);
+    redrawTrains();
+    redrawBuses();
+    renderBusTable();
+}
+// endregion COV 5H
+
+
+// region COV 5I
+dirSelect.addEventListener("change", () => {
+    activeDirection = dirSelect.value;
+
+    populateYearDropdown();
+    populateMonthDropdown();
+    updateTitleFromState();
+
+    refreshAllAfterFilterChange();
+});
+
+yearSelect.addEventListener("change", () => {
+    const ySel = parseInt(yearSelect.value, 10);
+    activeYear = Number.isFinite(ySel) ? ySel : null;
+
+    populateMonthDropdown();
+
+    const mSel = parseInt(monthSelect.value, 10);
+    activeMonth = Number.isFinite(mSel) ? mSel : null;
+
+    updateTitleFromState();
+    refreshAllAfterFilterChange();
+});
+
+monthSelect.addEventListener("change", () => {
+    const mSel = parseInt(monthSelect.value, 10);
+    activeMonth = Number.isFinite(mSel) ? mSel : null;
+
+    updateTitleFromState();
+    refreshAllAfterFilterChange();
+});
+
+weekSelect.addEventListener("change", () => {
+    activeWeek = weekSelect.value;
+
+    activeBusRowKey = null;
+    updateSelectionHint();
+
+    setActiveTrain(null);
+    redrawTrains();
+    redrawBuses();
+    renderBusTable();
+});
+// endregion COV 5I
+
+
+// region COV 5J
+function redrawTrains() {
+    svg.querySelectorAll(".train-item, .perc-item").forEach(el => el.remove());
+
+    const filteredTimes = getFilteredTimes();
+
+    filteredTimes.forEach(row => {
+        const timeVal = (activeDirection === "לכיוון תל אביב")
+            ? row["זמן יציאת הרכבת מהתחנה (רישוי)"]
+            : row["זמן הגעת הרכבת לתחנה (רישוי)"];
+
+        const y = timeToY(timeVal);
+        if (y === null) return;
+
+        const trainId = String(row["מספר הרכבת"] ?? "").trim();
+        if (!trainId) return;
+
+        if (activeDirection === "לכיוון תל אביב") {
+            const percKey = buildPercKeyForLookup(row, trainId);
+            const percStr = percKey ? TRAIN_PERC[percKey] : null;
+
+            if (percStr !== undefined && percStr !== null && String(percStr).trim() !== "") {
+                const percText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+
+                percText.setAttribute("x", "110");
+                percText.setAttribute("y", String(y));
+                percText.setAttribute("font-size", "12");
+                percText.setAttribute("fill", "#333");
+                percText.setAttribute("text-anchor", "end");
+                percText.setAttribute("dominant-baseline", "middle");
+
+                percText.setAttribute("direction", "ltr");
+                percText.setAttribute("unicode-bidi", "plaintext");
+
+                percText.textContent = String(percStr);
+
+                const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+                pTitle.textContent = "אחוז הנסיעות המסונכרנות";
+                percText.appendChild(pTitle);
+
+                percText.classList.add("perc-item");
+                percText.setAttribute("data-train", trainId);
+                percText.style.display = "none";
+
+                svg.appendChild(percText);
+            }
+        }
+
+        const isGold = String(row["רכבת זהב"] ?? "").trim() === "כן";
+        const color = isGold ? "gold" : "black";
+
+        const tri = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+
+        const x = 120;
+        const size = 12;
+        const yPos = y - size / 2;
+
+        const p1 = x + "," + yPos;
+        const p2 = (x - size / 2) + "," + (yPos + size);
+        const p3 = (x + size / 2) + "," + (yPos + size);
+
+        tri.setAttribute("points", p1 + " " + p2 + " " + p3);
+        tri.setAttribute("fill", color);
+
+        tri.classList.add("train-item");
+        tri.setAttribute("data-train", trainId);
+        tri.style.cursor = "pointer";
+
+        const trainTimeStr = extractHHMM(timeVal) || String(timeVal);
+        const tTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        tTitle.textContent = "זמן: " + trainTimeStr + " | רכבת: " + trainId;
+        tri.appendChild(tTitle);
+
+        tri.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (activeTrain === trainId) {
+                setActiveTrain(null);
+            } else {
+                setActiveTrain(trainId);
+            }
+        });
+
+        svg.appendChild(tri);
+    });
+
+    setActiveTrain(activeTrain);
+}
+// endregion COV 5J
+
+// region COV 5K
+function clearBuses() {
+  svg.querySelectorAll(".bus-item, .bus-header").forEach(el => el.remove());
+}
+
+// Build a unique key for one bus row (used to filter the table)
+function buildBusRowKey(row) {
+  const trainId = String(row["מספר הרכבת"] ?? "").trim();
+  const shilot  = String(row["שילוט"] ?? "").trim();
+  const makat   = String(row["מקט"] ?? "").trim();
+  const t = extractHHMM(row["זמן הגעה לתחנה"] ?? row["זמן יציאה מהתחנה"] ?? "") || "";
+  return trainId + "||" + shilot + "||" + makat + "||" + t;
+}
+
+function setActiveBusRow(rowOrNull) {
+  activeBusRowKey = rowOrNull ? buildBusRowKey(rowOrNull) : null;
+  updateSelectionHint();
+  renderBusTable();
+}
+
+function updateSelectionHint() {
+  const hint = document.getElementById("selectionHint");
+  if (!hint) return;
+  hint.textContent = activeBusRowKey ? "מוצגת שורה שנבחרה מהמפה" : "מוצגות כל הנסיעות";
+}
+
+// Collect bus rows that are “valid” for current view (must have time + signage)
+function getBusRowsForCurrentView() {
+  const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה";
+  const filteredTimes = getFilteredTimes();
+
+  return filteredTimes.filter(r =>
+    r[busTimeCol] && String(r["שילוט"] ?? "").trim() !== ""
+  );
+}
+
+function redrawBuses() {
+  clearBuses();
+
+  const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה";
+  const filteredTimes = getFilteredTimes();
+
+  const busRows = filteredTimes.filter(r =>
+    r[busTimeCol] && String(r["שילוט"] ?? "").trim() !== ""
+  );
+
+  // Build unique signage list (each signage is a column)
+  const shilotValues = Array.from(new Set(busRows.map(r => String(r["שילוט"]).trim())));
+
+  // Sort signage: numeric signage in numeric order, then strings alphabetically
+  shilotValues.sort((a, b) => {
+    const na = parseFloat(a);
+    const nb = parseFloat(b);
+    const aIsNum = !Number.isNaN(na);
+    const bIsNum = !Number.isNaN(nb);
+    if (aIsNum && bIsNum) return na - nb;
+    return a.localeCompare(b);
+  });
+
+  // X layout math for columns
+  const baseX = 170;
+  const colW  = 34;
+  const rightPad = 20;
+
+  // Resize SVG width if there are many signage columns
+  const minSvgWidth = 240;
+  const neededWidth = baseX + shilotValues.length * colW + rightPad;
+  svg.setAttribute("width", String(Math.max(minSvgWidth, neededWidth)));
+
+  // Map signage value -> x coordinate
+  const shilotToX = new Map();
+  shilotValues.forEach((val, idx) => {
+    shilotToX.set(val, baseX + idx * colW);
+  });
+
+  // Draw column headers at the top of SVG
+  shilotValues.forEach(val => {
+    const hx = shilotToX.get(val);
+
+    const header = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    header.classList.add("bus-header");
+    header.setAttribute("x", hx);
+    header.setAttribute("y", "18");
+    header.setAttribute("font-size", "12");
+    header.setAttribute("fill", "#000");
+    header.setAttribute("font-weight", "700");
+    header.setAttribute("text-anchor", "middle");
+
+    header.setAttribute("direction", "ltr");
+    header.setAttribute("unicode-bidi", "plaintext");
+
+    header.textContent = val;
+    svg.appendChild(header);
+  });
+
+  // For font scaling we need min/max passengers
+  const passengerVals = busRows
+    .map(r => parseFloat(r["ממוצע נוסעים לנסיעה"]))
+    .filter(v => !Number.isNaN(v));
+
+  const pMin = passengerVals.length ? Math.min(...passengerVals) : 0.1;
+  const pMax = passengerVals.length ? Math.max(...passengerVals) : 66;
+
+  const minFont = 10;
+  const maxFont = 26;
+
+  function scaleFont(p) {
+    let v = parseFloat(p);
+    if (Number.isNaN(v)) v = pMin;
+
+    const t = (pMax === pMin) ? 0.5 : (v - pMin) / (pMax - pMin);
+    const curved = Math.sqrt(Math.max(0, Math.min(1, t)));
+    return minFont + curved * (maxFont - minFont);
+  }
+
+  // Draw each bus as text at (x=signage column, y=timeToY)
+  busRows.forEach(row => {
+    const busTimeVal = row[busTimeCol];
+    const y = timeToY(busTimeVal);
+    if (y === null) return;
+
+    const shilot = String(row["שילוט"]).trim();
+    const x = shilotToX.get(shilot);
+    if (x === undefined) return;
+
+    const trainId = String(row["מספר הרכבת"] ?? "").trim();
+    if (!trainId) return;
+
+    // size based on passengers (and then halved, as in your code)
+    const avgPassengers = row["ממוצע נוסעים לנסיעה"];
+    const fontSize = (scaleFont(avgPassengers) / 2);
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", x);
+    text.setAttribute("y", y);
+    text.setAttribute("font-size", String(fontSize));
+
+    // green if on time, red if not
+    const onTime = Number(row["האם האוטובוס מגיע בזמן"]);
+    const busColor = (onTime === 1) ? "#118a2a" : "#7a0c0c";
+    text.setAttribute("fill", busColor);
+
+    text.setAttribute("dominant-baseline", "middle");
+    text.setAttribute("text-anchor", "middle");
+
+    text.setAttribute("direction", "ltr");
+    text.setAttribute("unicode-bidi", "plaintext");
+
+    text.textContent = shilot + (row["range_mark_any"] || "");
+    text.style.cursor = "pointer";
+
+    // Click => show only this row in the right-side table
+    text.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setActiveBusRow(row);
+    });
+
+    text.classList.add("bus-item");
+    text.setAttribute("data-train", trainId);
+
+    // Tooltip for bus label
+    const makat = String(row["מקט"] ?? "").trim();
+    const timeStr = extractHHMM(busTimeVal) || String(busTimeVal);
+    const avgStr = (avgPassengers === null || avgPassengers === undefined || avgPassengers === "") ? "—" : String(avgPassengers);
+
+    const bTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    bTitle.textContent =
+      "זמן: " + timeStr +
+      " | מקט: " + (makat || "—") +
+      " | ממוצע נוסעים: " + avgStr;
+
+    text.appendChild(bTitle);
+    svg.appendChild(text);
+  });
+
+  // Ensure bus visibility + perc visibility matches selected train state
+  applyBusFilter();
+  applyPercFilter();
+}
+// endregion COV 5K
+
+
+// region COV 5L
+function getTrainPercForRow(row) {
+  const direct = row["אחוז הנסיעות שעמדו בזמנים"];
+  if (direct !== null && direct !== undefined && String(direct).trim() !== "") {
+    return String(direct).trim();
+  }
+
+  const trainId = String(row["מספר הרכבת"] ?? "").trim();
+  const key = buildPercKeyForLookup(row, trainId);
+  const v = key ? TRAIN_PERC[key] : null;
+  return (v !== null && v !== undefined && String(v).trim() !== "") ? String(v).trim() : "—";
+}
+
+// Defines which fields appear in the table and in what order
+const TABLE_FIELDS = [
+  { key: "מפעיל", label: "מפעיל" },
+  { key: "מקט", label: "מקט" },
+  { key: "כיוון", label: "כיוון" },
+  { key: "חלופה", label: "חלופה" },
+  { key: "זמן יציאה", label: "זמן יציאה" },
+  { key: "ממוצע נוסעים לנסיעה", label: "ממוצע נוסעים לנסיעה" },
+  { key: "זמן הגעה לתחנה", label: "זמן הגעה לתחנה" },
+  { key: "טווח זמן ההגעה לתחנה", label: "טווח זמן ההגעה לתחנה" },
+  { key: "הפרש בדקות (מאוטובוס לרכבת)", label: "הפרש בדקות (מאוטובוס לרכבת)" },
+  { key: "מספר תצפיות", label: "מספר תצפיות" },
+  { key: "מספר הנסיעות שעמדו בזמנים", label: "מספר הנסיעות שעמדו בזמנים" },
+  { key: "אחוז הנסיעות שעמדו בזמנים", label: "אחוז הנסיעות שעמדו בזמנים" },
+  { key: "המלצה בדקות", label: "המלצה בדקות" }
+];
+
+function renderBusTable() {
+  const headerRow = document.getElementById("busTableHeaderRow");
+  const body = document.getElementById("busTableBody");
+  if (!headerRow || !body) return;
+
+  // Build header
+  headerRow.innerHTML = "";
+  TABLE_FIELDS.forEach(f => {
+    const th = document.createElement("th");
+    th.textContent = f.label;
+    headerRow.appendChild(th);
+  });
+
+  // Choose which rows to show
+  const allRows = getBusRowsForCurrentView();
+  const rows = activeBusRowKey
+    ? allRows.filter(r => buildBusRowKey(r) === activeBusRowKey)
+    : allRows;
+
+  // Build body
+  body.innerHTML = "";
+
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+
+    TABLE_FIELDS.forEach(f => {
+      const td = document.createElement("td");
+
+      let v = "";
+
+      // NOTE:
+      // You currently don't use "__perc__" in TABLE_FIELDS,
+      // but the branch is here if you decide to add it later.
+      if (f.key === "__perc__") {
+        v = getTrainPercForRow(r);
+      } else {
+        v = r[f.key];
+        if (v === null || v === undefined || String(v).trim() === "") {
+          v = "—";
+        } else {
+          // If the label contains "זמן", try to normalize to HH:MM
+          if (String(f.label).includes("זמן")) {
+            v = extractHHMM(v) || String(v).trim();
+          } else {
+            v = String(v).trim();
+          }
+        }
+      }
+
+      td.textContent = v;
+      tr.appendChild(td);
+    });
+
+    body.appendChild(tr);
+  });
+}
+
+// Clicking "הצג הכל" resets table back to all rows
+const clearBusBtn = document.getElementById("clearBusSelectionBtn");
+if (clearBusBtn) {
+  clearBusBtn.addEventListener("click", () => {
+    setActiveBusRow(null);
+  });
+}
+// endregion COV 5L
+
+// region COV 5M
+populateYearDropdown();
+populateMonthDropdown();
+updateTitleFromState();
+
+rebuildStationTimes();
+populateWeekDropdown();
+
+redrawTrains();
+redrawBuses();
+setActiveTrain(null);
+
+updateSelectionHint();
+renderBusTable();
+// endregion COV 5M
+
+
+
+
+</script>
+
+</body>
+</html>

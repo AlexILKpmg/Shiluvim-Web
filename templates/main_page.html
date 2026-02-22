@@ -1,0 +1,918 @@
+<!-- region BLOCK 1 -->
+<!DOCTYPE html>
+
+<html dir="rtl" lang="he">
+
+<head>
+    <meta charset="UTF-8">
+
+    <title>דף תחנת רכבת</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            direction: rtl;
+            text-align: right;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 90%;
+            margin-top: 80px;
+        }
+
+        /* Matrix table should sit close to the headline */
+        #matrix_table_container table{
+          margin-top: 5px;   /* overrides the global 80px */
+        }
+
+        /* Convergence table should sit close to the filters */
+        #convergence_data_container table{
+          margin-top: 5px;   /* overrides the global 80px */
+        }
+
+        .filter-container.convergence-filters{
+          top: 0 !important;   /* cancels the global top:50px only here */
+        }
+
+        th, td {
+            border: 1px solid #444;
+            padding: 8px 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f0f0f0;
+        }
+
+        .filter-container{
+            position: relative;
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            top: 50px;
+            right: 20px;
+
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 14px;
+        }
+
+        .filter-group{
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 220px;
+        }
+
+        .filter-group select{
+            padding: 4px 8px;
+            font-size: 14px;
+        }
+
+        .checkbox-group{
+            cursor: default;
+            display:flex;
+            gap:12px;
+            flex-wrap:wrap;
+            align-items:center;
+        }
+
+        .checkbox-group label{
+            display:flex;
+            gap:3px;
+            cursor: default;
+            align-items:center;
+            font-size:16px;
+        }
+
+        .checkbox-group input[type="checkbox"]{
+            cursor: default;
+            width:18px;
+            height:18px;
+        }
+
+        #convergence_data_container table th:nth-child(1),
+        #convergence_data_container table td:nth-child(1){
+            display: none;
+        }
+
+        .expand-btn {
+            cursor: pointer;
+            color: #0077cc;
+            font-weight: bold;
+            padding: 4px 8px;
+        }
+    </style>
+</head>
+
+<!-- endregion BLOCK 1 -->
+
+<!-- region BLOCK 2 -->
+<body>
+
+<h2>דף תחנה<span id="stationTitleSuffix"></span></h2>
+
+<a id="ConvergencePageLink" href="#" style="font-size:16px; color:#0077cc; text-decoration:none;">
+   סנכרון רכבות ואוטובוסים
+</a>
+
+&nbsp;|&nbsp;
+
+<a id="TrainStationInfo" href="#" style="font-size:16px; color:#0077cc; text-decoration:none;">
+  לוז רכבות
+</a>
+
+<div class="filter-container">
+
+  <div class="filter-group">
+    <label for="stationFilter">סינון לפי שם תחנת הרכבת:</label>
+    <select id="stationFilter"></select>
+  </div>
+
+  <div class="filter-group">
+    <label for="yearFilter">שנה:</label>
+    <select id="yearFilter"></select>
+  </div>
+
+  <div class="filter-group">
+    <label for="monthFilter">חודש:</label>
+    <select id="monthFilter"></select>
+  </div>
+
+</div>
+
+<!-- endregion BLOCK 2 -->
+
+<!-- region BLOCK 3 -->
+
+<div id="rating_table">
+  <table>
+    <thead>
+      <tr>
+        <th>שנה</th>
+        <th>חודש</th>
+        <th>שם תחנת הרכבת</th>
+        <th>עולים בתחנה</th>
+        <th>יורדים בתחנה</th>
+        <th>דירוג</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in df_ranking %}
+      <tr>
+        <td>{{ row.Year }}</td>
+        <td>{{ row.Month }}</td>
+        <td>{{ row.StationName }}</td>
+        <td>{{ row.Ascending_pass }}</td>
+        <td>{{ row.Descending_pass }}</td>
+        <td>{{ row.Rank }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+<!-- Passenger transfers headline -->
+<h3 id="matrixHeadline" style="margin:80px 0 5px 0;">מעבר נוסעים בין בתחנות:</h3>
+
+<div id="matrixSection" style="display:none;">
+
+  <div id="matrix_table_container">
+    <table>
+      <thead>
+        <tr>
+          <th>FromStationName</th>
+          {% for c in matrix_cols %}
+            <th>{{ c }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in matrix_rows %}
+          <tr>
+            <td>{{ r.FromStationName }}</td>
+            {% for v in r.values %}
+              <td>{{ v }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Matrix expand/collapse button (close to the table) -->
+    <div style="margin: 4px 0 0 0; text-align: right;">
+      <span id="matrixToggleBtn" class="expand-btn">▼ הצג עוד</span>
+    </div>
+  </div>
+
+</div>
+
+
+
+<h3 id="convergenceHeadline" style="margin:80px 0 5px 0;">פירוט הקווים שעוברים בתחנה:</h3>
+
+<div class="filter-container convergence-filters" style="margin-top:5px; margin-bottom:10px;">
+  <div class="filter-group">
+    <label for="WeekDayFilter">סינון לפי תקופת שבוע:</label>
+    <div id="WeekDayCheckboxes" class="checkbox-group"></div>
+  </div>
+
+  <div class="filter-group">
+    <label for="BusDirectionFilter">סינון לפי כיוון נסיעת האוטובוס:</label>
+    <select id="BusDirectionFilter"></select>
+  </div>
+</div>
+
+<div id="convergence_data_container">
+  <table>
+    <thead>
+      <tr>
+        <th>שם תחנת הרכבת</th>
+        <th>מפעיל</th>
+        <th>קוד תחנת אוטובוס</th>
+        <th>שם תחנת אוטובוס</th>
+        <th>מק"ט</th>
+        <th>שילוט</th>
+        <th>כיוון</th>
+        <th>חלופה</th>
+        <th>סוג קו</th>
+        <th>מוצא</th>
+        <th>יעד</th>
+        <th>תקופת שבוע</th>
+        <th>כיוון נסיעת האוטובוס</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in bus_info %}
+      <tr>
+        <td>{{ row.station_name }}</td>
+        <td>{{ row.operator }}</td>
+        <td>{{ row.bus_code_name }}</td>
+        <td>{{ row.bus_station_name }}</td>
+        <td>{{ row.OfficeLineID }}</td>
+        <td>{{ row.Line }}</td>
+        <td>{{ row.Direction }}</td>
+        <td>{{ row.Alternative }}</td>
+        <td>{{ row.LineType }}</td>
+        <td>{{ row.Start_StopCode }}</td>
+        <td>{{ row.End_StopCode }}</td>
+        <td>{{ row.WeekPeriod }}</td>
+        <td>{{ row.Bus_Direction }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- endregion BLOCK 3 -->
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // region BLOCK 4A
+  const table_rating = document.querySelector("#rating_table table");
+  const stationTitleSuffix = document.getElementById("stationTitleSuffix");
+
+  const stationDropdown = document.getElementById("stationFilter");
+  const yearDropdown = document.getElementById("yearFilter");
+  const monthDropdown = document.getElementById("monthFilter");
+
+  const busDirectionDropdown = document.getElementById("BusDirectionFilter");
+  const weekDayCheckboxContainer = document.getElementById("WeekDayCheckboxes");
+
+  const matrixSection = document.getElementById("matrixSection");
+  const matrixToggleBtn = document.getElementById("matrixToggleBtn");
+
+  // endregion BLOCK 4A
+
+
+  // region BLOCK 4B
+  const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
+
+  const toInt = (s) => {
+    const n = parseInt(norm(s), 10);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  function buildWeekdayCheckboxesFromTable(tableEl, headerName, containerEl) {
+    if (!tableEl || !containerEl) return;
+
+    const ths = Array.from(tableEl.querySelectorAll("th"));
+    const idx = ths.findIndex(th => norm(th.textContent) === headerName);
+
+    containerEl.innerHTML = "";
+    if (idx === -1) return;
+
+    const rows = Array.from(tableEl.querySelectorAll("tr")).filter(r => !r.querySelector("th"));
+
+    const tokenSet = new Set();
+    rows.forEach(r => {
+      const cell = norm(r.children[idx]?.textContent);
+      if (!cell) return;
+
+      cell.split(",").map(x => norm(x)).filter(Boolean).forEach(tok => tokenSet.add(tok));
+    });
+
+    const preferredOrder = ["יום חול", "שישי", "שבת"];
+    const tokens = Array.from(tokenSet);
+    tokens.sort((a,b) => {
+      const ia = preferredOrder.indexOf(a);
+      const ib = preferredOrder.indexOf(b);
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      return a.localeCompare(b);
+    });
+
+    tokens.forEach(tok => {
+      const label = document.createElement("label");
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = tok;
+
+      const span = document.createElement("span");
+      span.textContent = tok;
+
+      label.appendChild(cb);
+      label.appendChild(span);
+      containerEl.appendChild(label);
+    });
+  }
+
+  function goToMainPagePath(selectedStation, selectedYearStr, selectedMonthStr) {
+    // If year/month missing → go to base page
+    if (!selectedYearStr || !selectedMonthStr) {
+      window.location.href = "/main_page/";
+      return;
+    }
+
+    // If station is empty -> go to base page (simplest behavior)
+    if (!selectedStation) {
+      window.location.href = "/main_page/";
+      return;
+    }
+
+    const url =
+      "/main_page/" +
+      encodeURIComponent(selectedStation) + "/" +
+      encodeURIComponent(selectedYearStr) + "/" +
+      encodeURIComponent(selectedMonthStr) + "/";
+
+    window.location.href = url;
+  }
+
+  function filterConvergenceTable(selectedStation) {
+  const convergenceTable = document.querySelector("#convergence_data_container table");
+  if (!convergenceTable) return;
+
+  const ths = Array.from(convergenceTable.querySelectorAll("th"));
+  const idxOf = (name) => ths.findIndex(th => norm(th.textContent) === name);
+
+  const stationIdx = idxOf("שם תחנת הרכבת");
+  const busDirIdx  = idxOf("כיוון נסיעת האוטובוס");
+  const weekIdx    = idxOf("תקופת שבוע");
+
+  const selectedBusDir = norm(busDirectionDropdown.value);
+
+  const selectedWeeks = new Set(
+    Array.from(weekDayCheckboxContainer.querySelectorAll('input[type="checkbox"]:checked'))
+      .map(cb => norm(cb.value))
+      .filter(Boolean)
+  );
+
+  const rows = Array.from(convergenceTable.querySelectorAll("tbody tr"));
+
+  rows.forEach(r => {
+    const st  = stationIdx !== -1 ? norm(r.children[stationIdx]?.textContent) : "";
+    const bd  = busDirIdx  !== -1 ? norm(r.children[busDirIdx]?.textContent) : "";
+    const wkCell = weekIdx !== -1 ? norm(r.children[weekIdx]?.textContent) : "";
+
+    const wkTokens = wkCell
+      ? wkCell.split(",").map(x => norm(x)).filter(Boolean)
+      : [];
+
+    // Filters:
+    // 1) station filter (optional)
+    const matchStation = !selectedStation || st === selectedStation;
+
+    // 2) bus direction filter (optional)
+    const matchBusDir = !selectedBusDir || bd === selectedBusDir;
+
+    // 3) week-period filter (optional): if nothing checked -> allow all
+    const matchWeek = (selectedWeeks.size === 0)
+      ? true
+      : wkTokens.some(t => selectedWeeks.has(t));
+
+    r.style.display = (matchStation && matchBusDir && matchWeek) ? "" : "none";
+  });
+}
+
+  // endregion BLOCK 4B
+
+
+  // region BLOCK 4C
+  function buildYearToMonthsFromRankingTable() {
+    const table = document.querySelector("#rating_table table");
+    const map = new Map();
+    if (!table) return map;
+
+    const ths = Array.from(table.querySelectorAll("th"));
+    const yearIdx = ths.findIndex(th => norm(th.textContent) === "שנה");
+    const monthIdx = ths.findIndex(th => norm(th.textContent) === "חודש");
+    if (yearIdx === -1 || monthIdx === -1) return map;
+
+    const rows = Array.from(table.querySelectorAll("tr")).filter(r => !r.querySelector("th"));
+    rows.forEach(r => {
+      const y = toInt(r.children[yearIdx]?.textContent);
+      const m = toInt(r.children[monthIdx]?.textContent);
+      if (y == null || m == null) return;
+
+      if (!map.has(y)) map.set(y, new Set());
+      map.get(y).add(m);
+    });
+
+    return map;
+  }
+  // endregion BLOCK 4C
+
+
+
+  // region BLOCK 4D
+  function populateYearDropdown(yearToMonths) {
+    yearDropdown.innerHTML = "";
+
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = "בחר שנה";
+    yearDropdown.appendChild(ph);
+
+    const years = Array.from(yearToMonths.keys()).sort((a,b)=>a-b);
+    years.forEach(y => {
+      const opt = document.createElement("option");
+      opt.value = String(y);
+      opt.textContent = String(y);
+      yearDropdown.appendChild(opt);
+    });
+
+    yearDropdown.value = "";
+
+    monthDropdown.innerHTML = "";
+    const mph = document.createElement("option");
+    mph.value = "";
+    mph.textContent = "בחר חודש";
+    monthDropdown.appendChild(mph);
+    monthDropdown.value = "";
+  }
+
+  function populateMonthDropdown(yearToMonths) {
+    monthDropdown.innerHTML = "";
+
+    const mph = document.createElement("option");
+    mph.value = "";
+    mph.textContent = "בחר חודש";
+    monthDropdown.appendChild(mph);
+
+    const y = parseInt(yearDropdown.value, 10);
+    if (!Number.isFinite(y) || !yearToMonths.has(y)) {
+      monthDropdown.value = "";
+      return;
+    }
+
+    const months = Array.from(yearToMonths.get(y)).sort((a,b)=>a-b);
+    months.forEach(m => {
+      const opt = document.createElement("option");
+      opt.value = String(m);
+      opt.textContent = String(m);
+      monthDropdown.appendChild(opt);
+    });
+
+    monthDropdown.value = "";
+  }
+  // endregion BLOCK 4D
+
+
+  // region BLOCK 4E
+  function ensureFirstHeaderEmpty(tbl) {
+    const headerRow = tbl ? tbl.querySelector("tr") : null;
+    if (headerRow && headerRow.children.length > 0) headerRow.children[0].innerText = "";
+  }
+
+  function hideAllTables() {
+  // rating table: hide only body rows
+  if (table_rating) {
+    Array.from(table_rating.querySelectorAll("tbody tr"))
+      .forEach(r => r.style.display = "none");
+  }
+
+  // matrix: hide the entire section
+  if (matrixSection) matrixSection.style.display = "none";
+
+  // convergence table: hide only body rows (keep header visible)
+  const t3 = document.querySelector("#convergence_data_container table");
+  if (t3) {
+    Array.from(t3.querySelectorAll("tbody tr"))
+      .forEach(r => r.style.display = "none");
+  }
+}
+
+  // endregion BLOCK 4E
+
+
+
+    // region BLOCK 4F
+
+    function sortMatrixColumnsByTotalDesc(matrixTableEl) {
+      if (!matrixTableEl) return;
+
+      const theadRow = matrixTableEl.querySelector("thead tr");
+      const tbodyRows = Array.from(matrixTableEl.querySelectorAll("tbody tr"));
+      if (!theadRow || tbodyRows.length === 0) return;
+
+      const headerCells = Array.from(theadRow.children);
+
+      // Column 0 is FromStationName -> never move it
+      const colCount = headerCells.length;
+      if (colCount <= 2) return; // nothing to sort
+
+      // Compute total sum per column (skip col 0)
+      const totals = [];
+      for (let colIdx = 1; colIdx < colCount; colIdx++) {
+        let sum = 0;
+        tbodyRows.forEach(r => {
+          const cell = r.children[colIdx];
+          if (!cell) return;
+          const txt = norm(cell.textContent);
+
+          // allow numbers like "1,234" or empty
+          const n = parseFloat(txt.replace(/,/g, ""));
+          if (Number.isFinite(n)) sum += n;
+        });
+        totals.push({ colIdx, sum });
+      }
+
+      // Sort columns by total descending
+      totals.sort((a, b) => b.sum - a.sum);
+
+      // Reorder headers (keep first column as-is)
+      const newHeader = [headerCells[0], ...totals.map(t => headerCells[t.colIdx])];
+      newHeader.forEach(cell => theadRow.appendChild(cell));
+
+      // Reorder every row in tbody similarly
+      tbodyRows.forEach(r => {
+        const cells = Array.from(r.children);
+        const newRowCells = [cells[0], ...totals.map(t => cells[t.colIdx])];
+        newRowCells.forEach(cell => r.appendChild(cell));
+      });
+    }
+
+      function parseMatrixCellNumber(txt) {
+    const s = norm(txt).replace(/,/g, "");
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function reorderAndLimitMatrixColumnsTopN(topN) {
+    const tbl = document.querySelector("#matrix_table_container table");
+    if (!tbl) return;
+
+    const theadRow = tbl.querySelector("thead tr");
+    const bodyRows = Array.from(tbl.querySelectorAll("tbody tr"));
+    if (!theadRow || bodyRows.length === 0) return;
+
+    // We sort by the FIRST row's values (fits your use-case: matrix_rows = one row)
+    const firstRowTds = Array.from(bodyRows[0].children);
+
+    // Header cells
+    const ths = Array.from(theadRow.children);
+
+    // Column 0 is FromStationName, keep it fixed.
+    // Columns 1..end are ToStationName columns that we sort by value descending.
+    const colMeta = [];
+    for (let colIdx = 1; colIdx < ths.length; colIdx++) {
+      const val = parseMatrixCellNumber(firstRowTds[colIdx]?.textContent);
+      colMeta.push({ colIdx, val });
+    }
+
+    colMeta.sort((a, b) => b.val - a.val);
+
+    // Reorder header cells (keep col0 first)
+    const newHeaderCells = [ths[0], ...colMeta.map(x => ths[x.colIdx])];
+    newHeaderCells.forEach(cell => theadRow.appendChild(cell));
+
+    // Reorder each body row's cells the same way
+    bodyRows.forEach(row => {
+      const tds = Array.from(row.children);
+      const newCells = [tds[0], ...colMeta.map(x => tds[x.colIdx])];
+      newCells.forEach(cell => row.appendChild(cell));
+    });
+
+    // After reorder, apply topN visibility (collapsed by default)
+    const allColsCount = theadRow.children.length;
+
+    // helper to show/hide by column index in the *current* order
+    function setColumnVisible(colIndex, visible) {
+      // header
+      const h = theadRow.children[colIndex];
+      if (h) h.style.display = visible ? "" : "none";
+
+      // each row cell
+      bodyRows.forEach(r => {
+        const c = r.children[colIndex];
+        if (c) c.style.display = visible ? "" : "none";
+      });
+    }
+
+    // state stored on table
+    if (tbl.dataset.matrixExpanded == null) tbl.dataset.matrixExpanded = "0";
+
+    const expanded = tbl.dataset.matrixExpanded === "1";
+
+    // Always show col 0
+    setColumnVisible(0, true);
+
+    if (expanded) {
+      // Show all columns
+      for (let i = 1; i < allColsCount; i++) setColumnVisible(i, true);
+    } else {
+      // Show only topN after FromStationName (which are now the first columns after reorder)
+      for (let i = 1; i < allColsCount; i++) setColumnVisible(i, i <= topN);
+    }
+  }
+
+  function setupMatrixToggle(topN) {
+    const btn = document.getElementById("matrixToggleBtn");
+    const tbl = document.querySelector("#matrix_table_container table");
+    if (!btn || !tbl) return;
+
+    // default collapsed
+    if (tbl.dataset.matrixExpanded == null) tbl.dataset.matrixExpanded = "0";
+
+    const refreshBtnText = () => {
+      const expanded = tbl.dataset.matrixExpanded === "1";
+      btn.textContent = expanded ? "▲ הצג פחות" : "▼ הצג עוד";
+    };
+
+    btn.addEventListener("click", () => {
+      const expanded = tbl.dataset.matrixExpanded === "1";
+      tbl.dataset.matrixExpanded = expanded ? "0" : "1";
+
+      // re-apply visibility (and keep sort order)
+      reorderAndLimitMatrixColumnsTopN(topN);
+      refreshBtnText();
+    });
+
+    // initial label
+    refreshBtnText();
+  }
+    // endregion BLOCK 4F
+
+
+  // region BLOCK 4G
+  function fillDropdownFromTableUnique(tableEl, headerName, dropdownEl, emptyText) {
+    if (!tableEl || !dropdownEl) return;
+
+    const ths = Array.from(tableEl.querySelectorAll("th"));
+    const idx = ths.findIndex(th => norm(th.textContent) === headerName);
+
+    dropdownEl.innerHTML = "";
+    const emptyOpt = document.createElement("option");
+    emptyOpt.value = "";
+    emptyOpt.textContent = emptyText;
+    dropdownEl.appendChild(emptyOpt);
+
+    if (idx === -1) return;
+
+    const rows = Array.from(tableEl.querySelectorAll("tr")).filter(r => !r.querySelector("th"));
+    const set = new Set();
+    rows.forEach(r => {
+      const v = norm(r.children[idx]?.textContent);
+      if (v) set.add(v);
+    });
+
+    Array.from(set).sort().forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      dropdownEl.appendChild(opt);
+    });
+  }
+  // endregion BLOCK 4G
+
+
+  // region BLOCK 4H
+  let dataRows = [];
+  let stationColIndex = -1;
+  let yearColIndexT1 = -1;
+  let monthColIndexT1 = -1;
+  // endregion BLOCK 4H
+
+
+
+  if (table_rating && stationDropdown && yearDropdown && monthDropdown && busDirectionDropdown && weekDayCheckboxContainer) {
+  // region BLOCK 4I
+    Array.from(table_rating.querySelectorAll("th")).forEach((th, i) => {
+      const t = norm(th.innerText);
+      if (t === "שם תחנת הרכבת") stationColIndex = i;
+      if (t === "שנה") yearColIndexT1 = i;
+      if (t === "חודש") monthColIndexT1 = i;
+    });
+
+    if (stationColIndex !== -1) {
+      const allRows = Array.from(table_rating.querySelectorAll("tr"));
+      dataRows = allRows.filter(r => !r.querySelector("th"));
+
+      const stationSet = new Set();
+      dataRows.forEach(r => {
+        const v = norm(r.children[stationColIndex]?.innerText);
+        if (v) stationSet.add(v);
+      });
+
+      stationDropdown.innerHTML = "";
+
+      const sph = document.createElement("option");
+      sph.value = "";
+      sph.textContent = "בחר תחנה";
+      stationDropdown.appendChild(sph);
+
+      Array.from(stationSet).sort().forEach(st => {
+        const opt = document.createElement("option");
+        opt.value = st;
+        opt.textContent = st;
+        stationDropdown.appendChild(opt);
+      });
+
+      dataRows.forEach(r => r.style.display = "none");
+    }
+
+    const t3Init = document.querySelector("#convergence_data_container table");
+    fillDropdownFromTableUnique(t3Init, "כיוון נסיעת האוטובוס", busDirectionDropdown, "הכל");
+    buildWeekdayCheckboxesFromTable(t3Init, "תקופת שבוע", weekDayCheckboxContainer);
+
+    let yearToMonths = buildYearToMonthsFromRankingTable();
+    populateYearDropdown(yearToMonths);
+
+    // make first header cell empty in matrix table
+    ensureFirstHeaderEmpty(document.querySelector("#matrix_table_container table"));
+
+    // sort the matrix table
+    sortMatrixColumnsByTotalDesc(document.querySelector("#matrix_table_container table"));
+
+
+    //set dropdown values from server AFTER populating
+    stationDropdown.value = "{{ station_name|escapejs }}";
+
+    yearDropdown.value = "{{ year|escapejs }}";
+    populateMonthDropdown(yearToMonths);
+
+    monthDropdown.value = "{{ month|escapejs }}";
+
+    // Matrix: sort columns by value (desc) + show only top 10 until expanded
+    setupMatrixToggle(10);
+    reorderAndLimitMatrixColumnsTopN(10);
+  // endregion BLOCK 4I
+
+
+  // region BLOCK 4J
+    function applyFilters() {
+  const selectedStation = stationDropdown.value;
+  const selectedYearStr = yearDropdown.value;
+  const selectedMonthStr = monthDropdown.value;
+
+  // Always filter convergence table by its own filters (and station if chosen)
+  filterConvergenceTable(selectedStation);
+
+  // If no year/month -> hide rating + matrix (but KEEP convergence visible)
+  if (!selectedYearStr || !selectedMonthStr) {
+    // hide rating rows
+    if (table_rating) {
+      Array.from(table_rating.querySelectorAll("tbody tr"))
+        .forEach(r => r.style.display = "none");
+    }
+
+    // hide matrix section
+    if (matrixSection) matrixSection.style.display = "none";
+
+    // title suffix off
+    if (stationTitleSuffix) stationTitleSuffix.textContent = "";
+
+    return;
+  }
+
+  // From here: year+month exist
+  if (stationTitleSuffix) {
+    stationTitleSuffix.textContent = selectedStation ? (" - " + selectedStation) : "";
+  }
+
+  // show matrix section
+  if (matrixSection) matrixSection.style.display = "";
+
+  const selectedYear = parseInt(selectedYearStr, 10);
+  const selectedMonth = parseInt(selectedMonthStr, 10);
+
+  // update links
+  const link = document.getElementById("ConvergencePageLink");
+  if (link) {
+    link.href =
+      "/home/convergence/?station=" + encodeURIComponent(selectedStation) +
+      "&year=" + encodeURIComponent(selectedYearStr) +
+      "&month=" + encodeURIComponent(selectedMonthStr);
+  }
+
+  const stationInfoLink = document.getElementById("TrainStationInfo");
+  if (stationInfoLink) {
+    stationInfoLink.href =
+      "/train_times/?station=" + encodeURIComponent(selectedStation) +
+      "&year=" + encodeURIComponent(selectedYearStr) +
+      "&month=" + encodeURIComponent(selectedMonthStr);
+
+    stationInfoLink.style.pointerEvents = selectedStation ? "auto" : "none";
+    stationInfoLink.style.opacity = selectedStation ? "1" : "0.5";
+  }
+
+  // --------- rating table filtering (THIS is what you lost) ----------
+  if (dataRows.length && stationColIndex !== -1) {
+    dataRows.forEach(row => {
+      const st = norm(row.children[stationColIndex]?.innerText);
+      const y = yearColIndexT1 !== -1 ? toInt(row.children[yearColIndexT1]?.innerText) : null;
+      const m = monthColIndexT1 !== -1 ? toInt(row.children[monthColIndexT1]?.innerText) : null;
+
+      const matchYM = (y === selectedYear && m === selectedMonth);
+      const matchStation = !selectedStation || st === selectedStation;
+
+      row.style.display = (matchYM && matchStation) ? "" : "none";
+    });
+  }
+
+  // matrix filter (your existing function)
+  filterMatrixTable(selectedStation, selectedYear, selectedMonth);
+}
+
+  // endregion BLOCK 4J
+
+
+  // region BLOCK 4K
+  // --- station/year/month should change the URL (server reload) ---
+
+  stationDropdown.addEventListener("change", () => {
+    // Only redirect when Year + Month exist
+    if (yearDropdown.value && monthDropdown.value) {
+      goToMainPagePath(stationDropdown.value, yearDropdown.value, monthDropdown.value);
+    } else {
+      // Not enough info yet -> keep user on the same page and hide tables
+      hideAllTables();
+    }
+  });
+
+  yearDropdown.addEventListener("change", () => {
+  // rebuild map from rating table (source of truth)
+  yearToMonths = buildYearToMonthsFromRankingTable();
+
+  // rebuild month options based on selected year
+  populateMonthDropdown(yearToMonths);
+
+  hideAllTables();
+
+  // optional: if month already selected, redirect immediately
+  if (monthDropdown.value) {
+    goToMainPagePath(stationDropdown.value, yearDropdown.value, monthDropdown.value);
+  }
+});
+
+  monthDropdown.addEventListener("change", () => {
+    // Only redirect when Year + Month exist
+    if (yearDropdown.value && monthDropdown.value) {
+      goToMainPagePath(stationDropdown.value, yearDropdown.value, monthDropdown.value);
+    } else {
+      hideAllTables();
+    }
+  });
+
+  // --- bus filters stay in-page (no reload) ---
+  busDirectionDropdown.addEventListener("change", applyFilters);
+  weekDayCheckboxContainer.addEventListener("change", applyFilters);
+
+  // endregion BLOCK 4K
+
+
+
+  // region BLOCK 4L
+    // NEW: show tables on load if year & month exist
+    if (yearDropdown.value && monthDropdown.value) {
+      applyFilters();
+    } else {
+      hideAllTables();
+    }
+  // endregion BLOCK 4L
+  }
+  });
+</script>
+
+
+
+</body>
+</html>
