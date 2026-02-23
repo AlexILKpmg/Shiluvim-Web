@@ -122,22 +122,22 @@
 
         <svg id="arrowSVG" width="240" height="1960" style="margin-top:20px;">
 
-          <line x1="120" y1="30" x2="120" y2="1920" stroke="#0077cc" stroke-width="6"/>
-          <polygon points="120,1960 100,1920 140,1920" fill="#0077cc"/>
+          <line x1="112" y1="30" x2="112" y2="1920" stroke="#3f3f3f" stroke-width="3"/>
+          <line x1="128" y1="30" x2="128" y2="1920" stroke="#3f3f3f" stroke-width="3"/>
 
-          <text x="100" y="40"  font-size="14">05:00</text>
-          <text x="100" y="197" font-size="14">07:00</text>
-          <text x="100" y="354" font-size="14">09:00</text>
-          <text x="100" y="511" font-size="14">11:00</text>
-          <text x="100" y="668" font-size="14">13:00</text>
-          <text x="100" y="825" font-size="14">15:00</text>
-          <text x="100" y="982" font-size="14">17:00</text>
-          <text x="100" y="1139" font-size="14">19:00</text>
-          <text x="100" y="1296" font-size="14">21:00</text>
-          <text x="100" y="1453" font-size="14">23:00</text>
-          <text x="100" y="1610" font-size="14">01:00</text>
-          <text x="100" y="1767" font-size="14">03:00</text>
-          <text x="100" y="1924" font-size="14">05:00</text>
+          <text x="100" y="40"  font-size="12">05:00</text>
+          <text x="100" y="197" font-size="12">07:00</text>
+          <text x="100" y="354" font-size="12">09:00</text>
+          <text x="100" y="511" font-size="12">11:00</text>
+          <text x="100" y="668" font-size="12">13:00</text>
+          <text x="100" y="825" font-size="12">15:00</text>
+          <text x="100" y="982" font-size="12">17:00</text>
+          <text x="100" y="1139" font-size="12">19:00</text>
+          <text x="100" y="1296" font-size="12">21:00</text>
+          <text x="100" y="1453" font-size="12">23:00</text>
+          <text x="100" y="1610" font-size="12">01:00</text>
+          <text x="100" y="1767" font-size="12">03:00</text>
+          <text x="100" y="1924" font-size="12">05:00</text>
 
         </svg>
 
@@ -564,6 +564,8 @@ function redrawTrains() {
     svg.querySelectorAll(".train-item, .perc-item").forEach(el => el.remove());
 
     const filteredTimes = getFilteredTimes();
+    const seenTrainTime = new Set();
+    const uniqueTrainRows = [];
 
     filteredTimes.forEach(row => {
         const timeVal = (activeDirection === "לכיוון תל אביב")
@@ -576,6 +578,47 @@ function redrawTrains() {
         const trainId = String(row["מספר הרכבת"] ?? "").trim();
         if (!trainId) return;
 
+        const normalizedTime = extractHHMM(timeVal) || String(timeVal ?? "").trim();
+        if (!normalizedTime) return;
+
+        const uniqueKey = trainId + "||" + normalizedTime;
+        if (seenTrainTime.has(uniqueKey)) return;
+        seenTrainTime.add(uniqueKey);
+
+        uniqueTrainRows.push({
+            row,
+            timeVal,
+            y,
+            trainId,
+            xOffset: 0
+        });
+    });
+
+    // Jitter only unique train-time items that are closer than 4 minutes.
+    const pxPerMinute = (1920 - 40) / (24 * 60);
+    const jitterThresholdPx = 4 * pxPerMinute;
+    const jitterStepX = 10;
+
+    uniqueTrainRows.sort((a, b) => a.y - b.y);
+
+    let i = 0;
+    while (i < uniqueTrainRows.length) {
+        let j = i + 1;
+        while (j < uniqueTrainRows.length && (uniqueTrainRows[j].y - uniqueTrainRows[j - 1].y) < jitterThresholdPx) {
+            j += 1;
+        }
+
+        const clusterSize = j - i;
+        const startX = -((clusterSize - 1) * jitterStepX) / 2;
+        for (let k = 0; k < clusterSize; k += 1) {
+            uniqueTrainRows[i + k].xOffset = startX + (k * jitterStepX);
+        }
+        i = j;
+    }
+
+    uniqueTrainRows.forEach(item => {
+        const { row, timeVal, y, trainId, xOffset } = item;
+
         if (activeDirection === "לכיוון תל אביב") {
             const percKey = buildPercKeyForLookup(row, trainId);
             const percStr = percKey ? TRAIN_PERC[percKey] : null;
@@ -583,7 +626,7 @@ function redrawTrains() {
             if (percStr !== undefined && percStr !== null && String(percStr).trim() !== "") {
                 const percText = document.createElementNS("http://www.w3.org/2000/svg", "text");
 
-                percText.setAttribute("x", "110");
+                percText.setAttribute("x", String(110 + xOffset));
                 percText.setAttribute("y", String(y));
                 percText.setAttribute("font-size", "12");
                 percText.setAttribute("fill", "#333");
@@ -612,7 +655,7 @@ function redrawTrains() {
 
         const tri = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
 
-        const x = 120;
+        const x = 120 + xOffset;
         const size = 12;
         const yPos = y - size / 2;
 
@@ -946,4 +989,5 @@ renderBusTable();
 
 </body>
 </html>
+
 
