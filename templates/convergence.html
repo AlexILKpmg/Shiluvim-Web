@@ -271,6 +271,7 @@ function updateTitleFromState() {
 // region COV 5D
 let activeDirection = "לכיוון תל אביב";
 let activeTrain = null;
+let activeTrainUid = null;
 let activeBusRowKey = null;
 
 function getMasterData() {
@@ -323,20 +324,29 @@ function clearTrainOutlines() {
 function applyPercFilter() {
     const percs = svg.querySelectorAll(".perc-item");
     percs.forEach(p => {
+        const uid = p.getAttribute("data-train-uid") || "";
         const tid = p.getAttribute("data-train") || "";
-        p.style.display = (activeTrain && tid === activeTrain) ? "" : "none";
+        if (!activeTrain) {
+            p.style.display = "none";
+            return;
+        }
+        p.style.display = (activeTrainUid ? (uid === activeTrainUid) : (tid === activeTrain)) ? "" : "none";
     });
 }
 
-function setActiveTrain(trainId) {
+function setActiveTrain(trainId, trainUid = null) {
     activeTrain = trainId ? String(trainId) : null;
+    activeTrainUid = trainUid ? String(trainUid) : null;
 
     applyBusFilter();
     applyPercFilter();
 
     clearTrainOutlines();
     if (activeTrain) {
-        const selected = svg.querySelectorAll('.train-item[data-train="' + activeTrain + '"]');
+        const selector = activeTrainUid
+            ? '.train-item[data-train-uid="' + activeTrainUid + '"]'
+            : '.train-item[data-train="' + activeTrain + '"]';
+        const selected = svg.querySelectorAll(selector);
         selected.forEach(t => {
             t.setAttribute("stroke", "#cc0000");
             t.setAttribute("stroke-width", "1.5");
@@ -590,6 +600,7 @@ function redrawTrains() {
             timeVal,
             y,
             trainId,
+            trainUid: uniqueKey,
             xOffset: 0
         });
     });
@@ -617,7 +628,7 @@ function redrawTrains() {
     }
 
     uniqueTrainRows.forEach(item => {
-        const { row, timeVal, y, trainId, xOffset } = item;
+        const { row, timeVal, y, trainId, trainUid, xOffset } = item;
 
         if (activeDirection === "לכיוון תל אביב") {
             const percKey = buildPercKeyForLookup(row, trainId);
@@ -644,6 +655,7 @@ function redrawTrains() {
 
                 percText.classList.add("perc-item");
                 percText.setAttribute("data-train", trainId);
+                percText.setAttribute("data-train-uid", trainUid);
                 percText.style.display = "none";
 
                 svg.appendChild(percText);
@@ -668,6 +680,7 @@ function redrawTrains() {
 
         tri.classList.add("train-item");
         tri.setAttribute("data-train", trainId);
+        tri.setAttribute("data-train-uid", trainUid);
         tri.style.cursor = "pointer";
 
         const trainTimeStr = extractHHMM(timeVal) || String(timeVal);
@@ -677,17 +690,18 @@ function redrawTrains() {
 
         tri.addEventListener("click", (e) => {
             e.stopPropagation();
-            if (activeTrain === trainId) {
+            if (activeTrainUid === trainUid) {
                 setActiveTrain(null);
             } else {
-                setActiveTrain(trainId);
+                setActiveTrain(trainId, trainUid);
             }
         });
 
         svg.appendChild(tri);
     });
 
-    setActiveTrain(activeTrain);
+    setActiveTrain(activeTrain, activeTrainUid);
+    updateBusHeadersSticky();
 }
 // endregion COV 5J
 
@@ -727,9 +741,52 @@ function getBusRowsForCurrentView() {
   );
 }
 
+let busHeaderStickyBound = false;
+function updateBusHeadersSticky() {
+    const headers = svg.querySelectorAll(".bus-header");
+    if (!headers.length) return;
+
+    const svgRect = svg.getBoundingClientRect();
+    const svgTopAbs = window.scrollY + svgRect.top;
+    const baseY = 18;      // original header y in SVG
+    const topPad = 8;      // distance from top while sticky
+    const maxY = 1910;     // keep inside svg
+
+    let desiredY = baseY;
+    if (window.scrollY > svgTopAbs) {
+      desiredY = baseY + (window.scrollY - svgTopAbs) + topPad;
+    }
+
+    desiredY = Math.min(desiredY, maxY);
+
+    headers.forEach(h => {
+        h.setAttribute("y", String(desiredY));
+
+        const bg = h.previousElementSibling;
+        if (bg && bg.classList.contains("bus-header-bg")) {
+            const bb = h.getBBox();
+            const padX = 6;
+            const padY = 3;
+            bg.setAttribute("x", String(bb.x - padX));
+            bg.setAttribute("y", String(bb.y - padY));
+            bg.setAttribute("width", String(bb.width + padX * 2));
+            bg.setAttribute("height", String(bb.height + padY * 2));
+
+            // Keep header layer above bus dots.
+            svg.appendChild(bg);
+            svg.appendChild(h);
+        }
+    });
+}
+
 function redrawBuses() {
   clearBuses();
-
+  if (!busHeaderStickyBound) {
+    window.addEventListener("scroll", updateBusHeadersSticky, { passive: true });
+    window.addEventListener("resize", updateBusHeadersSticky);
+    busHeaderStickyBound = true;
+  }
+  updateBusHeadersSticky();
   const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה";
   const filteredTimes = getFilteredTimes();
 
@@ -778,13 +835,33 @@ function redrawBuses() {
     header.setAttribute("fill", "#000");
     header.setAttribute("font-weight", "700");
     header.setAttribute("text-anchor", "middle");
-
     header.setAttribute("direction", "ltr");
     header.setAttribute("unicode-bidi", "plaintext");
 
+    // White "pill" background around each header value
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.classList.add("bus-header-bg");
+    bg.setAttribute("rx", "4");
+    bg.setAttribute("ry", "4");
+    bg.setAttribute("fill", "#fff");
+    bg.setAttribute("stroke", "#ddd");
+    bg.setAttribute("stroke-width", "0.8");
+
     header.textContent = val;
+    svg.appendChild(bg);
     svg.appendChild(header);
+      // Must happen after header is in DOM so getBBox() is correct
+  const bb = header.getBBox();
+  const padX = 6;
+  const padY = 3;
+  bg.setAttribute("x", String(bb.x - padX));
+  bg.setAttribute("y", String(bb.y - padY));
+  bg.setAttribute("width", String(bb.width + padX * 2));
+  bg.setAttribute("height", String(bb.height + padY * 2));
+
   });
+  updateBusHeadersSticky();
+
 
   // For font scaling we need min/max passengers
   const passengerVals = busRows
@@ -821,7 +898,7 @@ function redrawBuses() {
 
     // size based on passengers (and then halved, as in your code)
     const avgPassengers = row["ממוצע נוסעים לנסיעה"];
-    const fontSize = (scaleFont(avgPassengers) / 2);
+    const fontSize = (scaleFont(avgPassengers) * 3);
 
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
     text.setAttribute("x", x);
@@ -839,7 +916,7 @@ function redrawBuses() {
     text.setAttribute("direction", "ltr");
     text.setAttribute("unicode-bidi", "plaintext");
 
-    text.textContent = shilot + (row["range_mark_any"] || "");
+    text.textContent = "." + (row["range_mark_any"] || "");
     text.style.cursor = "pointer";
 
     // Click => show only this row in the right-side table
@@ -870,6 +947,10 @@ function redrawBuses() {
   applyBusFilter();
   applyPercFilter();
 }
+
+
+
+
 // endregion COV 5K
 
 
@@ -989,5 +1070,8 @@ renderBusTable();
 
 </body>
 </html>
+
+
+
 
 
