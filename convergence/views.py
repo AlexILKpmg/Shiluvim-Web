@@ -93,7 +93,7 @@ def _build_train_perc_map(df: pd.DataFrame) -> dict[str, object]:
         m = int(row[COL_MONTH])
         t = row[COL_TRAIN_ID]
         d = row[COL_RAIL_DIR]
-        perc = row[COL_PERC]
+        perc = _format_percent(row[COL_PERC])
 
         key = f"{y}_{m}_{t}_{d}"
         out[key] = perc
