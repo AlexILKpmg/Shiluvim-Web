@@ -110,19 +110,20 @@ def convergence(request):
     m = (request.GET.get("month") or "").strip()
     month = int(m) if m.isdigit() else None
 
-    # Same guard behavior as train_times: require all three filters from URL.
-    if not station or year is None or month is None:
+    # Require station from URL; year/month can be changed from convergence page.
+    if not station:
         return render(
             request,
             "convergence.html",
             {
-                "debug_message": "חסר station/year/month ב-URL, לכן לא מוצגים נתונים.",
-                "station": station or "",
-                "year": year or "",
-                "month": month or "",
+                "debug_message": "missing station in URL",
+                "station": "",
+                "year": "",
+                "month": "",
                 "bus_to_rail_df_js": "[]",
                 "rail_to_bus_df_js": "[]",
                 "train_perc_js": "{}",
+                "year_month_pairs_js": "[]",
             },
         )
 
@@ -132,23 +133,42 @@ def convergence(request):
             request,
             "convergence.html",
             {
-                "debug_message": "\n".join(errors) if errors else "לא נמצאו נתונים.",
+                "debug_message": "\n".join(errors) if errors else "no data found",
                 "station": station,
-                "year": year,
-                "month": month,
+                "year": year or "",
+                "month": month or "",
                 "bus_to_rail_df_js": "[]",
                 "rail_to_bus_df_js": "[]",
                 "train_perc_js": "{}",
+                "year_month_pairs_js": "[]",
             },
         )
 
-    filtered = all_df.copy()
+    station_df = all_df.copy()
+    if COL_STATION in station_df.columns:
+        station_df = station_df[station_df[COL_STATION].astype(str).str.strip() == station]
 
-    if COL_STATION in filtered.columns:
-        filtered = filtered[filtered[COL_STATION].astype(str).str.strip() == station]
-    if COL_YEAR in filtered.columns:
+    year_month_pairs: list[dict[str, int]] = []
+    if COL_YEAR in station_df.columns and COL_MONTH in station_df.columns:
+        ym = station_df[[COL_YEAR, COL_MONTH]].copy()
+        ym[COL_YEAR] = pd.to_numeric(ym[COL_YEAR], errors="coerce").astype("Int64")
+        ym[COL_MONTH] = pd.to_numeric(ym[COL_MONTH], errors="coerce").astype("Int64")
+        ym = ym.dropna(subset=[COL_YEAR, COL_MONTH]).drop_duplicates().sort_values([COL_YEAR, COL_MONTH])
+        year_month_pairs = [
+            {"year": int(r[COL_YEAR]), "month": int(r[COL_MONTH])}
+            for _, r in ym.iterrows()
+        ]
+
+    if (year is None or month is None) and year_month_pairs:
+        if year is None:
+            year = year_month_pairs[0]["year"]
+        if month is None:
+            month = year_month_pairs[0]["month"]
+
+    filtered = station_df.copy()
+    if COL_YEAR in filtered.columns and year is not None:
         filtered = filtered[pd.to_numeric(filtered[COL_YEAR], errors="coerce") == year]
-    if COL_MONTH in filtered.columns:
+    if COL_MONTH in filtered.columns and month is not None:
         filtered = filtered[pd.to_numeric(filtered[COL_MONTH], errors="coerce") == month]
 
     if COL_RAIL_DIR in filtered.columns:
@@ -163,10 +183,11 @@ def convergence(request):
     context = {
         "debug_message": "\n".join(errors),
         "station": station,
-        "year": year,
-        "month": month,
+        "year": year or "",
+        "month": month or "",
         "bus_to_rail_df_js": _to_json_records(bus_to_rail_df),
         "rail_to_bus_df_js": _to_json_records(rail_to_bus_df),
         "train_perc_js": json.dumps(train_perc_map, ensure_ascii=False),
+        "year_month_pairs_js": json.dumps(year_month_pairs, ensure_ascii=False),
     }
     return render(request, "convergence.html", context)

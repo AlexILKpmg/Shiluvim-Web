@@ -226,6 +226,7 @@ function timeToY(timeValue) {
 const BUS_TO_RAIL_JSON = {{ bus_to_rail_df_js|safe }};
 const RAIL_TO_BUS_JSON = {{ rail_to_bus_df_js|safe }};
 const TRAIN_PERC = {{ train_perc_js|safe }};
+const YEAR_MONTH_PAIRS = {{ year_month_pairs_js|safe }};
 
 const params = new URLSearchParams(window.location.search);
 const station = params.get("station");
@@ -392,26 +393,14 @@ dirSelect.value = activeDirection;
 
 
 // region COV 5G
-function getYearMonthPairsForStation(stName) {
-    const stSel = String(stName ?? "").trim();
-    const pairs = [];
-
-    [BUS_TO_RAIL_JSON, RAIL_TO_BUS_JSON].forEach(arr => {
-        (arr || []).forEach(r => {
-            const st = String(r["שם תחנת הרכבת"] ?? "").trim();
-            if (st !== stSel) return;
-
-            const y = toIntAny(r["שנה"]);
-            const m = toIntAny(r["חודש"]);
-            if (y !== null && m !== null) pairs.push({ y, m });
-        });
-    });
-
-    return pairs;
+function getYearMonthPairsForStation() {
+    return (YEAR_MONTH_PAIRS || [])
+        .map(p => ({ y: parseInt(p.year, 10), m: parseInt(p.month, 10) }))
+        .filter(p => Number.isFinite(p.y) && Number.isFinite(p.m));
 }
 
 function populateYearDropdown() {
-    const pairs = getYearMonthPairsForStation(station);
+    const pairs = getYearMonthPairsForStation();
     const years = Array.from(new Set(pairs.map(p => p.y))).sort((a, b) => a - b);
 
     yearSelect.innerHTML = "";
@@ -437,7 +426,7 @@ function populateYearDropdown() {
 
 function populateMonthDropdown() {
     const ySel = parseInt(yearSelect.value, 10);
-    const pairs = getYearMonthPairsForStation(station);
+    const pairs = getYearMonthPairsForStation();
 
     const months = Array.from(new Set(
         pairs.filter(p => p.y === ySel).map(p => p.m)
@@ -514,6 +503,16 @@ function refreshAllAfterFilterChange() {
     redrawBuses();
     renderBusTable();
 }
+function navigateWithYearMonth() {
+    if (!station || !Number.isFinite(activeYear) || !Number.isFinite(activeMonth)) return;
+
+    const p = new URLSearchParams(window.location.search);
+    p.set("station", station);
+    p.set("year", String(activeYear));
+    p.set("month", String(activeMonth));
+
+    window.location.href = "/convergence/?" + p.toString();
+}
 // endregion COV 5H
 
 
@@ -524,7 +523,6 @@ dirSelect.addEventListener("change", () => {
     populateYearDropdown();
     populateMonthDropdown();
     updateTitleFromState();
-
     refreshAllAfterFilterChange();
 });
 
@@ -537,16 +535,14 @@ yearSelect.addEventListener("change", () => {
     const mSel = parseInt(monthSelect.value, 10);
     activeMonth = Number.isFinite(mSel) ? mSel : null;
 
-    updateTitleFromState();
-    refreshAllAfterFilterChange();
+    navigateWithYearMonth();
 });
 
 monthSelect.addEventListener("change", () => {
     const mSel = parseInt(monthSelect.value, 10);
     activeMonth = Number.isFinite(mSel) ? mSel : null;
 
-    updateTitleFromState();
-    refreshAllAfterFilterChange();
+    navigateWithYearMonth();
 });
 
 weekSelect.addEventListener("change", () => {
@@ -661,7 +657,7 @@ function clearBuses() {
 function buildBusRowKey(row) {
   const trainId = String(row["מספר הרכבת"] ?? "").trim();
   const shilot  = String(row["שילוט"] ?? "").trim();
-  const makat   = String(row["מקט"] ?? "").trim();
+  const makat = String(row['מק"ט'] ?? "").trim();
   const t = extractHHMM(row["זמן הגעה לתחנה"] ?? row["זמן יציאה מהתחנה"] ?? "") || "";
   return trainId + "||" + shilot + "||" + makat + "||" + t;
 }
@@ -820,7 +816,7 @@ function redrawBuses() {
     const bTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
     bTitle.textContent =
       "זמן: " + timeStr +
-      " | מקט: " + (makat || "—") +
+      " | מק\"ט: " + (makat || "—") +
       " | ממוצע נוסעים: " + avgStr;
 
     text.appendChild(bTitle);
@@ -850,7 +846,7 @@ function getTrainPercForRow(row) {
 // Defines which fields appear in the table and in what order
 const TABLE_FIELDS = [
   { key: "מפעיל", label: "מפעיל" },
-  { key: "מקט", label: "מקט" },
+  { key: 'מק"ט', label: 'מק"ט' },
   { key: "כיוון", label: "כיוון" },
   { key: "חלופה", label: "חלופה" },
   { key: "זמן יציאה", label: "זמן יציאה" },
@@ -946,10 +942,8 @@ updateSelectionHint();
 renderBusTable();
 // endregion COV 5M
 
-
-
-
 </script>
 
 </body>
 </html>
+
