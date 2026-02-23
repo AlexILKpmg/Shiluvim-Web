@@ -70,6 +70,24 @@ def _build_train_perc_map(df: pd.DataFrame) -> dict[str, object]:
     tmp = tmp[tmp[COL_TRAIN_ID] != ""]
     tmp = tmp[tmp[COL_RAIL_DIR] != ""]
 
+    def _format_percent(value: object) -> str:
+        s = str(value).strip()
+        if not s:
+            return ""
+
+        # Avoid duplicating the symbol when source already contains it.
+        if s.endswith("%"):
+            return s
+
+        try:
+            n = float(s)
+            # Keep integer values clean (e.g. 85 instead of 85.0).
+            s = str(int(n)) if n.is_integer() else str(n)
+        except ValueError:
+            pass
+
+        return f"{s}%"
+
     for _, row in tmp.iterrows():
         y = int(row[COL_YEAR])
         m = int(row[COL_MONTH])
