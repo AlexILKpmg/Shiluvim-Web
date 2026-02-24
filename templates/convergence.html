@@ -430,6 +430,10 @@ function setActiveTrain(trainId, trainUid = null) {
             t.setAttribute("stroke-width", "1.5");
         });
     }
+
+    if (typeof renderBusTable === "function") {
+        renderBusTable();
+    }
 }
 // endregion COV 5E
 
@@ -1266,7 +1270,10 @@ function renderBusTable() {
 
   // Choose which rows to show
   const allRows = getBusRowsForCurrentView();
-  const headerFilteredRows = getRowsAfterHeaderFilters(allRows);
+  const trainFilteredRows = activeTrain
+    ? allRows.filter(r => buildBusRowKey(r).startsWith(String(activeTrain).trim() + "||"))
+    : allRows;
+  const headerFilteredRows = getRowsAfterHeaderFilters(trainFilteredRows);
   const rows = activeBusRowKey
     ? headerFilteredRows.filter(r => buildBusRowKey(r) === activeBusRowKey)
     : headerFilteredRows;
@@ -1314,7 +1321,7 @@ function renderBusTable() {
       e.stopPropagation();
       const col = icon.getAttribute("data-col");
       if (col !== "operator" && col !== "makat") return;
-      openHeaderPopup(icon, col, allRows);
+      openHeaderPopup(icon, col, trainFilteredRows);
     });
   });
 }
