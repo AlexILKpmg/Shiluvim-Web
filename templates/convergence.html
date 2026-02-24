@@ -40,6 +40,9 @@
             flex: 1 1 auto;
             min-width: 520px;
             max-width: 980px;
+            position: sticky;
+            top: 8px;
+            align-self: flex-start;
         }
 
         .table-wrap h3 {
@@ -69,14 +72,34 @@
 
         .table-scroll {
             max-height: 900px;
-            overflow: auto;
+            overflow-y: auto;
+            overflow-x: hidden;
             border: 1px solid #bbb;
             border-radius: 8px;
+            direction: ltr;
+            padding-right: 8px;
+            box-sizing: border-box;
+            scrollbar-gutter: stable;
+        }
+
+        .table-scroll-top {
+            overflow-x: auto;
+            overflow-y: hidden;
+            border: 1px solid #bbb;
+            border-bottom: 0;
+            border-radius: 8px 8px 0 0;
+            height: 16px;
+            direction: ltr;
+        }
+
+        #busTableTopScrollInner {
+            height: 1px;
         }
 
         #busTable {
             width: 100%;
             border-collapse: collapse;
+            direction: rtl;
         }
 
         #busTable th, #busTable td {
@@ -85,6 +108,12 @@
             font-size: 12px;
             text-align: right;
             white-space: nowrap;
+        }
+
+        /* In RTL table, first DOM column is visually rightmost ("מפעיל"). */
+        #busTable th:first-child,
+        #busTable td:first-child {
+            padding-right: 22px;
         }
 
         #busTable th {
@@ -230,7 +259,10 @@
             <span id="selectionHint">מוצגות כל הנסיעות</span>
         </div>
 
-        <div class="table-scroll">
+        <div id="busTableTopScroll" class="table-scroll-top">
+            <div id="busTableTopScrollInner"></div>
+        </div>
+        <div id="busTableMainScroll" class="table-scroll">
             <table id="busTable">
                 <thead>
                     <tr id="busTableHeaderRow"></tr>
@@ -1245,6 +1277,58 @@ document.addEventListener("click", (e) => {
   }
 });
 
+let tableScrollSyncBound = false;
+
+function updateTopTableScrollbar() {
+  const top = document.getElementById("busTableTopScroll");
+  const topInner = document.getElementById("busTableTopScrollInner");
+  const main = document.getElementById("busTableMainScroll");
+  const table = document.getElementById("busTable");
+  if (!top || !topInner || !main || !table) return;
+
+  const width = table.scrollWidth;
+  topInner.style.width = width + "px";
+  top.style.display = width > main.clientWidth ? "block" : "none";
+}
+
+function bindTableScrollSync() {
+  if (tableScrollSyncBound) return;
+
+  const top = document.getElementById("busTableTopScroll");
+  const main = document.getElementById("busTableMainScroll");
+  if (!top || !main) return;
+
+  let syncingTop = false;
+  let syncingMain = false;
+
+  top.addEventListener("scroll", () => {
+    if (syncingMain) return;
+    syncingTop = true;
+    main.scrollLeft = top.scrollLeft;
+    syncingTop = false;
+  });
+
+  main.addEventListener("scroll", () => {
+    if (syncingTop) return;
+    syncingMain = true;
+    top.scrollLeft = main.scrollLeft;
+    syncingMain = false;
+  });
+
+  window.addEventListener("resize", updateTopTableScrollbar);
+  tableScrollSyncBound = true;
+}
+
+function alignTableScrollToRight() {
+  const top = document.getElementById("busTableTopScroll");
+  const main = document.getElementById("busTableMainScroll");
+  if (!top || !main) return;
+
+  const maxLeft = Math.max(0, main.scrollWidth - main.clientWidth);
+  main.scrollLeft = maxLeft;
+  top.scrollLeft = maxLeft;
+}
+
 function renderBusTable() {
   const headerRow = document.getElementById("busTableHeaderRow");
   const body = document.getElementById("busTableBody");
@@ -1324,6 +1408,10 @@ function renderBusTable() {
       openHeaderPopup(icon, col, trainFilteredRows);
     });
   });
+
+  bindTableScrollSync();
+  updateTopTableScrollbar();
+  alignTableScrollToRight();
 }
 // Clicking "הצג הכל" resets table back to all rows
 const clearBusBtn = document.getElementById("clearBusSelectionBtn");
