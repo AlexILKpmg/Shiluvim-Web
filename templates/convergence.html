@@ -102,6 +102,85 @@
         #busTable tbody tr:hover {
             background: #eef6ff;
         }
+
+        /* header search icon + popup (same pattern as train_times) */
+        .th-wrap {
+            position: relative;
+            padding-right: 22px;
+        }
+
+        .th-search-btn {
+            position: absolute;
+            right: 6px;
+            bottom: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+            opacity: 0.85;
+        }
+
+        .th-search-btn:hover {
+            opacity: 1;
+        }
+
+        .hdr-popup {
+            position: absolute;
+            z-index: 9999;
+            width: 220px;
+            background: #fff;
+            border: 1px solid #bbb;
+            border-radius: 10px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+            padding: 10px;
+            display: none;
+        }
+
+        .hdr-popup .popup-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .hdr-popup input {
+            width: 100%;
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            margin-bottom: 8px;
+            box-sizing: border-box;
+        }
+
+        .hdr-popup .popup-list {
+            max-height: 180px;
+            overflow: auto;
+            border-top: 1px solid #eee;
+            padding-top: 6px;
+        }
+
+        .hdr-popup .popup-item {
+            padding: 6px 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: right;
+        }
+
+        .hdr-popup .popup-item:hover {
+            background: #f2f2f2;
+        }
+
+        .hdr-popup .popup-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            justify-content: flex-end;
+        }
+
+        .hdr-popup .btn {
+            border: 1px solid #999;
+            background: #fff;
+            border-radius: 8px;
+            padding: 4px 10px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <!-- endregion COV BLOCK 2 -->
@@ -111,7 +190,6 @@
 <body>
 
 <h2 id="stationTitle"></h2>
-<h3 style="text-align:center;">זמני רכבות (רישוי) ואוטובוסים</h3>
 <!-- endregion COV BLOCK 3 -->
 
 
@@ -360,11 +438,11 @@ function setActiveTrain(trainId, trainUid = null) {
 const resetBtn = document.createElement("button");
 resetBtn.textContent = "איפוס סינון רכבות";
 resetBtn.style.cssText =
-    "margin: 10px 0 0 0; padding: 6px 10px; cursor:pointer; border:1px solid #999; background:#fff; border-radius:6px;";
+    "margin: 40px 0 0 0; padding: 6px 10px; cursor:pointer; border:1px solid #999; background:#fff; border-radius:6px;";
 
-const h3 = document.querySelector("h3");
-if (h3 && h3.parentNode) {
-    h3.parentNode.insertBefore(resetBtn, h3.nextSibling);
+const h2 = document.querySelector("h2");
+if (h2 && h2.parentNode) {
+    h2.parentNode.insertBefore(resetBtn, h2.nextSibling);
 }
 
 resetBtn.addEventListener("click", () => {
@@ -787,6 +865,7 @@ function redrawBuses() {
     busHeaderStickyBound = true;
   }
   updateBusHeadersSticky();
+
   const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה";
   const filteredTimes = getFilteredTimes();
 
@@ -850,18 +929,17 @@ function redrawBuses() {
     header.textContent = val;
     svg.appendChild(bg);
     svg.appendChild(header);
-      // Must happen after header is in DOM so getBBox() is correct
-  const bb = header.getBBox();
-  const padX = 6;
-  const padY = 3;
-  bg.setAttribute("x", String(bb.x - padX));
-  bg.setAttribute("y", String(bb.y - padY));
-  bg.setAttribute("width", String(bb.width + padX * 2));
-  bg.setAttribute("height", String(bb.height + padY * 2));
 
+    // Must happen after header is in DOM so getBBox() is correct
+    const bb = header.getBBox();
+    const padX = 6;
+    const padY = 3;
+    bg.setAttribute("x", String(bb.x - padX));
+    bg.setAttribute("y", String(bb.y - padY));
+    bg.setAttribute("width", String(bb.width + padX * 2));
+    bg.setAttribute("height", String(bb.height + padY * 2));
   });
   updateBusHeadersSticky();
-
 
   // For font scaling we need min/max passengers
   const passengerVals = busRows
@@ -883,7 +961,21 @@ function redrawBuses() {
     return minFont + curved * (maxFont - minFont);
   }
 
-  // Draw each bus as text at (x=signage column, y=timeToY)
+  function getMakatValue(row) {
+    const v1 = String(row["מק\"ט"] ?? "").trim();
+    if (v1) return v1;
+    return String(row['מק"ט'] ?? "").trim();
+  }
+
+  function getBusJitterGroupKey(row) {
+    const makat = getMakatValue(row);
+    const direction = String(row["כיוון"] ?? "").trim();
+    const alternative = String(row["חלופה"] ?? "").trim();
+    if (!makat || !direction || !alternative) return "";
+    return makat + "||" + direction + "||" + alternative;
+  }
+
+  const busItems = [];
   busRows.forEach(row => {
     const busTimeVal = row[busTimeCol];
     const y = timeToY(busTimeVal);
@@ -896,51 +988,85 @@ function redrawBuses() {
     const trainId = String(row["מספר הרכבת"] ?? "").trim();
     if (!trainId) return;
 
-    // size based on passengers (and then halved, as in your code)
     const avgPassengers = row["ממוצע נוסעים לנסיעה"];
     const fontSize = (scaleFont(avgPassengers) * 3);
 
-    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    text.setAttribute("x", x);
-    text.setAttribute("y", y);
-    text.setAttribute("font-size", String(fontSize));
+    busItems.push({
+      row,
+      x,
+      y,
+      trainId,
+      groupKey: getBusJitterGroupKey(row),
+      fontSize,
+      makat: getMakatValue(row),
+      timeStr: extractHHMM(busTimeVal) || String(busTimeVal),
+      xOffset: 0
+    });
+  });
+
+  // Jitter dots only when is identical and time gap is < 2 minutes.
+  const pxPerMinute = (1920 - 40) / (24 * 60);
+  const busJitterThresholdPx = 2 * pxPerMinute;
+  const busJitterStepX = 8;
+  const groupMap = new Map();
+
+  busItems.forEach(item => {
+    if (!item.groupKey) return;
+    if (!groupMap.has(item.groupKey)) groupMap.set(item.groupKey, []);
+    groupMap.get(item.groupKey).push(item);
+  });
+
+  groupMap.forEach(group => {
+    group.sort((a, b) => a.y - b.y);
+
+    let i = 0;
+    while (i < group.length) {
+      let j = i + 1;
+      while (j < group.length && (group[j].y - group[j - 1].y) < busJitterThresholdPx) {
+        j += 1;
+      }
+
+      const clusterSize = j - i;
+      const startX = -((clusterSize - 1) * busJitterStepX) / 2;
+      for (let k = 0; k < clusterSize; k += 1) {
+        group[i + k].xOffset = startX + (k * busJitterStepX);
+      }
+      i = j;
+    }
+  });
+
+  // Draw each bus as circle at (x=signage column, y=timeToY)
+  busItems.forEach(item => {
+    const { row, x, y, trainId, fontSize, makat, timeStr, xOffset } = item;
+
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", x + xOffset);
+    dot.setAttribute("cy", y);
+    dot.setAttribute("r", String(Math.max(0.5, fontSize * 0.05)));
 
     // green if on time, red if not
     const onTime = Number(row["האם האוטובוס מגיע בזמן"]);
     const busColor = (onTime === 1) ? "#118a2a" : "#7a0c0c";
-    text.setAttribute("fill", busColor);
-
-    text.setAttribute("dominant-baseline", "middle");
-    text.setAttribute("text-anchor", "middle");
-
-    text.setAttribute("direction", "ltr");
-    text.setAttribute("unicode-bidi", "plaintext");
-
-    text.textContent = "." + (row["range_mark_any"] || "");
-    text.style.cursor = "pointer";
+    dot.setAttribute("fill", busColor);
+    dot.style.cursor = "pointer";
 
     // Click => show only this row in the right-side table
-    text.addEventListener("click", (e) => {
+    dot.addEventListener("click", (e) => {
       e.stopPropagation();
       setActiveBusRow(row);
     });
 
-    text.classList.add("bus-item");
-    text.setAttribute("data-train", trainId);
+    dot.classList.add("bus-item");
+    dot.setAttribute("data-train", trainId);
 
     // Tooltip for bus label
-    const makat = String(row["מקט"] ?? "").trim();
-    const timeStr = extractHHMM(busTimeVal) || String(busTimeVal);
-    const avgStr = (avgPassengers === null || avgPassengers === undefined || avgPassengers === "") ? "—" : String(avgPassengers);
-
     const bTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
     bTitle.textContent =
       "זמן: " + timeStr +
-      " | מק\"ט: " + (makat || "—") +
-      " | ממוצע נוסעים: " + avgStr;
+      " | מק\"ט: " + (makat || "�");
 
-    text.appendChild(bTitle);
-    svg.appendChild(text);
+    dot.appendChild(bTitle);
+    svg.appendChild(dot);
   });
 
   // Ensure bus visibility + perc visibility matches selected train state
@@ -981,8 +1107,104 @@ const TABLE_FIELDS = [
   { key: "מספר תצפיות", label: "מספר תצפיות" },
   { key: "מספר הנסיעות שעמדו בזמנים", label: "מספר הנסיעות שעמדו בזמנים" },
   { key: "אחוז הנסיעות שעמדו בזמנים", label: "אחוז הנסיעות שעמדו בזמנים" },
-  { key: "המלצה בדקות", label: "המלצה בדקות" }
+  { key: "המלצה (דקות)", label: "המלצה בדקות" }
 ];
+
+const OPERATOR_FIELD_KEY = TABLE_FIELDS[0].key;
+const MAKAT_FIELD_KEY = TABLE_FIELDS[1].key;
+const activeHdrFilters = {
+  operator: "",
+  makat: "",
+};
+
+function norm(v) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
+function uniqueValuesFromRows(rows, key) {
+  const values = [];
+  rows.forEach(r => {
+    const v = String(r[key] ?? "").trim();
+    if (v) values.push(v);
+  });
+  return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, "he"));
+}
+
+function buildHeaderPopup() {
+  const popup = document.createElement("div");
+  popup.className = "hdr-popup";
+  popup.innerHTML = `
+    <div class="popup-title">חיפוש</div>
+    <input type="text" placeholder="הקלד/י..." />
+    <div class="popup-list"></div>
+    <div class="popup-actions">
+      <button class="btn btn-clear" type="button">נקה</button>
+      <button class="btn btn-close" type="button">סגור</button>
+    </div>
+  `;
+  document.body.appendChild(popup);
+  return popup;
+}
+
+const hdrPopup = buildHeaderPopup();
+
+function openHeaderPopup(anchorEl, allValues, onPick, onClear) {
+  const rect = anchorEl.getBoundingClientRect();
+  hdrPopup.style.left = (rect.left + window.scrollX) + "px";
+  hdrPopup.style.top  = (rect.bottom + window.scrollY + 6) + "px";
+  hdrPopup.style.display = "block";
+
+  const input = hdrPopup.querySelector("input");
+  const list = hdrPopup.querySelector(".popup-list");
+  const btnClear = hdrPopup.querySelector(".btn-clear");
+  const btnClose = hdrPopup.querySelector(".btn-close");
+
+  function render(prefix) {
+    const p = norm(prefix);
+    const filtered = !p ? allValues : allValues.filter(v => norm(v).startsWith(p));
+    list.innerHTML = "";
+
+    filtered.slice(0, 200).forEach(v => {
+      const item = document.createElement("div");
+      item.className = "popup-item";
+      item.textContent = v;
+      item.addEventListener("click", () => {
+        onPick(v);
+        hdrPopup.style.display = "none";
+      });
+      list.appendChild(item);
+    });
+
+    if (filtered.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.padding = "6px 8px";
+      empty.style.color = "#666";
+      empty.textContent = "אין תוצאות";
+      list.appendChild(empty);
+    }
+  }
+
+  input.value = "";
+  render("");
+  input.oninput = () => render(input.value);
+
+  btnClear.onclick = () => {
+    onClear();
+    hdrPopup.style.display = "none";
+  };
+
+  btnClose.onclick = () => {
+    hdrPopup.style.display = "none";
+  };
+
+  setTimeout(() => input.focus(), 0);
+}
+
+document.addEventListener("click", (e) => {
+  const isClickInside = hdrPopup.contains(e.target);
+  const isIcon = e.target.classList?.contains("th-search-btn");
+  if (!isClickInside && !isIcon) hdrPopup.style.display = "none";
+});
 
 function renderBusTable() {
   const headerRow = document.getElementById("busTableHeaderRow");
@@ -991,17 +1213,35 @@ function renderBusTable() {
 
   // Build header
   headerRow.innerHTML = "";
-  TABLE_FIELDS.forEach(f => {
+  TABLE_FIELDS.forEach((f, idx) => {
     const th = document.createElement("th");
-    th.textContent = f.label;
+    if (idx === 0 || idx === 1) {
+      th.innerHTML = `
+        <div class="th-wrap">
+          ${f.label}
+          <span class="th-search-btn" data-col="${idx === 0 ? "operator" : "makat"}">🔍</span>
+        </div>
+      `;
+    } else {
+      th.textContent = f.label;
+    }
     headerRow.appendChild(th);
   });
 
   // Choose which rows to show
   const allRows = getBusRowsForCurrentView();
+  const headerFilteredRows = allRows.filter(r => {
+    const operatorValue = String(r[OPERATOR_FIELD_KEY] ?? "").trim();
+    const makatValue = String(r[MAKAT_FIELD_KEY] ?? "").trim();
+
+    const okOperator = !activeHdrFilters.operator || norm(operatorValue).startsWith(norm(activeHdrFilters.operator));
+    const okMakat = !activeHdrFilters.makat || norm(makatValue).startsWith(norm(activeHdrFilters.makat));
+    return okOperator && okMakat;
+  });
+
   const rows = activeBusRowKey
-    ? allRows.filter(r => buildBusRowKey(r) === activeBusRowKey)
-    : allRows;
+    ? headerFilteredRows.filter(r => buildBusRowKey(r) === activeBusRowKey)
+    : headerFilteredRows;
 
   // Build body
   body.innerHTML = "";
@@ -1039,6 +1279,39 @@ function renderBusTable() {
 
     body.appendChild(tr);
   });
+
+  const icons = Array.from(headerRow.querySelectorAll(".th-search-btn"));
+  icons.forEach(icon => {
+    icon.addEventListener("click", (e) => {
+      e.stopPropagation();
+
+      const col = icon.getAttribute("data-col");
+      const isOperator = col === "operator";
+      const key = isOperator ? OPERATOR_FIELD_KEY : MAKAT_FIELD_KEY;
+      const allValues = uniqueValuesFromRows(allRows, key);
+
+      openHeaderPopup(
+        icon,
+        allValues,
+        (picked) => {
+          if (isOperator) {
+            activeHdrFilters.operator = picked;
+          } else {
+            activeHdrFilters.makat = picked;
+          }
+          renderBusTable();
+        },
+        () => {
+          if (isOperator) {
+            activeHdrFilters.operator = "";
+          } else {
+            activeHdrFilters.makat = "";
+          }
+          renderBusTable();
+        }
+      );
+    });
+  });
 }
 
 // Clicking "הצג הכל" resets table back to all rows
@@ -1070,6 +1343,10 @@ renderBusTable();
 
 </body>
 </html>
+
+
+
+
 
 
 

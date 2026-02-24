@@ -23,6 +23,8 @@ COL_WEEK = "תקופת שבוע"
 COL_RAIL_DIR = "כיוון נסיעת הרכבת"
 COL_TRAIN_ID = "מספר הרכבת"
 COL_PERC = "אחוז הנסיעות שעמדו בזמנים"
+COL_N = "מספר תצפיות"
+COL_N_postive_flagged = "מספר הנסיעות שעמדו בזמנים"
 
 DIR_TO_TA = "לכיוון תל אביב"
 DIR_FROM_TA = "מכיוון תל אביב"
@@ -54,7 +56,7 @@ def _read_convergence_tables() -> tuple[pd.DataFrame, list[str]]:
 
 
 def _build_train_perc_map(df: pd.DataFrame) -> dict[str, object]:
-    required = [COL_YEAR, COL_MONTH, COL_TRAIN_ID, COL_RAIL_DIR, COL_PERC]
+    required = [COL_YEAR, COL_MONTH, COL_TRAIN_ID, COL_RAIL_DIR, COL_N, COL_N_postive_flagged]
     if any(c not in df.columns for c in required):
         return {}
 
@@ -63,37 +65,30 @@ def _build_train_perc_map(df: pd.DataFrame) -> dict[str, object]:
 
     tmp[COL_YEAR] = pd.to_numeric(tmp[COL_YEAR], errors="coerce").astype("Int64")
     tmp[COL_MONTH] = pd.to_numeric(tmp[COL_MONTH], errors="coerce").astype("Int64")
+    tmp[COL_N] = pd.to_numeric(tmp[COL_N], errors="coerce")
+    tmp[COL_N_postive_flagged] = pd.to_numeric(tmp[COL_N_postive_flagged], errors="coerce")
     tmp[COL_TRAIN_ID] = tmp[COL_TRAIN_ID].astype(str).str.strip()
     tmp[COL_RAIL_DIR] = tmp[COL_RAIL_DIR].astype(str).str.strip()
 
-    tmp = tmp.dropna(subset=[COL_YEAR, COL_MONTH, COL_PERC])
+    tmp = tmp.dropna(subset=[COL_YEAR, COL_MONTH, COL_N, COL_N_postive_flagged])
     tmp = tmp[tmp[COL_TRAIN_ID] != ""]
     tmp = tmp[tmp[COL_RAIL_DIR] != ""]
+    tmp = tmp[tmp[COL_N] > 0]
 
-    def _format_percent(value: object) -> str:
-        s = str(value).strip()
-        if not s:
-            return ""
+    grouped = (
+        tmp.groupby([COL_YEAR, COL_MONTH, COL_TRAIN_ID, COL_RAIL_DIR], as_index=False)[
+            [COL_N_postive_flagged, COL_N]
+        ]
+        .sum()
+    )
+    grouped["perc"] = ((grouped[COL_N_postive_flagged] / grouped[COL_N]) * 100).round(1).astype(str) + "%"
 
-        # Avoid duplicating the symbol when source already contains it.
-        if s.endswith("%"):
-            return s
-
-        try:
-            n = float(s)
-            # Keep integer values clean (e.g. 85 instead of 85.0).
-            s = str(int(n)) if n.is_integer() else str(n)
-        except ValueError:
-            pass
-
-        return f"{s}%"
-
-    for _, row in tmp.iterrows():
+    for _, row in grouped.iterrows():
         y = int(row[COL_YEAR])
         m = int(row[COL_MONTH])
         t = row[COL_TRAIN_ID]
         d = row[COL_RAIL_DIR]
-        perc = _format_percent(row[COL_PERC])
+        perc = row["perc"]
 
         key = f"{y}_{m}_{t}_{d}"
         out[key] = perc
