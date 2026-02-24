@@ -103,7 +103,6 @@
             background: #eef6ff;
         }
 
-        /* header search icon + popup (same pattern as train_times) */
         .th-wrap {
             position: relative;
             padding-right: 22px;
@@ -130,7 +129,7 @@
             background: #fff;
             border: 1px solid #bbb;
             border-radius: 10px;
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.15);
             padding: 10px;
             display: none;
         }
@@ -181,6 +180,7 @@
             padding: 4px 10px;
             cursor: pointer;
         }
+
     </style>
 </head>
 <!-- endregion COV BLOCK 2 -->
@@ -1110,58 +1110,87 @@ const TABLE_FIELDS = [
   { key: "המלצה (דקות)", label: "המלצה בדקות" }
 ];
 
-const OPERATOR_FIELD_KEY = TABLE_FIELDS[0].key;
-const MAKAT_FIELD_KEY = TABLE_FIELDS[1].key;
-const activeHdrFilters = {
+const HEADER_FILTER_COLS = {
+  operator: TABLE_FIELDS[0].key,
+  makat: TABLE_FIELDS[1].key,
+};
+
+const activeHeaderFilters = {
   operator: "",
   makat: "",
 };
 
-function norm(v) {
+let headerPopup = null;
+
+function normText(v) {
   return String(v ?? "").trim().toLowerCase();
 }
 
-function uniqueValuesFromRows(rows, key) {
-  const values = [];
-  rows.forEach(r => {
-    const v = String(r[key] ?? "").trim();
-    if (v) values.push(v);
+function getRowsAfterHeaderFilters(rows, excludeCol = null) {
+  return rows.filter(r => {
+    if (excludeCol !== "operator" && activeHeaderFilters.operator) {
+      const opVal = String(r[HEADER_FILTER_COLS.operator] ?? "").trim();
+      if (!normText(opVal).startsWith(normText(activeHeaderFilters.operator))) return false;
+    }
+    if (excludeCol !== "makat" && activeHeaderFilters.makat) {
+      const makatVal = String(r[HEADER_FILTER_COLS.makat] ?? "").trim();
+      if (!normText(makatVal).startsWith(normText(activeHeaderFilters.makat))) return false;
+    }
+    return true;
   });
-  return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, "he"));
 }
 
-function buildHeaderPopup() {
+function uniqueValuesFromRows(rows, key) {
+  const vals = [];
+  rows.forEach(r => {
+    const v = String(r[key] ?? "").trim();
+    if (v) vals.push(v);
+  });
+  return Array.from(new Set(vals)).sort((a, b) => a.localeCompare(b, "he"));
+}
+
+function ensureHeaderPopup() {
+  if (headerPopup) return headerPopup;
+
   const popup = document.createElement("div");
   popup.className = "hdr-popup";
   popup.innerHTML = `
-    <div class="popup-title">חיפוש</div>
-    <input type="text" placeholder="הקלד/י..." />
+    <div class="popup-title">Search</div>
+    <input type="text" placeholder="Type..." />
     <div class="popup-list"></div>
     <div class="popup-actions">
-      <button class="btn btn-clear" type="button">נקה</button>
-      <button class="btn btn-close" type="button">סגור</button>
+      <button class="btn btn-clear" type="button">Clear</button>
+      <button class="btn btn-close" type="button">Close</button>
     </div>
   `;
   document.body.appendChild(popup);
+  headerPopup = popup;
   return popup;
 }
 
-const hdrPopup = buildHeaderPopup();
+function hideHeaderPopup() {
+  if (headerPopup) headerPopup.style.display = "none";
+}
 
-function openHeaderPopup(anchorEl, allValues, onPick, onClear) {
+function openHeaderPopup(anchorEl, filterCol, baseRows) {
+  const popup = ensureHeaderPopup();
   const rect = anchorEl.getBoundingClientRect();
-  hdrPopup.style.left = (rect.left + window.scrollX) + "px";
-  hdrPopup.style.top  = (rect.bottom + window.scrollY + 6) + "px";
-  hdrPopup.style.display = "block";
+  popup.style.left = (rect.left + window.scrollX) + "px";
+  popup.style.top = (rect.bottom + window.scrollY + 6) + "px";
+  popup.style.display = "block";
 
-  const input = hdrPopup.querySelector("input");
-  const list = hdrPopup.querySelector(".popup-list");
-  const btnClear = hdrPopup.querySelector(".btn-clear");
-  const btnClose = hdrPopup.querySelector(".btn-close");
+  const rowsForOptions = getRowsAfterHeaderFilters(baseRows, filterCol);
+  const key = HEADER_FILTER_COLS[filterCol];
+  const allValues = uniqueValuesFromRows(rowsForOptions, key);
 
-  function render(prefix) {
-    const p = norm(prefix);
-    const filtered = !p ? allValues : allValues.filter(v => norm(v).startsWith(p));
+  const input = popup.querySelector("input");
+  const list = popup.querySelector(".popup-list");
+  const btnClear = popup.querySelector(".btn-clear");
+  const btnClose = popup.querySelector(".btn-close");
+
+  function renderList(prefix) {
+    const p = normText(prefix);
+    const filtered = !p ? allValues : allValues.filter(v => normText(v).startsWith(p));
     list.innerHTML = "";
 
     filtered.slice(0, 200).forEach(v => {
@@ -1169,41 +1198,47 @@ function openHeaderPopup(anchorEl, allValues, onPick, onClear) {
       item.className = "popup-item";
       item.textContent = v;
       item.addEventListener("click", () => {
-        onPick(v);
-        hdrPopup.style.display = "none";
+        activeHeaderFilters[filterCol] = v;
+        activeBusRowKey = null;
+        updateSelectionHint();
+        hideHeaderPopup();
+        renderBusTable();
       });
       list.appendChild(item);
     });
 
-    if (filtered.length === 0) {
+    if (!filtered.length) {
       const empty = document.createElement("div");
       empty.style.padding = "6px 8px";
       empty.style.color = "#666";
-      empty.textContent = "אין תוצאות";
+      empty.textContent = "No results";
       list.appendChild(empty);
     }
   }
 
   input.value = "";
-  render("");
-  input.oninput = () => render(input.value);
+  renderList("");
+  input.oninput = () => renderList(input.value);
 
   btnClear.onclick = () => {
-    onClear();
-    hdrPopup.style.display = "none";
+    activeHeaderFilters[filterCol] = "";
+    activeBusRowKey = null;
+    updateSelectionHint();
+    hideHeaderPopup();
+    renderBusTable();
   };
 
-  btnClose.onclick = () => {
-    hdrPopup.style.display = "none";
-  };
+  btnClose.onclick = () => hideHeaderPopup();
 
   setTimeout(() => input.focus(), 0);
 }
 
 document.addEventListener("click", (e) => {
-  const isClickInside = hdrPopup.contains(e.target);
+  const popup = headerPopup;
   const isIcon = e.target.classList?.contains("th-search-btn");
-  if (!isClickInside && !isIcon) hdrPopup.style.display = "none";
+  if (popup && popup.style.display === "block" && !popup.contains(e.target) && !isIcon) {
+    hideHeaderPopup();
+  }
 });
 
 function renderBusTable() {
@@ -1216,10 +1251,11 @@ function renderBusTable() {
   TABLE_FIELDS.forEach((f, idx) => {
     const th = document.createElement("th");
     if (idx === 0 || idx === 1) {
+      const col = idx === 0 ? "operator" : "makat";
       th.innerHTML = `
         <div class="th-wrap">
           ${f.label}
-          <span class="th-search-btn" data-col="${idx === 0 ? "operator" : "makat"}">🔍</span>
+          <span class="th-search-btn" data-col="${col}">🔍</span>
         </div>
       `;
     } else {
@@ -1230,15 +1266,7 @@ function renderBusTable() {
 
   // Choose which rows to show
   const allRows = getBusRowsForCurrentView();
-  const headerFilteredRows = allRows.filter(r => {
-    const operatorValue = String(r[OPERATOR_FIELD_KEY] ?? "").trim();
-    const makatValue = String(r[MAKAT_FIELD_KEY] ?? "").trim();
-
-    const okOperator = !activeHdrFilters.operator || norm(operatorValue).startsWith(norm(activeHdrFilters.operator));
-    const okMakat = !activeHdrFilters.makat || norm(makatValue).startsWith(norm(activeHdrFilters.makat));
-    return okOperator && okMakat;
-  });
-
+  const headerFilteredRows = getRowsAfterHeaderFilters(allRows);
   const rows = activeBusRowKey
     ? headerFilteredRows.filter(r => buildBusRowKey(r) === activeBusRowKey)
     : headerFilteredRows;
@@ -1280,45 +1308,26 @@ function renderBusTable() {
     body.appendChild(tr);
   });
 
-  const icons = Array.from(headerRow.querySelectorAll(".th-search-btn"));
-  icons.forEach(icon => {
+  const searchIcons = Array.from(headerRow.querySelectorAll(".th-search-btn"));
+  searchIcons.forEach(icon => {
     icon.addEventListener("click", (e) => {
       e.stopPropagation();
-
       const col = icon.getAttribute("data-col");
-      const isOperator = col === "operator";
-      const key = isOperator ? OPERATOR_FIELD_KEY : MAKAT_FIELD_KEY;
-      const allValues = uniqueValuesFromRows(allRows, key);
-
-      openHeaderPopup(
-        icon,
-        allValues,
-        (picked) => {
-          if (isOperator) {
-            activeHdrFilters.operator = picked;
-          } else {
-            activeHdrFilters.makat = picked;
-          }
-          renderBusTable();
-        },
-        () => {
-          if (isOperator) {
-            activeHdrFilters.operator = "";
-          } else {
-            activeHdrFilters.makat = "";
-          }
-          renderBusTable();
-        }
-      );
+      if (col !== "operator" && col !== "makat") return;
+      openHeaderPopup(icon, col, allRows);
     });
   });
 }
-
 // Clicking "הצג הכל" resets table back to all rows
 const clearBusBtn = document.getElementById("clearBusSelectionBtn");
 if (clearBusBtn) {
   clearBusBtn.addEventListener("click", () => {
-    setActiveBusRow(null);
+    activeBusRowKey = null;
+    activeHeaderFilters.operator = "";
+    activeHeaderFilters.makat = "";
+    hideHeaderPopup();
+    updateSelectionHint();
+    renderBusTable();
   });
 }
 // endregion COV 5L
@@ -1343,6 +1352,7 @@ renderBusTable();
 
 </body>
 </html>
+
 
 
 
