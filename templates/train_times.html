@@ -101,6 +101,10 @@
       margin-bottom: 8px;
     }
 
+    .hdr-popup .popup-title-selected {
+      font-weight: 400;
+    }
+
     .hdr-popup input {
       width: 100%;
       padding: 6px 8px;
@@ -394,7 +398,7 @@ function filterTable(tableEl, idxMap, weekPeriod, trainPrefix, timePrefix) {
     const tm = (idxMap.TIME  >= 0) ? norm(cells[idxMap.TIME]?.textContent)  : "";
 
     const okWeek  = (!wpSel || wp === wpSel);
-    const okTrain = (!trSel || tr.startsWith(trSel));
+    const okTrain = (!trSel || tr === trSel);
     const okTime  = (!tmSel || tm.startsWith(tmSel));
 
     r.style.display = (okWeek && okTrain && okTime) ? "" : "none";
@@ -556,6 +560,38 @@ function uniqueValuesFromTable(tableEl, colIdx) {
   return Array.from(new Set(vals));
 }
 
+function getPopupRowsAfterFilters(tableEl, idxMap, whichTable, excludeCol) {
+  if (!tableEl || !idxMap) return [];
+
+  const wpSel = norm(weekFilter ? weekFilter.value : "");
+  const trSel = norm(excludeCol === "train" ? "" : activeHdrFilters[whichTable].train);
+  const tmSel = norm(excludeCol === "time" ? "" : activeHdrFilters[whichTable].time);
+
+  const rows = tableEl.tBodies?.[0] ? Array.from(tableEl.tBodies[0].rows) : [];
+  return rows.filter(r => {
+    const cells = Array.from(r.cells);
+
+    const wp = (idxMap.WEEKPERIOD >= 0) ? norm(cells[idxMap.WEEKPERIOD]?.textContent) : "";
+    const tr = (idxMap.TRAIN >= 0) ? norm(cells[idxMap.TRAIN]?.textContent) : "";
+    const tm = (idxMap.TIME >= 0) ? norm(cells[idxMap.TIME]?.textContent) : "";
+
+    const okWeek = (!wpSel || wp === wpSel);
+    const okTrain = (!trSel || tr === trSel);
+    const okTime = (!tmSel || tm.startsWith(tmSel));
+    return okWeek && okTrain && okTime;
+  });
+}
+
+function uniqueValuesFromRows(rows, colIdx) {
+  if (!rows || colIdx < 0) return [];
+  const vals = [];
+  rows.forEach(r => {
+    const v = norm(r.cells[colIdx]?.textContent);
+    if (v) vals.push(v);
+  });
+  return Array.from(new Set(vals));
+}
+
 function buildPopup() {
   const popup = document.createElement("div");
   popup.className = "hdr-popup";
@@ -574,7 +610,7 @@ function buildPopup() {
 
 const hdrPopup = buildPopup();
 
-function openPopup(anchorEl, allValues, onPick, onClear) {
+function openPopup(anchorEl, allValues, onPick, onClear, selectedValue = "") {
   const rect = anchorEl.getBoundingClientRect();
   hdrPopup.style.left = (rect.left + window.scrollX) + "px";
   hdrPopup.style.top  = (rect.bottom + window.scrollY + 6) + "px";
@@ -582,8 +618,18 @@ function openPopup(anchorEl, allValues, onPick, onClear) {
 
   const input = hdrPopup.querySelector("input");
   const list  = hdrPopup.querySelector(".popup-list");
+  const popupTitle = hdrPopup.querySelector(".popup-title");
+  if (popupTitle && !popupTitle.querySelector(".popup-title-selected")) {
+    const selectedSpan = document.createElement("span");
+    selectedSpan.className = "popup-title-selected";
+    popupTitle.appendChild(document.createTextNode(" "));
+    popupTitle.appendChild(selectedSpan);
+  }
+  const titleSelected = popupTitle ? popupTitle.querySelector(".popup-title-selected") : null;
   const btnClear = hdrPopup.querySelector(".btn-clear");
   const btnClose = hdrPopup.querySelector(".btn-close");
+  const selectedText = String(selectedValue ?? "").trim();
+  if (titleSelected) titleSelected.textContent = selectedText ? `: ${selectedText}` : "";
 
   function render(prefix) {
     const p = norm(prefix);
@@ -596,6 +642,7 @@ function openPopup(anchorEl, allValues, onPick, onClear) {
       item.className = "popup-item";
       item.textContent = v;
       item.addEventListener("click", () => {
+        if (titleSelected) titleSelected.textContent = `: ${v}`;
         onPick(v);
         hdrPopup.style.display = "none";
       });
@@ -617,6 +664,7 @@ function openPopup(anchorEl, allValues, onPick, onClear) {
   input.oninput = () => render(input.value);
 
   btnClear.onclick = () => {
+    if (titleSelected) titleSelected.textContent = "";
     onClear();
     hdrPopup.style.display = "none";
   };
@@ -650,7 +698,8 @@ function initHeaderSearchButtons() {
       const idxMap  = (whichTable === "arr") ? IDX_ARR   : IDX_DEP;
 
       const colIdx = (whichCol === "train") ? idxMap.TRAIN : idxMap.TIME;
-      const allVals = uniqueValuesFromTable(tableEl, colIdx).sort((a,b)=>a.localeCompare(b,"he"));
+      const popupRows = getPopupRowsAfterFilters(tableEl, idxMap, whichTable, whichCol);
+      const allVals = uniqueValuesFromRows(popupRows, colIdx).sort((a,b)=>a.localeCompare(b,"he"));
 
       openPopup(
         icon,
@@ -662,7 +711,8 @@ function initHeaderSearchButtons() {
         () => {
           activeHdrFilters[whichTable][whichCol] = "";
           applyAllFilters();
-        }
+        },
+        activeHdrFilters[whichTable][whichCol]
       );
     });
   });

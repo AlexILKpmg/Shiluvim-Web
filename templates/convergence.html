@@ -168,6 +168,10 @@
             margin-bottom: 8px;
         }
 
+        .hdr-popup .popup-title-selected {
+            font-weight: 400;
+        }
+
         .hdr-popup input {
             width: 100%;
             padding: 6px 8px;
@@ -1244,7 +1248,10 @@ function ensureHeaderPopup() {
   const popup = document.createElement("div");
   popup.className = "hdr-popup";
   popup.innerHTML = `
-    <div class="popup-title">Search</div>
+    <div class="popup-title">
+      <span class="popup-title-label">חיפוש</span>
+      <span class="popup-title-selected"></span>
+    </div>
     <input type="text" placeholder="Type..." />
     <div class="popup-list"></div>
     <div class="popup-actions">
@@ -1274,8 +1281,11 @@ function openHeaderPopup(anchorEl, filterCol, baseRows) {
 
   const input = popup.querySelector("input");
   const list = popup.querySelector(".popup-list");
+  const titleSelected = popup.querySelector(".popup-title-selected");
   const btnClear = popup.querySelector(".btn-clear");
   const btnClose = popup.querySelector(".btn-close");
+  const currentSelected = String(activeHeaderFilters[filterCol] ?? "").trim();
+  titleSelected.textContent = currentSelected ? `: ${currentSelected}` : "";
 
   function renderList(prefix) {
     const p = normText(prefix);
@@ -1288,6 +1298,7 @@ function openHeaderPopup(anchorEl, filterCol, baseRows) {
       item.textContent = v;
       item.addEventListener("click", () => {
         activeHeaderFilters[filterCol] = v;
+        titleSelected.textContent = `: ${v}`;
         activeBusRowKey = null;
         hideHeaderPopup();
         renderBusTable();
@@ -1310,6 +1321,7 @@ function openHeaderPopup(anchorEl, filterCol, baseRows) {
 
   btnClear.onclick = () => {
     activeHeaderFilters[filterCol] = "";
+    titleSelected.textContent = "";
     activeBusRowKey = null;
     hideHeaderPopup();
     renderBusTable();
