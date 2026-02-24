@@ -256,7 +256,6 @@
 
         <div class="table-actions">
             <button id="clearBusSelectionBtn" type="button">הצג הכל</button>
-            <span id="selectionHint">מוצגות כל הנסיעות</span>
         </div>
 
         <div id="busTableTopScroll" class="table-scroll-top">
@@ -504,6 +503,10 @@ monthSelect.style.cssText =
 resetBtn.parentNode.insertBefore(yearSelect, dirSelect.nextSibling);
 resetBtn.parentNode.insertBefore(monthSelect, yearSelect.nextSibling);
 
+let activeOperator = "";
+const COL_OPERATOR = "\u05de\u05e4\u05e2\u05d9\u05dc";
+const COL_WEEK = "\u05ea\u05e7\u05d5\u05e4\u05ea \u05e9\u05d1\u05d5\u05e2";
+
 let activeWeek = "יום חול";
 
 const weekSelect = document.createElement("select");
@@ -511,6 +514,12 @@ weekSelect.style.cssText =
     "margin:10px 10px; padding:4px; border-radius:6px; cursor:pointer;";
 
 resetBtn.parentNode.insertBefore(weekSelect, monthSelect.nextSibling);
+
+const operatorSelect = document.createElement("select");
+operatorSelect.style.cssText =
+    "margin:10px 10px; padding:4px; border-radius:6px; cursor:pointer;";
+
+resetBtn.parentNode.insertBefore(operatorSelect, weekSelect.nextSibling);
 
 dirSelect.value = activeDirection;
 // endregion COV 5F
@@ -611,16 +620,48 @@ function populateWeekDropdown() {
     weekSelect.value = activeWeek;
 }
 
+function populateOperatorDropdown() {
+    operatorSelect.innerHTML = "";
+    const allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = COL_OPERATOR;
+    operatorSelect.appendChild(allOpt);
+    const set = new Set();
+    stationTimes
+        .filter(r => String(r[COL_WEEK] ?? "").trim() === activeWeek)
+        .forEach(r => {
+            const v = String(r[COL_OPERATOR] ?? "").trim();
+            if (v) set.add(v);
+        });
+    const operators = Array.from(set).sort((a, b) => a.localeCompare(b, "he"));
+    operators.forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        operatorSelect.appendChild(opt);
+    });
+    if (activeOperator && operators.includes(activeOperator)) {
+        operatorSelect.value = activeOperator;
+    } else {
+        activeOperator = "";
+        operatorSelect.value = "";
+    }
+}
 function getFilteredTimes() {
-    return stationTimes.filter(r => String(r["תקופת שבוע"] ?? "").trim() === activeWeek);
+    return stationTimes.filter(r => {
+        const weekOk = String(r[COL_WEEK] ?? "").trim() === activeWeek;
+        if (!weekOk) return false;
+        if (!activeOperator) return true;
+        return String(r[COL_OPERATOR] ?? "").trim() === activeOperator;
+    });
 }
 
 function refreshAllAfterFilterChange() {
     activeBusRowKey = null;
-    updateSelectionHint();
 
     rebuildStationTimes();
     populateWeekDropdown();
+    populateOperatorDropdown();
 
     setActiveTrain(null);
     redrawTrains();
@@ -671,9 +712,20 @@ monthSelect.addEventListener("change", () => {
 
 weekSelect.addEventListener("change", () => {
     activeWeek = weekSelect.value;
+    populateOperatorDropdown();
 
     activeBusRowKey = null;
-    updateSelectionHint();
+
+    setActiveTrain(null);
+    redrawTrains();
+    redrawBuses();
+    renderBusTable();
+});
+
+operatorSelect.addEventListener("change", () => {
+    activeOperator = operatorSelect.value;
+
+    activeBusRowKey = null;
 
     setActiveTrain(null);
     redrawTrains();
@@ -688,6 +740,7 @@ function redrawTrains() {
     svg.querySelectorAll(".train-item, .perc-item").forEach(el => el.remove());
 
     const filteredTimes = getFilteredTimes();
+  const weekOnlyTimes = stationTimes.filter(r => String(r[COL_WEEK] ?? "").trim() === activeWeek);
     const seenTrainTime = new Set();
     const uniqueTrainRows = [];
 
@@ -835,20 +888,16 @@ function buildBusRowKey(row) {
 
 function setActiveBusRow(rowOrNull) {
   activeBusRowKey = rowOrNull ? buildBusRowKey(rowOrNull) : null;
-  updateSelectionHint();
   renderBusTable();
 }
 
-function updateSelectionHint() {
-  const hint = document.getElementById("selectionHint");
-  if (!hint) return;
-  hint.textContent = activeBusRowKey ? "מוצגת שורה שנבחרה מהמפה" : "מוצגות כל הנסיעות";
-}
+
 
 // Collect bus rows that are “valid” for current view (must have time + signage)
 function getBusRowsForCurrentView() {
   const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה";
   const filteredTimes = getFilteredTimes();
+  const weekOnlyTimes = stationTimes.filter(r => String(r[COL_WEEK] ?? "").trim() === activeWeek);
 
   return filteredTimes.filter(r =>
     r[busTimeCol] && String(r["שילוט"] ?? "").trim() !== ""
@@ -904,13 +953,17 @@ function redrawBuses() {
 
   const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה";
   const filteredTimes = getFilteredTimes();
+  const weekOnlyTimes = stationTimes.filter(r => String(r[COL_WEEK] ?? "").trim() === activeWeek);
 
   const busRows = filteredTimes.filter(r =>
     r[busTimeCol] && String(r["שילוט"] ?? "").trim() !== ""
   );
 
-  // Build unique signage list (each signage is a column)
-  const shilotValues = Array.from(new Set(busRows.map(r => String(r["שילוט"]).trim())));
+  // Build signage headers from week-level data so they stay visible even with operator filtering.
+  const headerRows = weekOnlyTimes.filter(r =>
+    r[busTimeCol] && String(r["\u05e9\u05d9\u05dc\u05d5\u05d8"] ?? "").trim() !== ""
+  );
+  const shilotValues = Array.from(new Set(headerRows.map(r => String(r["\u05e9\u05d9\u05dc\u05d5\u05d8"]).trim())));
 
   // Sort signage: numeric signage in numeric order, then strings alphabetically
   shilotValues.sort((a, b) => {
@@ -1195,8 +1248,8 @@ function ensureHeaderPopup() {
     <input type="text" placeholder="Type..." />
     <div class="popup-list"></div>
     <div class="popup-actions">
-      <button class="btn btn-clear" type="button">Clear</button>
-      <button class="btn btn-close" type="button">Close</button>
+      <button class="btn btn-clear" type="button">נקה</button>
+      <button class="btn btn-close" type="button">סגור</button>
     </div>
   `;
   document.body.appendChild(popup);
@@ -1236,7 +1289,6 @@ function openHeaderPopup(anchorEl, filterCol, baseRows) {
       item.addEventListener("click", () => {
         activeHeaderFilters[filterCol] = v;
         activeBusRowKey = null;
-        updateSelectionHint();
         hideHeaderPopup();
         renderBusTable();
       });
@@ -1259,7 +1311,6 @@ function openHeaderPopup(anchorEl, filterCol, baseRows) {
   btnClear.onclick = () => {
     activeHeaderFilters[filterCol] = "";
     activeBusRowKey = null;
-    updateSelectionHint();
     hideHeaderPopup();
     renderBusTable();
   };
@@ -1421,7 +1472,6 @@ if (clearBusBtn) {
     activeHeaderFilters.operator = "";
     activeHeaderFilters.makat = "";
     hideHeaderPopup();
-    updateSelectionHint();
     renderBusTable();
   });
 }
@@ -1434,12 +1484,13 @@ updateTitleFromState();
 
 rebuildStationTimes();
 populateWeekDropdown();
+populateOperatorDropdown();
 
 redrawTrains();
 redrawBuses();
 setActiveTrain(null);
 
-updateSelectionHint();
+
 renderBusTable();
 // endregion COV 5M
 
@@ -1447,6 +1498,7 @@ renderBusTable();
 
 </body>
 </html>
+
 
 
 
