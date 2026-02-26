@@ -44,7 +44,9 @@ INSTALLED_APPS = [
     "rating_table",
     "matrix_pass_table",
     "bus_info_per_train_station_table",
-    "convergence"
+    "convergence",
+    "train_times",
+    "train_stations_order",
 ]
 
 MIDDLEWARE = [

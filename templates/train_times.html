@@ -146,6 +146,15 @@
     }
     .hdr-popup .btn:hover { background: #f0f0f0; }
 
+    .train-link {
+      color: #0a5;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .train-link:hover {
+      text-decoration: underline;
+    }
+
 
     #arrWrap table tbody tr:nth-child(even),
     #depWrap table tbody tr:nth-child(even) {
@@ -233,7 +242,11 @@
             <td>{{ row.WeekPeriod }}</td>
             <td>{{ row.train_station_code }}</td>
             <td>{{ row.StationName }}</td>
-            <td>{{ row.Train_number }}</td>
+            <td>
+              <a class="train-link" href="{% url 'stations_order_home' %}?train_number={{ row.Train_number|urlencode }}&station={{ station|urlencode }}&year={{ year|urlencode }}&month={{ month|urlencode }}">
+                {{ row.Train_number }}
+              </a>
+            </td>
             <td>{{ row.Planned_Train_Arrivel_Time }}</td>
             <td>{{ row.PassengersAscending }}</td>
             <td>{{ row.PassengersDescending }}</td>
@@ -283,7 +296,11 @@
             <td>{{ row.WeekPeriod }}</td>
             <td>{{ row.train_station_code }}</td>
             <td>{{ row.StationName }}</td>
-            <td>{{ row.Train_number }}</td>
+            <td>
+              <a class="train-link" href="{% url 'stations_order_home' %}?train_number={{ row.Train_number|urlencode }}&station={{ station|urlencode }}&year={{ year|urlencode }}&month={{ month|urlencode }}">
+                {{ row.Train_number }}
+              </a>
+            </td>
             <td>{{ row.Planned_Train_Departure_Time }}</td>
             <td>{{ row.PassengersAscending }}</td>
             <td>{{ row.PassengersDescending }}</td>

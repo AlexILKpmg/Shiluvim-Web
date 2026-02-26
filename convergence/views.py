@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -7,14 +8,16 @@ from django.shortcuts import render
 
 TABLES_DIR = Path(__file__).resolve().parents[1] / "tables"
 
-CONVERGENCE_FILES = [
-    ("WeekDay_rail_bus_convergence_2025-10.xlsx", "יום חול"),
-    ("WeekDay_rail_bus_convergence_2025-11.xlsx", "יום חול"),
-    ("Friday_rail_bus_convergence_2025-10.xlsx", "שישי"),
-    ("Friday_rail_bus_convergence_2025-11.xlsx", "שישי"),
-    ("Saturday_rail_bus_convergence_2025-10.xlsx", "שבת"),
-    ("Saturday_rail_bus_convergence_2025-11.xlsx", "שבת"),
-]
+YEAR_MONTHS = {"2025-12", "2026-01"}  # update only this; empty set => all months
+WEEK_LABELS = {
+    "WeekDay": "יום חול",
+    "Friday": "שישי",
+    "Saturday": "שבת",
+}
+CONVERGENCE_FILE_RE = re.compile(
+    r"^(WeekDay|Friday|Saturday)_rail_bus_convergence_(\d{4}-\d{2})\.xlsx$",
+    re.IGNORECASE,
+)
 
 COL_STATION = "שם תחנת הרכבת"
 COL_YEAR = "שנה"
@@ -36,12 +39,25 @@ def _to_json_records(df: pd.DataFrame) -> str:
     clean = df.where(pd.notna(df), None)
     return clean.to_json(orient="records", force_ascii=False)
 
+def _discover_convergence_files() -> list[tuple[str, str]]:
+    files: list[tuple[str, str, str]] = []  # (year_month, file_name, week_label)
+    for p in TABLES_DIR.glob("*.xlsx"):
+        match = CONVERGENCE_FILE_RE.match(p.name)
+        if not match:
+            continue
+        week_key, year_month = match.group(1), match.group(2)
+        week_key = week_key[0].upper() + week_key[1:]  # normalize case
+        if YEAR_MONTHS and year_month not in YEAR_MONTHS:
+            continue
+        files.append((year_month, p.name, WEEK_LABELS[week_key]))
+    files.sort(key=lambda item: (item[0], item[1]))
+    return [(file_name, week_label) for _, file_name, week_label in files]
 
 def _read_convergence_tables() -> tuple[pd.DataFrame, list[str]]:
     frames: list[pd.DataFrame] = []
     errors: list[str] = []
 
-    for file_name, week_label in CONVERGENCE_FILES:
+    for file_name, week_label in _discover_convergence_files():
         path = TABLES_DIR / file_name
         try:
             df = pd.read_excel(path)

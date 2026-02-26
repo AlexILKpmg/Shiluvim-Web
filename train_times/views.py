@@ -169,3 +169,21 @@ def train_times(request):
         "dep_rows": dep_f.to_dict(orient="records"),
     }
     return render(request, "train_times.html", context)
+
+
+def train_number(request):
+    train_number = (request.GET.get("train_number") or "").strip()
+    station = (request.GET.get("station") or "").strip()
+    year = (request.GET.get("year") or "").strip()
+    month = (request.GET.get("month") or "").strip()
+
+    return render(
+        request,
+        "train_number.html",
+        {
+            "train_number": train_number,
+            "station": station,
+            "year": year,
+            "month": month,
+        },
+    )
