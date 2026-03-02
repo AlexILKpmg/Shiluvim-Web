@@ -122,6 +122,12 @@
             background: #f3f3f3;
             z-index: 2;
             font-weight: 700;
+            font-size: 13px;
+            max-width: 10ch;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.2;
         }
 
         #busTable tbody tr:nth-child(even) {
@@ -1418,8 +1424,8 @@ function renderBusTable() {
   headerRow.innerHTML = "";
   tableFields.forEach((f, idx) => {
     const th = document.createElement("th");
-    if (idx === 0 || idx === 1) {
-      const col = idx === 0 ? "operator" : "makat";
+    if (idx === 1) {
+      const col = "makat";
       th.innerHTML = `
         <div class="th-wrap">
           ${f.label}
@@ -1473,6 +1479,10 @@ function renderBusTable() {
       }
 
       td.textContent = v;
+      if (f.key === "המלצה (דקות)") {
+        td.style.direction = "ltr";
+        td.style.unicodeBidi = "plaintext";
+      }
       tr.appendChild(td);
     });
 

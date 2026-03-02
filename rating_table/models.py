@@ -10,5 +10,5 @@ class Ranking(models.Model):
     descending_pass = models.IntegerField()
     rank = models.CharField(max_length=255)
 
-    class Meta:
-        managed = False  # CSV (no DB table)
+    def __str__(self):
+        return f"{self.train_station_name} {self.month}/{self.year}"

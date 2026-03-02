@@ -594,6 +594,30 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function formatRatingPassengersWithCommas() {
+    const tbl = document.querySelector("#rating_table table");
+    if (!tbl) return;
+
+    const ths = Array.from(tbl.querySelectorAll("th"));
+    const upIdx = ths.findIndex(th => norm(th.textContent) === "עולים בתחנה");
+    const downIdx = ths.findIndex(th => norm(th.textContent) === "יורדים בתחנה");
+    if (upIdx === -1 && downIdx === -1) return;
+
+    const rows = Array.from(tbl.querySelectorAll("tbody tr"));
+    rows.forEach(row => {
+      [upIdx, downIdx].forEach(idx => {
+        if (idx === -1) return;
+        const cell = row.children[idx];
+        if (!cell) return;
+        const raw = norm(cell.textContent).replace(/,/g, "");
+        if (raw === "") return;
+        const n = parseFloat(raw);
+        if (!Number.isFinite(n)) return;
+        cell.textContent = n.toLocaleString("en-US");
+      });
+    });
+  }
+
   function reorderAndLimitMatrixColumnsTopN(topN) {
     const tbl = document.querySelector("#matrix_table_container table");
     if (!tbl) return;
@@ -793,6 +817,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupMatrixToggle(10);
     reorderAndLimitMatrixColumnsTopN(10);
     formatMatrixValuesWithCommas();
+    formatRatingPassengersWithCommas();
   // endregion BLOCK 4I
 
 

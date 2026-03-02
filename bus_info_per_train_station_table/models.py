@@ -17,5 +17,5 @@ class ConvergenceTable(models.Model):
     week_period = models.CharField(max_length=255)
     bus_direction = models.CharField(max_length=255)
 
-    class Meta:
-        managed = False  # CSV (no DB table)
+    def __str__(self):
+        return f"{self.train_station_name} - line {self.line}"
