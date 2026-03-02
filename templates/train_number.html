@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>Train Number</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    .card { max-width: 640px; padding: 20px; border: 1px solid #ddd; border-radius: 10px; }
+    .row { margin: 8px 0; }
+    a { color: #0a5; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>פרטי רכבת</h2>
+    <div class="row"><strong>Train_number:</strong> {{ train_number }}</div>
+    <div class="row"><strong>Station:</strong> {{ station }}</div>
+    <div class="row"><strong>Year:</strong> {{ year }}</div>
+    <div class="row"><strong>Month:</strong> {{ month }}</div>
+    <div class="row" style="margin-top: 16px;">
+      <a href="{% url 'train_times' %}?station={{ station|urlencode }}&year={{ year|urlencode }}&month={{ month|urlencode }}">חזרה ללוח רכבות</a>
+    </div>
+  </div>
+</body>
+</html>
