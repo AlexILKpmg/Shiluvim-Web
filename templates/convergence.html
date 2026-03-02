@@ -886,7 +886,7 @@ function buildBusRowKey(row) {
   const trainId = String(row["מספר הרכבת"] ?? "").trim();
   const shilot  = String(row["שילוט"] ?? "").trim();
   const makat = String(row['מק"ט'] ?? "").trim();
-  const t = extractHHMM(row["זמן הגעה לתחנה"] ?? row["זמן יציאה מהתחנה"] ?? "") || "";
+  const t = extractHHMM(row["זמן יציאה מהתחנה (רישוי)"] ?? row["זמן יציאה מהתחנה (רישוי)"] ?? "") || "";
   return trainId + "||" + shilot + "||" + makat + "||" + t;
 }
 
@@ -899,7 +899,7 @@ function setActiveBusRow(rowOrNull) {
 
 // Collect bus rows that are “valid” for current view (must have time + signage)
 function getBusRowsForCurrentView() {
-  const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה";
+  const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה (רישוי)";
   const filteredTimes = getFilteredTimes();
   const weekOnlyTimes = stationTimes.filter(r => String(r[COL_WEEK] ?? "").trim() === activeWeek);
 
@@ -955,7 +955,7 @@ function redrawBuses() {
   }
   updateBusHeadersSticky();
 
-  const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה";
+  const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה (רישוי)";
   const filteredTimes = getFilteredTimes();
   const weekOnlyTimes = stationTimes.filter(r => String(r[COL_WEEK] ?? "").trim() === activeWeek);
 
@@ -1187,7 +1187,7 @@ function getTrainPercForRow(row) {
 }
 
 // Defines which fields appear in the table and in what order
-const TABLE_FIELDS = [
+const TABLE_FIELDS_BUS_TO_RAIL = [
   { key: "מפעיל", label: "מפעיל" },
   { key: 'מק"ט', label: 'מק"ט' },
   { key: "כיוון", label: "כיוון" },
@@ -1197,15 +1197,31 @@ const TABLE_FIELDS = [
   { key: "זמן הגעה לתחנה", label: "זמן הגעה לתחנה" },
   { key: "טווח זמן ההגעה לתחנה", label: "טווח זמן ההגעה לתחנה" },
   { key: "הפרש בדקות (מאוטובוס לרכבת)", label: "הפרש בדקות (מאוטובוס לרכבת)" },
-  { key: "מספר תצפיות", label: "מספר תצפיות" },
-  { key: "מספר הנסיעות שעמדו בזמנים", label: "מספר הנסיעות שעמדו בזמנים" },
+  { key: "המלצה (דקות)", label: "המלצה בדקות" },
   { key: "אחוז הנסיעות שעמדו בזמנים", label: "אחוז הנסיעות שעמדו בזמנים" },
-  { key: "המלצה (דקות)", label: "המלצה בדקות" }
 ];
 
+const TABLE_FIELDS_RAIL_TO_BUS = [
+  { key: "מפעיל", label: "מפעיל" },
+  { key: 'מק"ט', label: 'מק"ט' },
+  { key: "כיוון", label: "כיוון" },
+  { key: "חלופה", label: "חלופה" },
+  { key: "זמן יציאה", label: "זמן יציאה" },
+  { key: "ממוצע נוסעים לנסיעה", label: "ממוצע נוסעים לנסיעה" },
+  { key: "זמן יציאה מהתחנה (רישוי)", label: "זמן יציאה מהתחנה (רישוי)" },
+  { key: "הפרש בדקות (מרכבת לאוטובוס)", label: "הפרש בדקות (מרכבת לאוטובוס)" },
+  { key: "המלצה (דקות)", label: "המלצה בדקות" },
+];
+
+function getTableFields() {
+  return (activeDirection === "לכיוון תל אביב")
+    ? TABLE_FIELDS_BUS_TO_RAIL
+    : TABLE_FIELDS_RAIL_TO_BUS;
+}
+
 const HEADER_FILTER_COLS = {
-  operator: TABLE_FIELDS[0].key,
-  makat: TABLE_FIELDS[1].key,
+  operator: "מפעיל",
+  makat: 'מק"ט',
 };
 
 const activeHeaderFilters = {
@@ -1396,10 +1412,11 @@ function renderBusTable() {
   const headerRow = document.getElementById("busTableHeaderRow");
   const body = document.getElementById("busTableBody");
   if (!headerRow || !body) return;
+  const tableFields = getTableFields();
 
   // Build header
   headerRow.innerHTML = "";
-  TABLE_FIELDS.forEach((f, idx) => {
+  tableFields.forEach((f, idx) => {
     const th = document.createElement("th");
     if (idx === 0 || idx === 1) {
       const col = idx === 0 ? "operator" : "makat";
@@ -1431,7 +1448,7 @@ function renderBusTable() {
   rows.forEach(r => {
     const tr = document.createElement("tr");
 
-    TABLE_FIELDS.forEach(f => {
+    tableFields.forEach(f => {
       const td = document.createElement("td");
 
       let v = "";

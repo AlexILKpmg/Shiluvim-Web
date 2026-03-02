@@ -19,6 +19,9 @@ CONVERGENCE_FILE_RE = re.compile(
     re.IGNORECASE,
 )
 
+SHEET_BUS_TO_RAIL = "bus_to_rail"
+SHEET_RAIL_TO_BUS = "rail_to_bus"
+
 COL_STATION = "שם תחנת הרכבת"
 COL_YEAR = "שנה"
 COL_MONTH = "חודש"
@@ -53,22 +56,31 @@ def _discover_convergence_files() -> list[tuple[str, str]]:
     files.sort(key=lambda item: (item[0], item[1]))
     return [(file_name, week_label) for _, file_name, week_label in files]
 
-def _read_convergence_tables() -> tuple[pd.DataFrame, list[str]]:
-    frames: list[pd.DataFrame] = []
+
+def _read_convergence_tables() -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
+    bus_frames: list[pd.DataFrame] = []
+    rail_frames: list[pd.DataFrame] = []
     errors: list[str] = []
 
     for file_name, week_label in _discover_convergence_files():
         path = TABLES_DIR / file_name
         try:
-            df = pd.read_excel(path)
-            df[COL_WEEK] = week_label
-            frames.append(df)
+            b2r = pd.read_excel(path, sheet_name=SHEET_BUS_TO_RAIL)
+            b2r[COL_WEEK] = week_label
+            bus_frames.append(b2r)
         except Exception as e:
-            errors.append(f"בעיה בקריאת קובץ {file_name}: {e}")
+            errors.append(f"בעיה בקריאת גיליון {SHEET_BUS_TO_RAIL} בקובץ {file_name}: {e}")
 
-    if not frames:
-        return pd.DataFrame(), errors
-    return pd.concat(frames, ignore_index=True), errors
+        try:
+            r2b = pd.read_excel(path, sheet_name=SHEET_RAIL_TO_BUS)
+            r2b[COL_WEEK] = week_label
+            rail_frames.append(r2b)
+        except Exception as e:
+            errors.append(f"בעיה בקריאת גיליון {SHEET_RAIL_TO_BUS} בקובץ {file_name}: {e}")
+
+    bus_all = pd.concat(bus_frames, ignore_index=True) if bus_frames else pd.DataFrame()
+    rail_all = pd.concat(rail_frames, ignore_index=True) if rail_frames else pd.DataFrame()
+    return bus_all, rail_all, errors
 
 
 def _build_train_perc_map(df: pd.DataFrame) -> dict[str, object]:
@@ -138,8 +150,8 @@ def convergence(request):
             },
         )
 
-    all_df, errors = _read_convergence_tables()
-    if all_df.empty:
+    bus_all_df, rail_all_df, errors = _read_convergence_tables()
+    if bus_all_df.empty and rail_all_df.empty:
         return render(
             request,
             "convergence.html",
@@ -155,9 +167,14 @@ def convergence(request):
             },
         )
 
-    station_df = all_df.copy()
-    if COL_STATION in station_df.columns:
-        station_df = station_df[station_df[COL_STATION].astype(str).str.strip() == station]
+    bus_station_df = bus_all_df.copy()
+    rail_station_df = rail_all_df.copy()
+    if COL_STATION in bus_station_df.columns:
+        bus_station_df = bus_station_df[bus_station_df[COL_STATION].astype(str).str.strip() == station]
+    if COL_STATION in rail_station_df.columns:
+        rail_station_df = rail_station_df[rail_station_df[COL_STATION].astype(str).str.strip() == station]
+
+    station_df = pd.concat([bus_station_df, rail_station_df], ignore_index=True)
 
     year_month_pairs: list[dict[str, int]] = []
     if COL_YEAR in station_df.columns and COL_MONTH in station_df.columns:
@@ -176,20 +193,24 @@ def convergence(request):
         if month is None:
             month = year_month_pairs[0]["month"]
 
-    filtered = station_df.copy()
-    if COL_YEAR in filtered.columns and year is not None:
-        filtered = filtered[pd.to_numeric(filtered[COL_YEAR], errors="coerce") == year]
-    if COL_MONTH in filtered.columns and month is not None:
-        filtered = filtered[pd.to_numeric(filtered[COL_MONTH], errors="coerce") == month]
+    bus_filtered = bus_station_df.copy()
+    rail_filtered = rail_station_df.copy()
 
-    if COL_RAIL_DIR in filtered.columns:
-        bus_to_rail_df = filtered[filtered[COL_RAIL_DIR].astype(str).str.strip() == DIR_TO_TA]
-        rail_to_bus_df = filtered[filtered[COL_RAIL_DIR].astype(str).str.strip() == DIR_FROM_TA]
-    else:
-        bus_to_rail_df = filtered.iloc[0:0]
-        rail_to_bus_df = filtered.iloc[0:0]
+    if COL_YEAR in bus_filtered.columns and year is not None:
+        bus_filtered = bus_filtered[pd.to_numeric(bus_filtered[COL_YEAR], errors="coerce") == year]
+    if COL_MONTH in bus_filtered.columns and month is not None:
+        bus_filtered = bus_filtered[pd.to_numeric(bus_filtered[COL_MONTH], errors="coerce") == month]
 
-    train_perc_map = _build_train_perc_map(filtered)
+    if COL_YEAR in rail_filtered.columns and year is not None:
+        rail_filtered = rail_filtered[pd.to_numeric(rail_filtered[COL_YEAR], errors="coerce") == year]
+    if COL_MONTH in rail_filtered.columns and month is not None:
+        rail_filtered = rail_filtered[pd.to_numeric(rail_filtered[COL_MONTH], errors="coerce") == month]
+
+    bus_to_rail_df = bus_filtered
+    rail_to_bus_df = rail_filtered
+
+    combined_for_perc = pd.concat([bus_filtered, rail_filtered], ignore_index=True)
+    train_perc_map = _build_train_perc_map(combined_for_perc)
 
     context = {
         "debug_message": "\n".join(errors),
