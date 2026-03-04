@@ -26,8 +26,9 @@ def main_page(request, station_name=None, year=None, month=None):
     # ------------------------------------------------------------
     df_ranking = pd.read_csv(TABLES_DIR / "df_ranking.csv", encoding="utf-8-sig")
     passanger_matrix = pd.read_csv(TABLES_DIR / "passanger_matrix.csv", encoding="utf-8-sig")
-
     bus_info = pd.read_excel(TABLES_DIR / "for_convergence_data.xlsx")
+
+
     bus_info = bus_info.rename(columns={
         "שם תחנת הרכבת": "station_name",
         "מפעיל": "operator",
