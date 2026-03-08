@@ -1,5 +1,7 @@
-from django.contrib import admin
-from .models import ConvergenceRecord
+﻿from django.contrib import admin
 
-admin.site.register(ConvergenceRecord)
+from .models import ConvergenceBusToRail, ConvergenceRailToBus
 
+
+admin.site.register(ConvergenceBusToRail)
+admin.site.register(ConvergenceRailToBus)

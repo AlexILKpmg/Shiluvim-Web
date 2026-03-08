@@ -1,26 +1,10 @@
-import json
-import re
-from pathlib import Path
+﻿import json
+from decimal import Decimal
 
-import pandas as pd
 from django.shortcuts import render
 
+from convergence.models import ConvergenceBusToRail, ConvergenceRailToBus
 
-TABLES_DIR = Path(__file__).resolve().parents[1] / "tables"
-
-YEAR_MONTHS = {"2025-12", "2026-01"}  # update only this; empty set => all months
-WEEK_LABELS = {
-    "WeekDay": "יום חול",
-    "Friday": "שישי",
-    "Saturday": "שבת",
-}
-CONVERGENCE_FILE_RE = re.compile(
-    r"^(WeekDay|Friday|Saturday)_rail_bus_convergence_(\d{4}-\d{2})\.xlsx$",
-    re.IGNORECASE,
-)
-
-SHEET_BUS_TO_RAIL = "bus_to_rail"
-SHEET_RAIL_TO_BUS = "rail_to_bus"
 
 COL_STATION = "שם תחנת הרכבת"
 COL_YEAR = "שנה"
@@ -30,96 +14,107 @@ COL_RAIL_DIR = "כיוון נסיעת הרכבת"
 COL_TRAIN_ID = "מספר הרכבת"
 COL_PERC = "אחוז הנסיעות שעמדו בזמנים"
 COL_N = "מספר תצפיות"
-COL_N_postive_flagged = "מספר הנסיעות שעמדו בזמנים"
+COL_N_POSITIVE_FLAGGED = "מספר הנסיעות שעמדו בזמנים"
 
 DIR_TO_TA = "לכיוון תל אביב"
 DIR_FROM_TA = "מכיוון תל אביב"
 
 
-def _to_json_records(df: pd.DataFrame) -> str:
-    if df.empty:
-        return "[]"
-    clean = df.where(pd.notna(df), None)
-    return clean.to_json(orient="records", force_ascii=False)
+def _format_percentage(value):
+    if value is None:
+        return ""
+    if isinstance(value, Decimal):
+        value = float(value)
+    try:
+        return f"{float(value):.1f}%"
+    except (TypeError, ValueError):
+        text = str(value).strip()
+        if not text:
+            return ""
+        return text if text.endswith("%") else f"{text}%"
 
-def _discover_convergence_files() -> list[tuple[str, str]]:
-    files: list[tuple[str, str, str]] = []  # (year_month, file_name, week_label)
-    for p in TABLES_DIR.glob("*.xlsx"):
-        match = CONVERGENCE_FILE_RE.match(p.name)
-        if not match:
+
+def _serialize_bus_row(row):
+    return {
+        COL_YEAR: row.year,
+        COL_MONTH: row.month,
+        COL_WEEK: row.week_period,
+        COL_STATION: row.train_station_name,
+        COL_RAIL_DIR: row.rail_direction,
+        COL_TRAIN_ID: row.train_number,
+        "מפעיל": row.operator,
+        'מק"ט': row.makat,
+        "כיוון": row.direction,
+        "חלופה": row.alternative,
+        "זמן יציאה": row.departure_time,
+        "ממוצע נוסעים לנסיעה": row.avg_passengers_per_trip,
+        "זמן הגעה לתחנה": row.arrival_time_to_station,
+        "טווח זמן ההגעה לתחנה": row.arrival_time_window,
+        "הפרש בדקות (מאוטובוס לרכבת)": row.minutes_gap_bus_to_rail,
+        "המלצה (דקות)": row.recommended_minutes,
+        COL_N: row.observations_count,
+        COL_N_POSITIVE_FLAGGED: row.on_time_count,
+        COL_PERC: _format_percentage(row.on_time_percentage),
+    }
+
+
+def _serialize_rail_row(row):
+    return {
+        COL_YEAR: row.year,
+        COL_MONTH: row.month,
+        COL_WEEK: row.week_period,
+        COL_STATION: row.train_station_name,
+        COL_RAIL_DIR: row.rail_direction,
+        COL_TRAIN_ID: row.train_number,
+        "מפעיל": row.operator,
+        'מק"ט': row.makat,
+        "כיוון": row.direction,
+        "חלופה": row.alternative,
+        "זמן יציאה": row.departure_time,
+        "ממוצע נוסעים לנסיעה": row.avg_passengers_per_trip,
+        "זמן יציאה מהתחנה (רישוי)": row.train_departure_time,
+        "הפרש בדקות (מרכבת לאוטובוס)": row.minutes_gap_rail_to_bus,
+        "המלצה (דקות)": row.recommended_minutes,
+    }
+
+
+def _build_train_perc_map(rows):
+    grouped = {}
+
+    for row in rows:
+        year = row.get(COL_YEAR)
+        month = row.get(COL_MONTH)
+        train_id = str(row.get(COL_TRAIN_ID) or "").strip()
+        rail_dir = str(row.get(COL_RAIL_DIR) or "").strip()
+
+        n = row.get(COL_N)
+        positive = row.get(COL_N_POSITIVE_FLAGGED)
+
+        if year is None or month is None or not train_id or not rail_dir:
             continue
-        week_key, year_month = match.group(1), match.group(2)
-        week_key = week_key[0].upper() + week_key[1:]  # normalize case
-        if YEAR_MONTHS and year_month not in YEAR_MONTHS:
+        if n is None or positive is None:
             continue
-        files.append((year_month, p.name, WEEK_LABELS[week_key]))
-    files.sort(key=lambda item: (item[0], item[1]))
-    return [(file_name, week_label) for _, file_name, week_label in files]
-
-
-def _read_convergence_tables() -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
-    bus_frames: list[pd.DataFrame] = []
-    rail_frames: list[pd.DataFrame] = []
-    errors: list[str] = []
-
-    for file_name, week_label in _discover_convergence_files():
-        path = TABLES_DIR / file_name
-        try:
-            b2r = pd.read_excel(path, sheet_name=SHEET_BUS_TO_RAIL)
-            b2r[COL_WEEK] = week_label
-            bus_frames.append(b2r)
-        except Exception as e:
-            errors.append(f"בעיה בקריאת גיליון {SHEET_BUS_TO_RAIL} בקובץ {file_name}: {e}")
 
         try:
-            r2b = pd.read_excel(path, sheet_name=SHEET_RAIL_TO_BUS)
-            r2b[COL_WEEK] = week_label
-            rail_frames.append(r2b)
-        except Exception as e:
-            errors.append(f"בעיה בקריאת גיליון {SHEET_RAIL_TO_BUS} בקובץ {file_name}: {e}")
+            n_val = float(n)
+            p_val = float(positive)
+        except (TypeError, ValueError):
+            continue
 
-    bus_all = pd.concat(bus_frames, ignore_index=True) if bus_frames else pd.DataFrame()
-    rail_all = pd.concat(rail_frames, ignore_index=True) if rail_frames else pd.DataFrame()
-    return bus_all, rail_all, errors
+        if n_val <= 0:
+            continue
 
+        key = (int(year), int(month), train_id, rail_dir)
+        if key not in grouped:
+            grouped[key] = [0.0, 0.0]
+        grouped[key][0] += p_val
+        grouped[key][1] += n_val
 
-def _build_train_perc_map(df: pd.DataFrame) -> dict[str, object]:
-    required = [COL_YEAR, COL_MONTH, COL_TRAIN_ID, COL_RAIL_DIR, COL_N, COL_N_postive_flagged]
-    if any(c not in df.columns for c in required):
-        return {}
-
-    out: dict[str, object] = {}
-    tmp = df[required].copy()
-
-    tmp[COL_YEAR] = pd.to_numeric(tmp[COL_YEAR], errors="coerce").astype("Int64")
-    tmp[COL_MONTH] = pd.to_numeric(tmp[COL_MONTH], errors="coerce").astype("Int64")
-    tmp[COL_N] = pd.to_numeric(tmp[COL_N], errors="coerce")
-    tmp[COL_N_postive_flagged] = pd.to_numeric(tmp[COL_N_postive_flagged], errors="coerce")
-    tmp[COL_TRAIN_ID] = tmp[COL_TRAIN_ID].astype(str).str.strip()
-    tmp[COL_RAIL_DIR] = tmp[COL_RAIL_DIR].astype(str).str.strip()
-
-    tmp = tmp.dropna(subset=[COL_YEAR, COL_MONTH, COL_N, COL_N_postive_flagged])
-    tmp = tmp[tmp[COL_TRAIN_ID] != ""]
-    tmp = tmp[tmp[COL_RAIL_DIR] != ""]
-    tmp = tmp[tmp[COL_N] > 0]
-
-    grouped = (
-        tmp.groupby([COL_YEAR, COL_MONTH, COL_TRAIN_ID, COL_RAIL_DIR], as_index=False)[
-            [COL_N_postive_flagged, COL_N]
-        ]
-        .sum()
-    )
-    grouped["perc"] = ((grouped[COL_N_postive_flagged] / grouped[COL_N]) * 100).round(1).astype(str) + "%"
-
-    for _, row in grouped.iterrows():
-        y = int(row[COL_YEAR])
-        m = int(row[COL_MONTH])
-        t = row[COL_TRAIN_ID]
-        d = row[COL_RAIL_DIR]
-        perc = row["perc"]
-
-        key = f"{y}_{m}_{t}_{d}"
-        out[key] = perc
+    out = {}
+    for (year, month, train_id, rail_dir), (p_sum, n_sum) in grouped.items():
+        if n_sum <= 0:
+            continue
+        out[f"{year}_{month}_{train_id}_{rail_dir}"] = f"{(p_sum / n_sum) * 100:.1f}%"
 
     return out
 
@@ -133,7 +128,6 @@ def convergence(request):
     m = (request.GET.get("month") or "").strip()
     month = int(m) if m.isdigit() else None
 
-    # Require station from URL; year/month can be changed from convergence page.
     if not station:
         return render(
             request,
@@ -150,42 +144,21 @@ def convergence(request):
             },
         )
 
-    bus_all_df, rail_all_df, errors = _read_convergence_tables()
-    if bus_all_df.empty and rail_all_df.empty:
-        return render(
-            request,
-            "convergence.html",
-            {
-                "debug_message": "\n".join(errors) if errors else "no data found",
-                "station": station,
-                "year": year or "",
-                "month": month or "",
-                "bus_to_rail_df_js": "[]",
-                "rail_to_bus_df_js": "[]",
-                "train_perc_js": "{}",
-                "year_month_pairs_js": "[]",
-            },
-        )
+    bus_qs = ConvergenceBusToRail.objects.filter(train_station_name=station)
+    rail_qs = ConvergenceRailToBus.objects.filter(train_station_name=station)
 
-    bus_station_df = bus_all_df.copy()
-    rail_station_df = rail_all_df.copy()
-    if COL_STATION in bus_station_df.columns:
-        bus_station_df = bus_station_df[bus_station_df[COL_STATION].astype(str).str.strip() == station]
-    if COL_STATION in rail_station_df.columns:
-        rail_station_df = rail_station_df[rail_station_df[COL_STATION].astype(str).str.strip() == station]
+    year_month_pairs_set = set()
+    for yv, mv in bus_qs.values_list("year", "month"):
+        if yv is not None and mv is not None:
+            year_month_pairs_set.add((int(yv), int(mv)))
+    for yv, mv in rail_qs.values_list("year", "month"):
+        if yv is not None and mv is not None:
+            year_month_pairs_set.add((int(yv), int(mv)))
 
-    station_df = pd.concat([bus_station_df, rail_station_df], ignore_index=True)
-
-    year_month_pairs: list[dict[str, int]] = []
-    if COL_YEAR in station_df.columns and COL_MONTH in station_df.columns:
-        ym = station_df[[COL_YEAR, COL_MONTH]].copy()
-        ym[COL_YEAR] = pd.to_numeric(ym[COL_YEAR], errors="coerce").astype("Int64")
-        ym[COL_MONTH] = pd.to_numeric(ym[COL_MONTH], errors="coerce").astype("Int64")
-        ym = ym.dropna(subset=[COL_YEAR, COL_MONTH]).drop_duplicates().sort_values([COL_YEAR, COL_MONTH])
-        year_month_pairs = [
-            {"year": int(r[COL_YEAR]), "month": int(r[COL_MONTH])}
-            for _, r in ym.iterrows()
-        ]
+    year_month_pairs = [
+        {"year": yv, "month": mv}
+        for (yv, mv) in sorted(year_month_pairs_set)
+    ]
 
     if (year is None or month is None) and year_month_pairs:
         if year is None:
@@ -193,32 +166,26 @@ def convergence(request):
         if month is None:
             month = year_month_pairs[0]["month"]
 
-    bus_filtered = bus_station_df.copy()
-    rail_filtered = rail_station_df.copy()
+    if year is not None:
+        bus_qs = bus_qs.filter(year=year)
+        rail_qs = rail_qs.filter(year=year)
+    if month is not None:
+        bus_qs = bus_qs.filter(month=month)
+        rail_qs = rail_qs.filter(month=month)
 
-    if COL_YEAR in bus_filtered.columns and year is not None:
-        bus_filtered = bus_filtered[pd.to_numeric(bus_filtered[COL_YEAR], errors="coerce") == year]
-    if COL_MONTH in bus_filtered.columns and month is not None:
-        bus_filtered = bus_filtered[pd.to_numeric(bus_filtered[COL_MONTH], errors="coerce") == month]
+    bus_rows = [_serialize_bus_row(row) for row in bus_qs]
+    rail_rows = [_serialize_rail_row(row) for row in rail_qs]
 
-    if COL_YEAR in rail_filtered.columns and year is not None:
-        rail_filtered = rail_filtered[pd.to_numeric(rail_filtered[COL_YEAR], errors="coerce") == year]
-    if COL_MONTH in rail_filtered.columns and month is not None:
-        rail_filtered = rail_filtered[pd.to_numeric(rail_filtered[COL_MONTH], errors="coerce") == month]
-
-    bus_to_rail_df = bus_filtered
-    rail_to_bus_df = rail_filtered
-
-    combined_for_perc = pd.concat([bus_filtered, rail_filtered], ignore_index=True)
+    combined_for_perc = bus_rows + rail_rows
     train_perc_map = _build_train_perc_map(combined_for_perc)
 
     context = {
-        "debug_message": "\n".join(errors),
+        "debug_message": "",
         "station": station,
         "year": year or "",
         "month": month or "",
-        "bus_to_rail_df_js": _to_json_records(bus_to_rail_df),
-        "rail_to_bus_df_js": _to_json_records(rail_to_bus_df),
+        "bus_to_rail_df_js": json.dumps(bus_rows, ensure_ascii=False),
+        "rail_to_bus_df_js": json.dumps(rail_rows, ensure_ascii=False),
         "train_perc_js": json.dumps(train_perc_map, ensure_ascii=False),
         "year_month_pairs_js": json.dumps(year_month_pairs, ensure_ascii=False),
     }
