@@ -1,10 +1,6 @@
-from pathlib import Path
-
-import pandas as pd
 from django.shortcuts import render
 
-
-TABLES_DIR = Path(__file__).resolve().parent.parent / "tables"
+from train_stations_order.models import Ranking
 
 
 def stations_order(request):
@@ -17,26 +13,29 @@ def stations_order(request):
     debug_message = ""
 
     if train_number:
-        xlsx_path = TABLES_DIR / "Train_Stations_Order.xlsx"
         try:
-            df = pd.read_excel(xlsx_path)
-            if "Train_number" in df.columns:
-                df["Train_number"] = df["Train_number"].astype(str).str.strip()
-                filtered = df[df["Train_number"] == train_number]
-                if "train_rishui_station_order_source" in filtered.columns:
-                    filtered["train_rishui_station_order_source"] = pd.to_numeric(
-                        filtered["train_rishui_station_order_source"], errors="coerce"
-                    )
-                    filtered = filtered.sort_values(
-                        by="train_rishui_station_order_source",
-                        ascending=True,
-                        na_position="last",
-                    )
-                rows = filtered.to_dict(orient="records")
+            try:
+                train_num = int(train_number)
+            except ValueError:
+                train_num = None
+
+            if train_num is None:
+                debug_message = "train_number must be numeric."
             else:
-                debug_message = "Column 'Train_number' was not found in Train_Stations_Order.xlsx."
+                qs = (
+                    Ranking.objects.filter(train_num=train_num)
+                    .order_by("train_station_order", "id")
+                    .values("train_station_name", "train_station_order")
+                )
+                rows = [
+                    {
+                        "StationName": row["train_station_name"],
+                        "train_rishui_station_order_source": row["train_station_order"],
+                    }
+                    for row in qs
+                ]
         except Exception as exc:
-            debug_message = f"Failed reading Train_Stations_Order.xlsx: {exc}"
+            debug_message = f"Failed reading data from DB: {exc}"
 
     return render(
         request,
