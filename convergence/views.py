@@ -1,6 +1,7 @@
 ﻿import json
 from decimal import Decimal
 
+from django.db.models.functions import Trim
 from django.shortcuts import render
 
 from convergence.models import ConvergenceBusToRail, ConvergenceRailToBus
@@ -15,6 +16,11 @@ COL_TRAIN_ID = "מספר הרכבת"
 COL_PERC = "אחוז הנסיעות שעמדו בזמנים"
 COL_N = "מספר תצפיות"
 COL_N_POSITIVE_FLAGGED = "מספר הנסיעות שעמדו בזמנים"
+COL_SIGNAGE = "שילוט"
+COL_GOLD_TRAIN = "רכבת זהב"
+COL_BUS_ON_TIME = "האם האוטובוס מגיע בזמן"
+COL_LICENSED_TRAIN_DEPARTURE = "זמן יציאת הרכבת מהתחנה (רישוי)"
+COL_LICENSED_TRAIN_ARRIVAL = "זמן הגעת הרכבת לתחנה (רישוי)"
 
 DIR_TO_TA = "לכיוון תל אביב"
 DIR_FROM_TA = "מכיוון תל אביב"
@@ -42,6 +48,11 @@ def _serialize_bus_row(row):
         COL_STATION: row.train_station_name,
         COL_RAIL_DIR: row.rail_direction,
         COL_TRAIN_ID: row.train_number,
+        COL_SIGNAGE: row.signage,
+        COL_GOLD_TRAIN: row.is_gold_train,
+        COL_BUS_ON_TIME: row.is_bus_on_time,
+        COL_LICENSED_TRAIN_DEPARTURE: row.rishui_train_departure_time,
+        COL_LICENSED_TRAIN_ARRIVAL: "",
         "מפעיל": row.operator,
         'מק"ט': row.makat,
         "כיוון": row.direction,
@@ -66,6 +77,11 @@ def _serialize_rail_row(row):
         COL_STATION: row.train_station_name,
         COL_RAIL_DIR: row.rail_direction,
         COL_TRAIN_ID: row.train_number,
+        COL_SIGNAGE: row.signage,
+        COL_GOLD_TRAIN: row.is_gold_train,
+        COL_BUS_ON_TIME: row.is_bus_on_time,
+        COL_LICENSED_TRAIN_DEPARTURE: "",
+        COL_LICENSED_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         "מפעיל": row.operator,
         'מק"ט': row.makat,
         "כיוון": row.direction,
@@ -144,8 +160,12 @@ def convergence(request):
             },
         )
 
-    bus_qs = ConvergenceBusToRail.objects.filter(train_station_name=station)
-    rail_qs = ConvergenceRailToBus.objects.filter(train_station_name=station)
+    bus_qs = ConvergenceBusToRail.objects.annotate(_station_trim=Trim("train_station_name")).filter(_station_trim=station)
+    rail_qs = ConvergenceRailToBus.objects.annotate(_station_trim=Trim("train_station_name")).filter(_station_trim=station)
+
+    if not bus_qs.exists() and not rail_qs.exists():
+        bus_qs = ConvergenceBusToRail.objects.filter(train_station_name__icontains=station)
+        rail_qs = ConvergenceRailToBus.objects.filter(train_station_name__icontains=station)
 
     year_month_pairs_set = set()
     for yv, mv in bus_qs.values_list("year", "month"):
@@ -179,8 +199,12 @@ def convergence(request):
     combined_for_perc = bus_rows + rail_rows
     train_perc_map = _build_train_perc_map(combined_for_perc)
 
+    debug_message = ""
+    if not bus_rows and not rail_rows:
+        debug_message = f"no convergence rows found for station='{station}', year='{year}', month='{month}'"
+
     context = {
-        "debug_message": "",
+        "debug_message": debug_message,
         "station": station,
         "year": year or "",
         "month": month or "",

@@ -138,88 +138,6 @@
             background: #eef6ff;
         }
 
-        .th-wrap {
-            position: relative;
-            padding-right: 22px;
-        }
-
-        .th-search-btn {
-            position: absolute;
-            right: 6px;
-            bottom: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            user-select: none;
-            opacity: 0.85;
-        }
-
-        .th-search-btn:hover {
-            opacity: 1;
-        }
-
-        .hdr-popup {
-            position: absolute;
-            z-index: 9999;
-            width: 220px;
-            background: #fff;
-            border: 1px solid #bbb;
-            border-radius: 10px;
-            box-shadow: 0 10px 24px rgba(0,0,0,0.15);
-            padding: 10px;
-            display: none;
-        }
-
-        .hdr-popup .popup-title {
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-
-        .hdr-popup .popup-title-selected {
-            font-weight: 400;
-        }
-
-        .hdr-popup input {
-            width: 100%;
-            padding: 6px 8px;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            margin-bottom: 8px;
-            box-sizing: border-box;
-        }
-
-        .hdr-popup .popup-list {
-            max-height: 180px;
-            overflow: auto;
-            border-top: 1px solid #eee;
-            padding-top: 6px;
-        }
-
-        .hdr-popup .popup-item {
-            padding: 6px 8px;
-            border-radius: 8px;
-            cursor: pointer;
-            text-align: right;
-        }
-
-        .hdr-popup .popup-item:hover {
-            background: #f2f2f2;
-        }
-
-        .hdr-popup .popup-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-            justify-content: flex-end;
-        }
-
-        .hdr-popup .btn {
-            border: 1px solid #999;
-            background: #fff;
-            border-radius: 8px;
-            padding: 4px 10px;
-            cursor: pointer;
-        }
-
     </style>
 </head>
 <!-- endregion COV BLOCK 2 -->
@@ -388,13 +306,65 @@ function updateTitleFromState() {
 
 
 // region COV 5D
-let activeDirection = "לכיוון תל אביב";
+const DIR_TO_TA = "לכיוון תל אביב";
+const KEY_BUS_TIME_TO_STATION = "זמן הגעה לתחנה";
+const KEY_TRAIN_DEPARTURE_RISHUI = "זמן יציאת הרכבת מהתחנה (רישוי)";
+const KEY_TRAIN_ARRIVAL_RISHUI = "זמן הגעת הרכבת לתחנה (רישוי)";
+const KEY_RAIL_TO_BUS_DEPARTURE = "זמן יציאה מהתחנה (רישוי)";
+const KEY_SIGNAGE = "שילוט";
+
+let activeDirection = DIR_TO_TA;
 let activeTrain = null;
 let activeTrainUid = null;
 let activeBusRowKey = null;
+let activeSignage = null;
 
 function getMasterData() {
-    return (activeDirection === "לכיוון תל אביב") ? BUS_TO_RAIL_JSON : RAIL_TO_BUS_JSON;
+    return (activeDirection === DIR_TO_TA) ? BUS_TO_RAIL_JSON : RAIL_TO_BUS_JSON;
+}
+
+function getTrainTimeByDirection(row) {
+    return (activeDirection === DIR_TO_TA)
+        ? row[KEY_TRAIN_DEPARTURE_RISHUI]
+        : row[KEY_TRAIN_ARRIVAL_RISHUI];
+}
+
+function getBusTimeByDirection(row) {
+    return (activeDirection === DIR_TO_TA)
+        ? row[KEY_BUS_TIME_TO_STATION]
+        : row[KEY_RAIL_TO_BUS_DEPARTURE];
+}
+
+function getTrainIdValue(row) {
+    const raw = row["מספר הרכבת"];
+    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
+    const n = Number(raw);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+    return String(raw).trim();
+}
+
+function getSignageValue(row) {
+    const raw = row[KEY_SIGNAGE];
+    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
+    const n = Number(raw);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+    return String(raw).trim();
+}
+
+function getDirectionValue(row) {
+    const raw = row["כיוון"];
+    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
+    const n = Number(raw);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+    return String(raw).trim();
+}
+
+function getMakatValue(row) {
+    const raw = row['מק"ט'];
+    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
+    const n = Number(raw);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+    return String(raw).trim();
 }
 
 let stationTimes = [];
@@ -428,7 +398,25 @@ function applyBusFilter() {
     const buses = svg.querySelectorAll(".bus-item");
     buses.forEach(b => {
         const tid = b.getAttribute("data-train") || "";
-        b.style.display = (!activeTrain || tid === activeTrain) ? "" : "none";
+        const signage = b.getAttribute("data-signage") || "";
+        const trainOk = (!activeTrain || tid === activeTrain);
+        const signageOk = (!activeSignage || signage === activeSignage);
+        b.style.display = (trainOk && signageOk) ? "" : "none";
+    });
+}
+
+function updateBusHeaderSelectionVisuals() {
+    const headers = svg.querySelectorAll(".bus-header");
+    headers.forEach(h => {
+        const signage = h.getAttribute("data-signage") || "";
+        const isActive = !!activeSignage && signage === activeSignage;
+
+        h.setAttribute("fill", isActive ? "#0b5fff" : "#000");
+        const bg = h.previousElementSibling;
+        if (bg && bg.classList.contains("bus-header-bg")) {
+            bg.setAttribute("fill", isActive ? "#e9f1ff" : "#fff");
+            bg.setAttribute("stroke", isActive ? "#0b5fff" : "#ddd");
+        }
     });
 }
 
@@ -668,6 +656,7 @@ function getFilteredTimes() {
 
 function refreshAllAfterFilterChange() {
     activeBusRowKey = null;
+    activeSignage = null;
 
     rebuildStationTimes();
     populateWeekDropdown();
@@ -725,6 +714,7 @@ weekSelect.addEventListener("change", () => {
     populateOperatorDropdown();
 
     activeBusRowKey = null;
+    activeSignage = null;
 
     setActiveTrain(null);
     redrawTrains();
@@ -736,6 +726,7 @@ operatorSelect.addEventListener("change", () => {
     activeOperator = operatorSelect.value;
 
     activeBusRowKey = null;
+    activeSignage = null;
 
     setActiveTrain(null);
     redrawTrains();
@@ -755,14 +746,12 @@ function redrawTrains() {
     const uniqueTrainRows = [];
 
     filteredTimes.forEach(row => {
-        const timeVal = (activeDirection === "לכיוון תל אביב")
-            ? row["זמן יציאת הרכבת מהתחנה (רישוי)"]
-            : row["זמן הגעת הרכבת לתחנה (רישוי)"];
+        const timeVal = getTrainTimeByDirection(row);
 
         const y = timeToY(timeVal);
         if (y === null) return;
 
-        const trainId = String(row["מספר הרכבת"] ?? "").trim();
+        const trainId = getTrainIdValue(row);
         if (!trainId) return;
 
         const normalizedTime = extractHHMM(timeVal) || String(timeVal ?? "").trim();
@@ -807,7 +796,7 @@ function redrawTrains() {
     uniqueTrainRows.forEach(item => {
         const { row, timeVal, y, trainId, trainUid, xOffset } = item;
 
-        if (activeDirection === "לכיוון תל אביב") {
+        if (activeDirection === DIR_TO_TA) {
             const percKey = buildPercKeyForLookup(row, trainId);
             const percStr = percKey ? TRAIN_PERC[percKey] : null;
 
@@ -884,15 +873,15 @@ function redrawTrains() {
 
 // region COV 5K
 function clearBuses() {
-  svg.querySelectorAll(".bus-item, .bus-header").forEach(el => el.remove());
+  svg.querySelectorAll(".bus-item, .bus-header, .bus-header-bg").forEach(el => el.remove());
 }
 
 // Build a unique key for one bus row (used to filter the table)
 function buildBusRowKey(row) {
-  const trainId = String(row["מספר הרכבת"] ?? "").trim();
-  const shilot  = String(row["שילוט"] ?? "").trim();
-  const makat = String(row['מק"ט'] ?? "").trim();
-  const t = extractHHMM(row["זמן יציאה מהתחנה (רישוי)"] ?? row["זמן יציאה מהתחנה (רישוי)"] ?? "") || "";
+  const trainId = getTrainIdValue(row);
+  const shilot  = getSignageValue(row);
+  const makat = getMakatValue(row);
+  const t = extractHHMM(getBusTimeByDirection(row) ?? "") || "";
   return trainId + "||" + shilot + "||" + makat + "||" + t;
 }
 
@@ -905,12 +894,10 @@ function setActiveBusRow(rowOrNull) {
 
 // Collect bus rows that are “valid” for current view (must have time + signage)
 function getBusRowsForCurrentView() {
-  const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה (רישוי)";
   const filteredTimes = getFilteredTimes();
-  const weekOnlyTimes = stationTimes.filter(r => String(r[COL_WEEK] ?? "").trim() === activeWeek);
 
   return filteredTimes.filter(r =>
-    r[busTimeCol] && String(r["שילוט"] ?? "").trim() !== ""
+    getBusTimeByDirection(r) && getSignageValue(r) !== ""
   );
 }
 
@@ -961,19 +948,18 @@ function redrawBuses() {
   }
   updateBusHeadersSticky();
 
-  const busTimeCol = (activeDirection === "לכיוון תל אביב") ? "זמן הגעה לתחנה" : "זמן יציאה מהתחנה (רישוי)";
   const filteredTimes = getFilteredTimes();
   const weekOnlyTimes = stationTimes.filter(r => String(r[COL_WEEK] ?? "").trim() === activeWeek);
 
   const busRows = filteredTimes.filter(r =>
-    r[busTimeCol] && String(r["שילוט"] ?? "").trim() !== ""
+    getBusTimeByDirection(r) && getSignageValue(r) !== ""
   );
 
   // Build signage headers from week-level data so they stay visible even with operator filtering.
   const headerRows = weekOnlyTimes.filter(r =>
-    r[busTimeCol] && String(r["\u05e9\u05d9\u05dc\u05d5\u05d8"] ?? "").trim() !== ""
+    getBusTimeByDirection(r) && getSignageValue(r) !== ""
   );
-  const shilotValues = Array.from(new Set(headerRows.map(r => String(r["\u05e9\u05d9\u05dc\u05d5\u05d8"]).trim())));
+  const shilotValues = Array.from(new Set(headerRows.map(r => getSignageValue(r))));
 
   // Sort signage: numeric signage in numeric order, then strings alphabetically
   shilotValues.sort((a, b) => {
@@ -1007,6 +993,7 @@ function redrawBuses() {
 
     const header = document.createElementNS("http://www.w3.org/2000/svg", "text");
     header.classList.add("bus-header");
+    header.setAttribute("data-signage", String(val));
     header.setAttribute("x", hx);
     header.setAttribute("y", "18");
     header.setAttribute("font-size", "12");
@@ -1015,15 +1002,18 @@ function redrawBuses() {
     header.setAttribute("text-anchor", "middle");
     header.setAttribute("direction", "ltr");
     header.setAttribute("unicode-bidi", "plaintext");
+    header.style.cursor = "pointer";
 
     // White "pill" background around each header value
     const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
     bg.classList.add("bus-header-bg");
+    bg.setAttribute("data-signage", String(val));
     bg.setAttribute("rx", "4");
     bg.setAttribute("ry", "4");
     bg.setAttribute("fill", "#fff");
     bg.setAttribute("stroke", "#ddd");
     bg.setAttribute("stroke-width", "0.8");
+    bg.style.cursor = "pointer";
 
     header.textContent = val;
     svg.appendChild(bg);
@@ -1037,8 +1027,21 @@ function redrawBuses() {
     bg.setAttribute("y", String(bb.y - padY));
     bg.setAttribute("width", String(bb.width + padX * 2));
     bg.setAttribute("height", String(bb.height + padY * 2));
+
+    const signageValue = String(val);
+    const onHeaderClick = (e) => {
+      e.stopPropagation();
+      activeSignage = (activeSignage === signageValue) ? null : signageValue;
+      activeBusRowKey = null;
+      updateBusHeaderSelectionVisuals();
+      applyBusFilter();
+      renderBusTable();
+    };
+    header.addEventListener("click", onHeaderClick);
+    bg.addEventListener("click", onHeaderClick);
   });
   updateBusHeadersSticky();
+  updateBusHeaderSelectionVisuals();
 
   // For font scaling we need min/max passengers
   const passengerVals = busRows
@@ -1060,15 +1063,9 @@ function redrawBuses() {
     return minFont + curved * (maxFont - minFont);
   }
 
-  function getMakatValue(row) {
-    const v1 = String(row["מק\"ט"] ?? "").trim();
-    if (v1) return v1;
-    return String(row['מק"ט'] ?? "").trim();
-  }
-
   function getBusJitterGroupKey(row) {
     const makat = getMakatValue(row);
-    const direction = String(row["כיוון"] ?? "").trim();
+    const direction = getDirectionValue(row);
     const alternative = String(row["חלופה"] ?? "").trim();
     if (!makat || !direction || !alternative) return "";
     return makat + "||" + direction + "||" + alternative;
@@ -1076,15 +1073,15 @@ function redrawBuses() {
 
   const busItems = [];
   busRows.forEach(row => {
-    const busTimeVal = row[busTimeCol];
+    const busTimeVal = getBusTimeByDirection(row);
     const y = timeToY(busTimeVal);
     if (y === null) return;
 
-    const shilot = String(row["שילוט"]).trim();
+    const shilot = getSignageValue(row);
     const x = shilotToX.get(shilot);
     if (x === undefined) return;
 
-    const trainId = String(row["מספר הרכבת"] ?? "").trim();
+    const trainId = getTrainIdValue(row);
     if (!trainId) return;
 
     const avgPassengers = row["ממוצע נוסעים לנסיעה"];
@@ -1157,6 +1154,7 @@ function redrawBuses() {
 
     dot.classList.add("bus-item");
     dot.setAttribute("data-train", trainId);
+    dot.setAttribute("data-signage", getSignageValue(row));
 
     // Tooltip for bus label
     const bTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
@@ -1186,7 +1184,7 @@ function getTrainPercForRow(row) {
     return String(direct).trim();
   }
 
-  const trainId = String(row["מספר הרכבת"] ?? "").trim();
+  const trainId = getTrainIdValue(row);
   const key = buildPercKeyForLookup(row, trainId);
   const v = key ? TRAIN_PERC[key] : null;
   return (v !== null && v !== undefined && String(v).trim() !== "") ? String(v).trim() : "—";
@@ -1227,15 +1225,11 @@ function getTableFields() {
 
 const HEADER_FILTER_COLS = {
   operator: "מפעיל",
-  makat: 'מק"ט',
 };
 
 const activeHeaderFilters = {
   operator: "",
-  makat: "",
 };
-
-let headerPopup = null;
 
 function normText(v) {
   return String(v ?? "").trim().toLowerCase();
@@ -1247,120 +1241,9 @@ function getRowsAfterHeaderFilters(rows, excludeCol = null) {
       const opVal = String(r[HEADER_FILTER_COLS.operator] ?? "").trim();
       if (!normText(opVal).startsWith(normText(activeHeaderFilters.operator))) return false;
     }
-    if (excludeCol !== "makat" && activeHeaderFilters.makat) {
-      const makatVal = String(r[HEADER_FILTER_COLS.makat] ?? "").trim();
-      if (!normText(makatVal).startsWith(normText(activeHeaderFilters.makat))) return false;
-    }
     return true;
   });
 }
-
-function uniqueValuesFromRows(rows, key) {
-  const vals = [];
-  rows.forEach(r => {
-    const v = String(r[key] ?? "").trim();
-    if (v) vals.push(v);
-  });
-  return Array.from(new Set(vals)).sort((a, b) => a.localeCompare(b, "he"));
-}
-
-function ensureHeaderPopup() {
-  if (headerPopup) return headerPopup;
-
-  const popup = document.createElement("div");
-  popup.className = "hdr-popup";
-  popup.innerHTML = `
-    <div class="popup-title">
-      <span class="popup-title-label">חיפוש</span>
-      <span class="popup-title-selected"></span>
-    </div>
-    <input type="text" placeholder="Type..." />
-    <div class="popup-list"></div>
-    <div class="popup-actions">
-      <button class="btn btn-clear" type="button">נקה</button>
-      <button class="btn btn-close" type="button">סגור</button>
-    </div>
-  `;
-  document.body.appendChild(popup);
-  headerPopup = popup;
-  return popup;
-}
-
-function hideHeaderPopup() {
-  if (headerPopup) headerPopup.style.display = "none";
-}
-
-function openHeaderPopup(anchorEl, filterCol, baseRows) {
-  const popup = ensureHeaderPopup();
-  const rect = anchorEl.getBoundingClientRect();
-  popup.style.left = (rect.left + window.scrollX) + "px";
-  popup.style.top = (rect.bottom + window.scrollY + 6) + "px";
-  popup.style.display = "block";
-
-  const rowsForOptions = getRowsAfterHeaderFilters(baseRows, filterCol);
-  const key = HEADER_FILTER_COLS[filterCol];
-  const allValues = uniqueValuesFromRows(rowsForOptions, key);
-
-  const input = popup.querySelector("input");
-  const list = popup.querySelector(".popup-list");
-  const titleSelected = popup.querySelector(".popup-title-selected");
-  const btnClear = popup.querySelector(".btn-clear");
-  const btnClose = popup.querySelector(".btn-close");
-  const currentSelected = String(activeHeaderFilters[filterCol] ?? "").trim();
-  titleSelected.textContent = currentSelected ? `: ${currentSelected}` : "";
-
-  function renderList(prefix) {
-    const p = normText(prefix);
-    const filtered = !p ? allValues : allValues.filter(v => normText(v).startsWith(p));
-    list.innerHTML = "";
-
-    filtered.slice(0, 200).forEach(v => {
-      const item = document.createElement("div");
-      item.className = "popup-item";
-      item.textContent = v;
-      item.addEventListener("click", () => {
-        activeHeaderFilters[filterCol] = v;
-        titleSelected.textContent = `: ${v}`;
-        activeBusRowKey = null;
-        hideHeaderPopup();
-        renderBusTable();
-      });
-      list.appendChild(item);
-    });
-
-    if (!filtered.length) {
-      const empty = document.createElement("div");
-      empty.style.padding = "6px 8px";
-      empty.style.color = "#666";
-      empty.textContent = "No results";
-      list.appendChild(empty);
-    }
-  }
-
-  input.value = "";
-  renderList("");
-  input.oninput = () => renderList(input.value);
-
-  btnClear.onclick = () => {
-    activeHeaderFilters[filterCol] = "";
-    titleSelected.textContent = "";
-    activeBusRowKey = null;
-    hideHeaderPopup();
-    renderBusTable();
-  };
-
-  btnClose.onclick = () => hideHeaderPopup();
-
-  setTimeout(() => input.focus(), 0);
-}
-
-document.addEventListener("click", (e) => {
-  const popup = headerPopup;
-  const isIcon = e.target.classList?.contains("th-search-btn");
-  if (popup && popup.style.display === "block" && !popup.contains(e.target) && !isIcon) {
-    hideHeaderPopup();
-  }
-});
 
 let tableScrollSyncBound = false;
 
@@ -1422,19 +1305,9 @@ function renderBusTable() {
 
   // Build header
   headerRow.innerHTML = "";
-  tableFields.forEach((f, idx) => {
+  tableFields.forEach((f) => {
     const th = document.createElement("th");
-    if (idx === 1) {
-      const col = "makat";
-      th.innerHTML = `
-        <div class="th-wrap">
-          ${f.label}
-          <span class="th-search-btn" data-col="${col}">🔍</span>
-        </div>
-      `;
-    } else {
-      th.textContent = f.label;
-    }
+    th.textContent = f.label;
     headerRow.appendChild(th);
   });
 
@@ -1443,7 +1316,10 @@ function renderBusTable() {
   const trainFilteredRows = activeTrain
     ? allRows.filter(r => buildBusRowKey(r).startsWith(String(activeTrain).trim() + "||"))
     : allRows;
-  const headerFilteredRows = getRowsAfterHeaderFilters(trainFilteredRows);
+  const signageFilteredRows = activeSignage
+    ? trainFilteredRows.filter(r => getSignageValue(r) === activeSignage)
+    : trainFilteredRows;
+  const headerFilteredRows = getRowsAfterHeaderFilters(signageFilteredRows);
   const rows = activeBusRowKey
     ? headerFilteredRows.filter(r => buildBusRowKey(r) === activeBusRowKey)
     : headerFilteredRows;
@@ -1489,16 +1365,6 @@ function renderBusTable() {
     body.appendChild(tr);
   });
 
-  const searchIcons = Array.from(headerRow.querySelectorAll(".th-search-btn"));
-  searchIcons.forEach(icon => {
-    icon.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const col = icon.getAttribute("data-col");
-      if (col !== "operator" && col !== "makat") return;
-      openHeaderPopup(icon, col, trainFilteredRows);
-    });
-  });
-
   bindTableScrollSync();
   updateTopTableScrollbar();
   alignTableScrollToRight();
@@ -1508,9 +1374,10 @@ const clearBusBtn = document.getElementById("clearBusSelectionBtn");
 if (clearBusBtn) {
   clearBusBtn.addEventListener("click", () => {
     activeBusRowKey = null;
+    activeSignage = null;
     activeHeaderFilters.operator = "";
-    activeHeaderFilters.makat = "";
-    hideHeaderPopup();
+    updateBusHeaderSelectionVisuals();
+    applyBusFilter();
     renderBusTable();
   });
 }

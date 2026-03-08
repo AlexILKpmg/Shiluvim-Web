@@ -7,11 +7,15 @@ class ConvergenceBusToRail(models.Model):
     week_period = models.CharField(max_length=50)
     train_station_name = models.CharField(max_length=255)
     rail_direction = models.CharField(max_length=255)
-    train_number = models.CharField(max_length=50)
+    train_number = models.IntegerField()
+    signage = models.IntegerField()
+    is_gold_train = models.CharField(max_length=10, blank=True)
+    is_bus_on_time = models.IntegerField(null=True, blank=True)
+    rishui_train_departure_time = models.CharField(max_length=32, blank=True)
 
     operator = models.CharField(max_length=255)
-    makat = models.CharField(max_length=50, blank=True)
-    direction = models.CharField(max_length=255, blank=True)
+    makat = models.IntegerField(null=True, blank=True)
+    direction = models.IntegerField(null=True, blank=True)
     alternative = models.CharField(max_length=255, blank=True)
     departure_time = models.CharField(max_length=32, blank=True)
     avg_passengers_per_trip = models.FloatField(null=True, blank=True)
@@ -24,6 +28,23 @@ class ConvergenceBusToRail(models.Model):
     observations_count = models.IntegerField(null=True, blank=True)
     on_time_count = models.IntegerField(null=True, blank=True)
     on_time_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=(
+                    "year",
+                    "month",
+                    "week_period",
+                    "train_station_name",
+                    "rail_direction",
+                    "train_number",
+                    "makat",
+                    "departure_time",
+                ),
+                name="uniq_cov_b2r_row",
+            ),
+        ]
 
     def __str__(self):
         return (
@@ -38,11 +59,15 @@ class ConvergenceRailToBus(models.Model):
     week_period = models.CharField(max_length=50)
     train_station_name = models.CharField(max_length=255)
     rail_direction = models.CharField(max_length=255)
-    train_number = models.CharField(max_length=50)
+    train_number = models.IntegerField()
+    signage = models.IntegerField()
+    is_gold_train = models.CharField(max_length=10, blank=True)
+    is_bus_on_time = models.IntegerField(null=True, blank=True)
+    rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
 
     operator = models.CharField(max_length=255)
-    makat = models.CharField(max_length=50, blank=True)
-    direction = models.CharField(max_length=255, blank=True)
+    makat = models.IntegerField(null=True, blank=True)
+    direction = models.IntegerField(null=True, blank=True)
     alternative = models.CharField(max_length=255, blank=True)
     departure_time = models.CharField(max_length=32, blank=True)
     avg_passengers_per_trip = models.FloatField(null=True, blank=True)
@@ -51,6 +76,22 @@ class ConvergenceRailToBus(models.Model):
     minutes_gap_rail_to_bus = models.FloatField(null=True, blank=True)
     recommended_minutes = models.IntegerField(null=True, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=(
+                    "year",
+                    "month",
+                    "week_period",
+                    "train_station_name",
+                    "rail_direction",
+                    "train_number",
+                    "makat",
+                    "departure_time",
+                ),
+                name="uniq_cov_r2b_row",
+            ),
+        ]
 
     def __str__(self):
         return (

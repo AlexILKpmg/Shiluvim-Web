@@ -35,9 +35,13 @@ COMMON_OPTIONAL = {
     "חלופה": "alternative",
     "זמן יציאה": "departure_time",
     "ממוצע נוסעים לנסיעה": "avg_passengers_per_trip",
+    "שילוט": "signage",
+    "רכבת זהב": "is_gold_train",
+    "האם האוטובוס מגיע בזמן": "is_bus_on_time",
 }
 
 BUS_TO_RAIL_OPTIONAL = {
+    "זמן יציאת הרכבת מהתחנה (רישוי)": "rishui_train_departure_time",
     "זמן הגעה לתחנה": "arrival_time_to_station",
     "טווח זמן ההגעה לתחנה": "arrival_time_window",
     "הפרש בדקות (מאוטובוס לרכבת)": "minutes_gap_bus_to_rail",
@@ -48,6 +52,7 @@ BUS_TO_RAIL_OPTIONAL = {
 }
 
 RAIL_TO_BUS_OPTIONAL = {
+    "זמן הגעת הרכבת לתחנה (רישוי)": "rishui_train_arrival_time",
     "זמן יציאה מהתחנה (רישוי)": "train_departure_time",
     "הפרש בדקות (מרכבת לאוטובוס)": "minutes_gap_rail_to_bus",
     "המלצה (דקות)": "recommended_minutes",
@@ -248,16 +253,20 @@ class Command(BaseCommand):
             "week_period": self._require_text(normalized["week_period"], "week_period", file_name, sheet_name, row_number),
             "train_station_name": self._require_text(normalized["train_station_name"], "train_station_name", file_name, sheet_name, row_number),
             "rail_direction": self._require_text(normalized["rail_direction"], "rail_direction", file_name, sheet_name, row_number),
-            "train_number": self._require_text(normalized["train_number"], "train_number", file_name, sheet_name, row_number),
+            "train_number": self._to_int(normalized["train_number"], "train_number", file_name, sheet_name, row_number),
             "operator": self._require_text(normalized["operator"], "operator", file_name, sheet_name, row_number),
-            "makat": self._clean_text(normalized.get("makat")),
-            "direction": self._clean_text(normalized.get("direction")),
+            "makat": self._to_int_or_none(normalized.get("makat")),
+            "direction": self._to_int_or_none(normalized.get("direction")),
             "alternative": self._clean_text(normalized.get("alternative")),
             "departure_time": self._clean_text(normalized.get("departure_time")),
             "avg_passengers_per_trip": self._to_float_or_none(normalized.get("avg_passengers_per_trip")),
+            "signage": self._to_int_or_none(normalized.get("signage")),
+            "is_gold_train": self._clean_text(normalized.get("is_gold_train")),
+            "is_bus_on_time": self._to_int_or_none(normalized.get("is_bus_on_time")),
         }
 
         if "arrival_time_to_station" in normalized:
+            payload["rishui_train_departure_time"] = self._clean_text(normalized.get("rishui_train_departure_time"))
             payload["arrival_time_to_station"] = self._clean_text(normalized.get("arrival_time_to_station"))
             payload["arrival_time_window"] = self._clean_text(normalized.get("arrival_time_window"))
             payload["minutes_gap_bus_to_rail"] = self._to_float_or_none(normalized.get("minutes_gap_bus_to_rail"))
@@ -267,6 +276,7 @@ class Command(BaseCommand):
             payload["on_time_percentage"] = self._to_decimal_or_none(normalized.get("on_time_percentage"))
 
         if "train_departure_time" in normalized:
+            payload["rishui_train_arrival_time"] = self._clean_text(normalized.get("rishui_train_arrival_time"))
             payload["train_departure_time"] = self._clean_text(normalized.get("train_departure_time"))
             payload["minutes_gap_rail_to_bus"] = self._to_float_or_none(normalized.get("minutes_gap_rail_to_bus"))
             payload["recommended_minutes"] = self._to_int_or_none(normalized.get("recommended_minutes"))
