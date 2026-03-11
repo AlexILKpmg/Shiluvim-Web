@@ -11,7 +11,7 @@ class ConvergenceBusToRail(models.Model):
     signage = models.IntegerField()
     is_gold_train = models.CharField(max_length=10, blank=True)
     is_bus_on_time = models.IntegerField(null=True, blank=True)
-    rishui_train_departure_time = models.CharField(max_length=32, blank=True)
+    rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
 
     operator = models.CharField(max_length=255)
     makat = models.IntegerField(null=True, blank=True)
@@ -72,7 +72,6 @@ class ConvergenceRailToBus(models.Model):
     departure_time = models.CharField(max_length=32, blank=True)
     avg_passengers_per_trip = models.FloatField(null=True, blank=True)
 
-    train_departure_time = models.CharField(max_length=32, blank=True)
     minutes_gap_rail_to_bus = models.FloatField(null=True, blank=True)
     recommended_minutes = models.IntegerField(null=True, blank=True)
 

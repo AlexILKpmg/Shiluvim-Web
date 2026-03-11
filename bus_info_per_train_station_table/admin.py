@@ -1,4 +1,4 @@
 from django.contrib import admin
-from .models import ConvergenceTable
+from .models import BusInfo
 
-admin.site.register(ConvergenceTable)
+admin.site.register(BusInfo)

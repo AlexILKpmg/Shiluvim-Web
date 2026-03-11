@@ -5,7 +5,7 @@ import pandas as pd
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from bus_info_per_train_station_table.models import ConvergenceTable
+from bus_info_per_train_station_table.models import BusInfo
 
 
 REQUIRED_COLUMNS = (
@@ -56,7 +56,7 @@ OPTIONAL_TEXT_FIELDS = ("alternative", "line_type", "start_stopcode", "end_stopc
 
 class Command(BaseCommand):
     help = (
-        "Import rows into bus_info_per_train_station_table_convergencetable "
+        "Import rows into bus_info_per_train_station_table_businfo "
         "from CSV/XLSX using deduplicating insert semantics."
     )
 
@@ -226,8 +226,8 @@ class Command(BaseCommand):
 
     def _insert_if_new(self, payload, dry_run=False):
         if dry_run:
-            exists = ConvergenceTable.objects.filter(**payload).exists()
+            exists = BusInfo.objects.filter(**payload).exists()
             return not exists
 
-        _, created = ConvergenceTable.objects.get_or_create(**payload)
+        _, created = BusInfo.objects.get_or_create(**payload)
         return created

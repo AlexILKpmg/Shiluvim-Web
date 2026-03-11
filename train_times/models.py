@@ -3,8 +3,8 @@ from django.db import models
 
 class TrainTime(models.Model):
     class EventType(models.TextChoices):
-        ARRIVAL = "ARRIVAL", "Arrival"
-        DEPARTURE = "DEPARTURE", "Departure"
+        TO_TLV = "to_tlv", "To TLV"
+        FROM_TLV = "from_tlv", "From TLV"
 
     Year = models.IntegerField()
     Month = models.IntegerField()

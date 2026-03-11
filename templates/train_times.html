@@ -229,7 +229,7 @@
             </th>
             <th>
               <div class="th-wrap">
-                זמן הגעה לתחנה (רישוי)
+                זמן הגעה מהתחנה (רישוי)
                 <span class="th-search-btn" data-table="arr" data-col="time">🔍</span>
               </div>
             </th>
@@ -283,7 +283,7 @@
 
             <th>
               <div class="th-wrap">
-                זמן יציאה מהתחנה (רישוי)
+                זמן הגעה מהתחנה (רישוי)
                 <span class="th-search-btn" data-table="dep" data-col="time">🔍</span>
               </div>
             </th>
@@ -304,7 +304,7 @@
                 {{ row.Train_number }}
               </a>
             </td>
-            <td>{{ row.Planned_Train_Departure_Time }}</td>
+            <td>{{ row.Planned_Train_Arrivel_Time }}</td>
             <td>{{ row.PassengersAscending }}</td>
             <td>{{ row.PassengersDescending }}</td>
           </tr>
@@ -357,8 +357,7 @@ const MONTH_HDR      = "חודש";
 const WEEKPERIOD_HDR = "תקופת שבוע";
 const STATION_HDR    = "שם תחנת הרכבת";
 const TRAIN_HDR      = "מספר רכבת";
-const ARR_TIME_HDR   = "זמן הגעה לתחנה (רישוי)";
-const DEP_TIME_HDR   = "זמן יציאה מהתחנה (רישוי)";
+const TIME_HDR       = "זמן הגעה מהתחנה (רישוי)";
 // endregion TT BLOCK 4C
 
 
@@ -372,7 +371,7 @@ const IDX_ARR = {
   WEEKPERIOD: getColIndexByHeader(arrTable, WEEKPERIOD_HDR),
   STATION:    getColIndexByHeader(arrTable, STATION_HDR),
   TRAIN:      getColIndexByHeader(arrTable, TRAIN_HDR),
-  TIME:       getColIndexByHeader(arrTable, ARR_TIME_HDR),
+  TIME:       getColIndexByHeader(arrTable, TIME_HDR),
 };
 
 const IDX_DEP = {
@@ -381,7 +380,7 @@ const IDX_DEP = {
   WEEKPERIOD: getColIndexByHeader(depTable, WEEKPERIOD_HDR),
   STATION:    getColIndexByHeader(depTable, STATION_HDR),
   TRAIN:      getColIndexByHeader(depTable, TRAIN_HDR),
-  TIME:       getColIndexByHeader(depTable, DEP_TIME_HDR),
+  TIME:       getColIndexByHeader(depTable, TIME_HDR),
 };
 
 const idxOkArr = Object.values(IDX_ARR).every(i => i >= 0);

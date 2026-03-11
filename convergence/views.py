@@ -51,8 +51,8 @@ def _serialize_bus_row(row):
         COL_SIGNAGE: row.signage,
         COL_GOLD_TRAIN: row.is_gold_train,
         COL_BUS_ON_TIME: row.is_bus_on_time,
-        COL_LICENSED_TRAIN_DEPARTURE: row.rishui_train_departure_time,
-        COL_LICENSED_TRAIN_ARRIVAL: "",
+        COL_LICENSED_TRAIN_DEPARTURE: "",
+        COL_LICENSED_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         "מפעיל": row.operator,
         'מק"ט': row.makat,
         "כיוון": row.direction,
@@ -88,7 +88,6 @@ def _serialize_rail_row(row):
         "חלופה": row.alternative,
         "זמן יציאה": row.departure_time,
         "ממוצע נוסעים לנסיעה": row.avg_passengers_per_trip,
-        "זמן יציאה מהתחנה (רישוי)": row.train_departure_time,
         "הפרש בדקות (מרכבת לאוטובוס)": row.minutes_gap_rail_to_bus,
         "המלצה (דקות)": row.recommended_minutes,
     }

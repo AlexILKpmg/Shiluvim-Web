@@ -2,26 +2,23 @@
 
 from django.shortcuts import render
 
-from bus_info_per_train_station_table.models import ConvergenceTable
+from bus_info_per_train_station_table.models import BusInfo
 from matrix_pass_table.models import PassengerMatrix
 from rating_table.models import Ranking
 
 
-def main_page(request, station_name=None, year=None, month=None):
-    if station_name is None:
-        station_name = request.GET.get("station_name", "").strip()
+def main_page(request):
+    station_name = request.GET.get("station_name", "").strip()
 
-    if year is None:
-        y = request.GET.get("year", "").strip()
-        year = int(y) if y else None
+    y = request.GET.get("year", "").strip()
+    year = int(y) if y else None
 
-    if month is None:
-        m = request.GET.get("month", "").strip()
-        month = int(m) if m else None
+    m = request.GET.get("month", "").strip()
+    month = int(m) if m else None
 
     ranking_qs = Ranking.objects.all()
     matrix_qs = PassengerMatrix.objects.all()
-    bus_qs = ConvergenceTable.objects.all()
+    bus_qs = BusInfo.objects.all()
 
     if station_name:
         ranking_qs = ranking_qs.filter(train_station_name=station_name)

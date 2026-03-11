@@ -41,7 +41,7 @@ COMMON_OPTIONAL = {
 }
 
 BUS_TO_RAIL_OPTIONAL = {
-    "זמן יציאת הרכבת מהתחנה (רישוי)": "rishui_train_departure_time",
+    "זמן הגעת הרכבת לתחנה (רישוי)": "rishui_train_arrival_time",
     "זמן הגעה לתחנה": "arrival_time_to_station",
     "טווח זמן ההגעה לתחנה": "arrival_time_window",
     "הפרש בדקות (מאוטובוס לרכבת)": "minutes_gap_bus_to_rail",
@@ -53,7 +53,6 @@ BUS_TO_RAIL_OPTIONAL = {
 
 RAIL_TO_BUS_OPTIONAL = {
     "זמן הגעת הרכבת לתחנה (רישוי)": "rishui_train_arrival_time",
-    "זמן יציאה מהתחנה (רישוי)": "train_departure_time",
     "הפרש בדקות (מרכבת לאוטובוס)": "minutes_gap_rail_to_bus",
     "המלצה (דקות)": "recommended_minutes",
 }
@@ -266,7 +265,7 @@ class Command(BaseCommand):
         }
 
         if "arrival_time_to_station" in normalized:
-            payload["rishui_train_departure_time"] = self._clean_text(normalized.get("rishui_train_departure_time"))
+            payload["rishui_train_arrival_time"] = self._clean_text(normalized.get("rishui_train_arrival_time"))
             payload["arrival_time_to_station"] = self._clean_text(normalized.get("arrival_time_to_station"))
             payload["arrival_time_window"] = self._clean_text(normalized.get("arrival_time_window"))
             payload["minutes_gap_bus_to_rail"] = self._to_float_or_none(normalized.get("minutes_gap_bus_to_rail"))
@@ -275,9 +274,8 @@ class Command(BaseCommand):
             payload["on_time_count"] = self._to_int_or_none(normalized.get("on_time_count"))
             payload["on_time_percentage"] = self._to_decimal_or_none(normalized.get("on_time_percentage"))
 
-        if "train_departure_time" in normalized:
+        if "minutes_gap_rail_to_bus" in normalized:
             payload["rishui_train_arrival_time"] = self._clean_text(normalized.get("rishui_train_arrival_time"))
-            payload["train_departure_time"] = self._clean_text(normalized.get("train_departure_time"))
             payload["minutes_gap_rail_to_bus"] = self._to_float_or_none(normalized.get("minutes_gap_rail_to_bus"))
             payload["recommended_minutes"] = self._to_int_or_none(normalized.get("recommended_minutes"))
 

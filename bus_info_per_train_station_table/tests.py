@@ -6,7 +6,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 
-from bus_info_per_train_station_table.models import ConvergenceTable
+from bus_info_per_train_station_table.models import BusInfo
 
 
 class ImportBusInfoPerTrainStationCommandTests(TestCase):
@@ -39,7 +39,7 @@ class ImportBusInfoPerTrainStationCommandTests(TestCase):
 
         call_command("import_bus_info_per_train_station", "--file", str(csv_path))
 
-        self.assertTrue(ConvergenceTable.objects.filter(train_station_name="Tel Aviv", operator="Dan").exists())
+        self.assertTrue(BusInfo.objects.filter(train_station_name="Tel Aviv", operator="Dan").exists())
 
     def test_import_skips_existing_duplicate(self):
         row = {
@@ -57,7 +57,7 @@ class ImportBusInfoPerTrainStationCommandTests(TestCase):
             "week_period": "Friday",
             "bus_direction": "South",
         }
-        ConvergenceTable.objects.create(**row)
+        BusInfo.objects.create(**row)
         csv_path = self._write_csv(
             "train_station_name,operator,bus_code_name,bus_station_name,officelineid,line,direction,alternative,line_type,start_stopcode,end_stopcode,week_period,bus_direction\n"
             "Jerusalem,Egged,202,Station B,55,10,2,,Intercity,3000,4000,Friday,South\n"
@@ -65,7 +65,7 @@ class ImportBusInfoPerTrainStationCommandTests(TestCase):
 
         call_command("import_bus_info_per_train_station", "--file", str(csv_path))
 
-        self.assertEqual(ConvergenceTable.objects.filter(train_station_name="Jerusalem").count(), 1)
+        self.assertEqual(BusInfo.objects.filter(train_station_name="Jerusalem").count(), 1)
 
     def test_dry_run_does_not_write(self):
         csv_path = self._write_csv(
@@ -75,7 +75,7 @@ class ImportBusInfoPerTrainStationCommandTests(TestCase):
 
         call_command("import_bus_info_per_train_station", "--file", str(csv_path), "--dry-run")
 
-        self.assertFalse(ConvergenceTable.objects.filter(train_station_name="Haifa").exists())
+        self.assertFalse(BusInfo.objects.filter(train_station_name="Haifa").exists())
 
     def test_invalid_header_fails(self):
         csv_path = self._write_csv(
@@ -109,4 +109,4 @@ class ImportBusInfoPerTrainStationCommandTests(TestCase):
 
         call_command("import_bus_info_per_train_station", "--file", str(xlsx_path))
 
-        self.assertTrue(ConvergenceTable.objects.filter(train_station_name="אשקלון", operator="אגד").exists())
+        self.assertTrue(BusInfo.objects.filter(train_station_name="אשקלון", operator="אגד").exists())

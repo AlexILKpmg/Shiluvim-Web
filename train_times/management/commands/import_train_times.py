@@ -15,23 +15,21 @@ REQUIRED_BASE_COLUMNS = (
     "train_station_code",
     "StationName",
     "Train_number",
+    "Planned_Train_Arrivel_Time",
     "PassengersAscending",
     "PassengersDescending",
+    "event_type",
 )
-
-ARRIVAL_TIME_COLUMN = "Planned_Train_Arrivel_Time"
-DEPARTURE_TIME_COLUMN = "Planned_Train_Departure_Time"
 
 
 class Command(BaseCommand):
     help = (
-        "Import rows into train_times_traintime from arrival/departure CSV files "
+        "Import rows into train_times_traintime from a unified CSV file "
         "using deduplicating insert semantics."
     )
 
     def add_arguments(self, parser):
-        parser.add_argument("--arrival-file", help="Path to arrival CSV file.")
-        parser.add_argument("--departure-file", help="Path to departure CSV file.")
+        parser.add_argument("--file", required=True, help="Path to train-times CSV file.")
         parser.add_argument(
             "--dry-run",
             action="store_true",
@@ -50,22 +48,15 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        arrival_file = options.get("arrival_file")
-        departure_file = options.get("departure_file")
+        source_file = options.get("file")
         dry_run = options["dry_run"]
         strict = options["strict"]
         batch_size = options["batch_size"]
 
-        if not arrival_file and not departure_file:
-            raise CommandError("At least one of --arrival-file or --departure-file is required.")
         if batch_size <= 0:
             raise CommandError("--batch-size must be a positive integer.")
 
-        payloads = []
-        if arrival_file:
-            payloads.extend(self._load_file(arrival_file, event_type=TrainTime.EventType.ARRIVAL, strict=strict))
-        if departure_file:
-            payloads.extend(self._load_file(departure_file, event_type=TrainTime.EventType.DEPARTURE, strict=strict))
+        payloads = self._load_file(source_file, strict=strict)
 
         if strict and not dry_run:
             with transaction.atomic():
@@ -84,7 +75,7 @@ class Command(BaseCommand):
         if strict and totals["invalid"] > 0:
             raise CommandError("Import failed in --strict mode due to invalid rows.")
 
-    def _load_file(self, file_path, event_type, strict):
+    def _load_file(self, file_path, strict):
         source_path = Path(file_path).expanduser()
         if not source_path.exists():
             raise CommandError(f"Source file not found: {source_path}")
@@ -96,16 +87,13 @@ class Command(BaseCommand):
             rows = list(reader)
 
         missing = [col for col in REQUIRED_BASE_COLUMNS if col not in reader.fieldnames]
-        time_column = ARRIVAL_TIME_COLUMN if event_type == TrainTime.EventType.ARRIVAL else DEPARTURE_TIME_COLUMN
-        if time_column not in reader.fieldnames:
-            missing.append(time_column)
         if missing:
             raise CommandError(f"{source_path}: missing required columns: {', '.join(missing)}")
 
         payloads = []
         for index, row in enumerate(rows, start=2):
             try:
-                payloads.append(self._normalize_row(row, index, event_type))
+                payloads.append(self._normalize_row(row, index))
             except CommandError:
                 if strict:
                     raise
@@ -140,15 +128,22 @@ class Command(BaseCommand):
         except (TypeError, ValueError) as exc:
             raise CommandError(f"Row {row_number}: planned_time must be HH:MM:SS.") from exc
 
-    def _normalize_row(self, row, row_number, event_type):
+    def _normalize_event_type(self, value, row_number):
+        event_type = "" if value is None else str(value).strip().lower()
+        if event_type == TrainTime.EventType.TO_TLV:
+            return TrainTime.EventType.TO_TLV
+        if event_type == TrainTime.EventType.FROM_TLV:
+            return TrainTime.EventType.FROM_TLV
+        raise CommandError(f"Row {row_number}: event_type must be 'to_tlv' or 'from_tlv'.")
+
+    def _normalize_row(self, row, row_number):
         station_name = "" if row.get("StationName") is None else str(row["StationName"]).strip()
         week_period = "" if row.get("WeekPeriod") is None else str(row["WeekPeriod"]).strip()
 
         if not week_period:
             raise CommandError(f"Row {row_number}: WeekPeriod cannot be blank.")
 
-        time_col = ARRIVAL_TIME_COLUMN if event_type == TrainTime.EventType.ARRIVAL else DEPARTURE_TIME_COLUMN
-        planned_time = self._normalize_time(row.get(time_col), row_number)
+        planned_time = self._normalize_time(row.get("Planned_Train_Arrivel_Time"), row_number)
 
         return {
             "Year": self._normalize_int(row.get("Year"), "Year", row_number),
@@ -157,7 +152,7 @@ class Command(BaseCommand):
             "train_station_code": self._normalize_int(row.get("train_station_code"), "train_station_code", row_number),
             "StationName": station_name,
             "Train_number": self._normalize_int(row.get("Train_number"), "Train_number", row_number),
-            "event_type": event_type,
+            "event_type": self._normalize_event_type(row.get("event_type"), row_number),
             "planned_time": planned_time,
             "PassengersAscending": self._normalize_passenger(row.get("PassengersAscending")),
             "PassengersDescending": self._normalize_passenger(row.get("PassengersDescending")),

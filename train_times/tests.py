@@ -21,12 +21,12 @@ class ImportTrainTimesCommandTests(TestCase):
             tmp.close()
 
     def test_import_arrival_inserts(self):
-        arrival_csv = self._write_csv(
-            "Year,Month,WeekPeriod,train_station_code,StationName,Train_number,Planned_Train_Arrivel_Time,PassengersAscending,PassengersDescending\n"
-            "2026,1,Weekday,1400,Tel Aviv,7,04:01:00,10,20\n"
+        csv_file = self._write_csv(
+            "Year,Month,WeekPeriod,train_station_code,StationName,Train_number,Planned_Train_Arrivel_Time,PassengersAscending,PassengersDescending,event_type\n"
+            "2026,1,Weekday,1400,Tel Aviv,7,04:01:00,10,20,to_tlv\n"
         )
 
-        call_command("import_train_times", "--arrival-file", str(arrival_csv))
+        call_command("import_train_times", "--file", str(csv_file))
 
         self.assertTrue(
             TrainTime.objects.filter(
@@ -35,32 +35,32 @@ class ImportTrainTimesCommandTests(TestCase):
                 train_station_code=1400,
                 StationName="Tel Aviv",
                 Train_number=7,
-                event_type=TrainTime.EventType.ARRIVAL,
+                event_type=TrainTime.EventType.TO_TLV,
             ).exists()
         )
 
     def test_import_departure_inserts(self):
-        departure_csv = self._write_csv(
-            "Year,Month,WeekPeriod,train_station_code,StationName,Train_number,Planned_Train_Departure_Time,PassengersAscending,PassengersDescending\n"
-            "2026,1,Weekday,1400,Tel Aviv,7,05:01:00,1,2\n"
+        csv_file = self._write_csv(
+            "Year,Month,WeekPeriod,train_station_code,StationName,Train_number,Planned_Train_Arrivel_Time,PassengersAscending,PassengersDescending,event_type\n"
+            "2026,1,Weekday,1400,Tel Aviv,7,05:01:00,1,2,from_tlv\n"
         )
 
-        call_command("import_train_times", "--departure-file", str(departure_csv))
+        call_command("import_train_times", "--file", str(csv_file))
 
         self.assertTrue(
             TrainTime.objects.filter(
-                event_type=TrainTime.EventType.DEPARTURE,
+                event_type=TrainTime.EventType.FROM_TLV,
                 planned_time=time(5, 1, 0),
             ).exists()
         )
 
     def test_dry_run_does_not_write(self):
-        arrival_csv = self._write_csv(
-            "Year,Month,WeekPeriod,train_station_code,StationName,Train_number,Planned_Train_Arrivel_Time,PassengersAscending,PassengersDescending\n"
-            "2026,1,Weekday,1400,Haifa,8,06:00:00,3,4\n"
+        csv_file = self._write_csv(
+            "Year,Month,WeekPeriod,train_station_code,StationName,Train_number,Planned_Train_Arrivel_Time,PassengersAscending,PassengersDescending,event_type\n"
+            "2026,1,Weekday,1400,Haifa,8,06:00:00,3,4,to_tlv\n"
         )
 
-        call_command("import_train_times", "--arrival-file", str(arrival_csv), "--dry-run")
+        call_command("import_train_times", "--file", str(csv_file), "--dry-run")
 
         self.assertFalse(TrainTime.objects.filter(StationName="Haifa").exists())
 
@@ -69,10 +69,10 @@ class ImportTrainTimesCommandTests(TestCase):
             call_command("import_train_times")
 
     def test_invalid_arrival_header_fails(self):
-        arrival_csv = self._write_csv(
+        csv_file = self._write_csv(
             "Year,Month,WeekPeriod,train_station_code,StationName,Train_number,Planned_Train_Arrival_Time,PassengersAscending,PassengersDescending\n"
             "2026,1,Weekday,1400,Tel Aviv,7,04:01:00,10,20\n"
         )
 
         with self.assertRaises(CommandError):
-            call_command("import_train_times", "--arrival-file", str(arrival_csv))
+            call_command("import_train_times", "--file", str(csv_file))

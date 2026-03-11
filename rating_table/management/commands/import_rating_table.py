@@ -110,7 +110,20 @@ class Command(BaseCommand):
             reader = csv.DictReader(fp)
             if reader.fieldnames is None:
                 raise CommandError("CSV file is missing a header row.")
-            return list(reader)
+
+            rows = []
+            for raw in reader:
+                row = {self._canonical_col(k): v for k, v in raw.items()}
+                rows.append(row)
+            return rows
+
+    HEADER_ALIASES = {
+        "stationname": "train_station_name",  # optional alias
+    }
+
+    def _canonical_col(self, name: str) -> str:
+        key = str(name).strip().lower()
+        return self.HEADER_ALIASES.get(key, key)
 
     def _validate_header(self, columns):
         missing = [name for name in REQUIRED_COLUMNS if name not in columns]
@@ -124,6 +137,8 @@ class Command(BaseCommand):
             raise CommandError(
                 "CSV columns must match exactly the required schema. " + "; ".join(details)
             )
+
+
 
     def _normalize_row(self, row, row_number):
         try:

@@ -101,6 +101,11 @@
             display: none;
         }
 
+        #convergence_data_container a,
+        #convergence_data_container a:visited {
+            color: #0077cc;
+        }
+
         .expand-btn {
             cursor: pointer;
             color: #0077cc;
@@ -256,7 +261,13 @@
         <td>{{ row.operator }}</td>
         <td>{{ row.bus_code_name }}</td>
         <td>{{ row.bus_station_name }}</td>
-        <td>{{ row.OfficeLineID }}</td>
+        <td>
+          {% if row.OfficeLineID %}
+            <a href="https://markav.net/line/{{ row.OfficeLineID|urlencode }}" target="_blank" rel="noopener noreferrer">{{ row.OfficeLineID }}</a>
+          {% else %}
+            —
+          {% endif %}
+        </td>
         <td>{{ row.Line }}</td>
         <td>{{ row.Direction }}</td>
         <td>{{ row.Alternative }}</td>
@@ -344,26 +355,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function goToMainPagePath(selectedStation, selectedYearStr, selectedMonthStr) {
-    // If year/month missing → go to base page
-    if (!selectedYearStr || !selectedMonthStr) {
-      window.location.href = "/main_page/";
-      return;
-    }
-
-    // If station is empty -> go to base page (simplest behavior)
+  function goToMainPageGet(selectedStation, selectedYearStr, selectedMonthStr) {
     if (!selectedStation) {
       window.location.href = "/main_page/";
       return;
     }
 
-    const url =
-      "/main_page/" +
-      encodeURIComponent(selectedStation) + "/" +
-      encodeURIComponent(selectedYearStr) + "/" +
-      encodeURIComponent(selectedMonthStr) + "/";
+    const params = new URLSearchParams();
 
-    window.location.href = url;
+    if (selectedStation) params.set("station_name", selectedStation);
+    if (selectedYearStr) params.set("year", selectedYearStr);
+    if (selectedMonthStr) params.set("month", selectedMonthStr);
+
+    const query = params.toString();
+    window.location.href = query ? ("/main_page/?" + query) : "/main_page/";
   }
 
   function filterConvergenceTable(selectedStation) {
@@ -827,25 +832,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectedYearStr = yearDropdown.value;
   const selectedMonthStr = monthDropdown.value;
 
-  // Always filter convergence table by its own filters (and station if chosen)
-  filterConvergenceTable(selectedStation);
-
-  // If no year/month -> hide rating + matrix (but KEEP convergence visible)
-  if (!selectedYearStr || !selectedMonthStr) {
-    // hide rating rows
-    if (table_rating) {
-      Array.from(table_rating.querySelectorAll("tbody tr"))
-        .forEach(r => r.style.display = "none");
-    }
-
-    // hide matrix section
-    if (matrixSection) matrixSection.style.display = "none";
-
-    // title suffix off
+  // Require full selection; otherwise hide everything.
+  if (!selectedStation || !selectedYearStr || !selectedMonthStr) {
+    hideAllTables();
     if (stationTitleSuffix) stationTitleSuffix.textContent = "";
-
     return;
   }
+
+  // Filter convergence table by station + its own filters.
+  filterConvergenceTable(selectedStation);
 
   // From here: year+month exist
   if (stationTitleSuffix) {
@@ -903,9 +898,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- station/year/month should change the URL (server reload) ---
 
   stationDropdown.addEventListener("change", () => {
+    if (!stationDropdown.value) {
+      goToMainPageGet("", "", "");
+      return;
+    }
+
     // Only redirect when Year + Month exist
     if (yearDropdown.value && monthDropdown.value) {
-      goToMainPagePath(stationDropdown.value, yearDropdown.value, monthDropdown.value);
+      goToMainPageGet(stationDropdown.value, yearDropdown.value, monthDropdown.value);
     } else {
       // Not enough info yet -> keep user on the same page and hide tables
       hideAllTables();
@@ -923,14 +923,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // optional: if month already selected, redirect immediately
   if (monthDropdown.value) {
-    goToMainPagePath(stationDropdown.value, yearDropdown.value, monthDropdown.value);
+    goToMainPageGet(stationDropdown.value, yearDropdown.value, monthDropdown.value);
   }
 });
 
   monthDropdown.addEventListener("change", () => {
     // Only redirect when Year + Month exist
     if (yearDropdown.value && monthDropdown.value) {
-      goToMainPagePath(stationDropdown.value, yearDropdown.value, monthDropdown.value);
+      goToMainPageGet(stationDropdown.value, yearDropdown.value, monthDropdown.value);
     } else {
       hideAllTables();
     }

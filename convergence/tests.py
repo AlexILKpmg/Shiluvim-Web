@@ -23,7 +23,7 @@ class ConvergenceViewTests(TestCase):
             rail_direction="לכיוון תל אביב",
             train_number=101,
             operator="דן",
-            rishui_train_departure_time="08:10",
+            rishui_train_arrival_time="08:10",
         )
         ConvergenceRailToBus.objects.create(
             year=2026,
@@ -45,8 +45,8 @@ class ConvergenceViewTests(TestCase):
         bus_rows = json.loads(response.context["bus_to_rail_df_js"])
         rail_rows = json.loads(response.context["rail_to_bus_df_js"])
 
-        self.assertEqual(bus_rows[0]["זמן יציאת הרכבת מהתחנה (רישוי)"], "08:10")
-        self.assertEqual(bus_rows[0]["זמן הגעת הרכבת לתחנה (רישוי)"], "")
+        self.assertEqual(bus_rows[0]["זמן יציאת הרכבת מהתחנה (רישוי)"], "")
+        self.assertEqual(bus_rows[0]["זמן הגעת הרכבת לתחנה (רישוי)"], "08:10")
 
         self.assertEqual(rail_rows[0]["זמן יציאת הרכבת מהתחנה (רישוי)"], "")
         self.assertEqual(rail_rows[0]["זמן הגעת הרכבת לתחנה (רישוי)"], "09:20")
@@ -85,7 +85,7 @@ class ConvergenceImportNormalizeTests(TestCase):
         self.assertEqual(bus_payload["signage"], 66)
         self.assertEqual(bus_payload["is_gold_train"], "כן")
         self.assertEqual(bus_payload["is_bus_on_time"], 1)
-        self.assertEqual(bus_payload["rishui_train_departure_time"], "08:10")
+        self.assertEqual(bus_payload["rishui_train_arrival_time"], "08:10")
 
         rail_row = {
             "שנה": 2026,

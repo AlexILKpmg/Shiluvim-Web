@@ -73,8 +73,8 @@ def train_times(request):
     if month is not None and month not in month_options:
         month = None
 
-    arr_qs = base_qs.filter(event_type=TrainTime.EventType.ARRIVAL)
-    dep_qs = base_qs.filter(event_type=TrainTime.EventType.DEPARTURE)
+    arr_qs = base_qs.filter(event_type=TrainTime.EventType.TO_TLV)
+    dep_qs = base_qs.filter(event_type=TrainTime.EventType.FROM_TLV)
 
     if station:
         arr_qs = arr_qs.filter(StationName=station)
@@ -119,7 +119,7 @@ def train_times(request):
             "train_station_code": row["train_station_code"],
             "StationName": row["StationName"],
             "Train_number": row["Train_number"],
-            "Planned_Train_Departure_Time": _format_time(row["planned_time"]),
+            "Planned_Train_Arrivel_Time": _format_time(row["planned_time"]),
             "PassengersAscending": row["PassengersAscending"],
             "PassengersDescending": row["PassengersDescending"],
         }

@@ -18,6 +18,10 @@ REQUIRED_COLUMNS = (
 
 class Command(BaseCommand):
     help = "Import rows into matrix_pass_table_passengermatrix from a CSV file using upsert semantics."
+    HEADER_ALIASES = {
+        "fromstationname": "from_station_name",
+        "tostationname": "to_station_name",
+    }
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -112,7 +116,15 @@ class Command(BaseCommand):
             reader = csv.DictReader(fp)
             if reader.fieldnames is None:
                 raise CommandError("CSV file is missing a header row.")
-            return list(reader)
+            rows = []
+            for raw in reader:
+                row = {self._canonical_col(k): v for k, v in raw.items()}
+                rows.append(row)
+            return rows
+
+    def _canonical_col(self, name: str) -> str:
+        key = str(name).strip().lower()
+        return self.HEADER_ALIASES.get(key, key)
 
     def _validate_header(self, columns):
         missing = [name for name in REQUIRED_COLUMNS if name not in columns]
