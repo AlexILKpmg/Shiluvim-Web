@@ -143,6 +143,56 @@
             color: #0077cc;
         }
 
+        #trainTrendModal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        #trainTrendModal.open {
+            display: flex;
+        }
+
+        #trainTrendModal .modal-content {
+            width: min(860px, calc(100vw - 40px));
+            max-height: calc(100vh - 40px);
+            overflow: auto;
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid #c8c8c8;
+            padding: 14px 16px 16px 16px;
+            box-sizing: border-box;
+        }
+
+        #trainTrendHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        #trainTrendTitle {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        #closeTrainTrendBtn {
+            padding: 6px 10px;
+            cursor: pointer;
+            border: 1px solid #999;
+            background: #fff;
+            border-radius: 6px;
+        }
+
+        #trainTrendChartHost {
+            min-height: 120px;
+        }
+
     </style>
 </head>
 <!-- endregion COV BLOCK 2 -->
@@ -185,10 +235,13 @@
 
     <div class="table-wrap">
 
-        <h3 id="tableTitle">טבלת נסיעות</h3>
+        <h3 id="tableTitle">טבלת נסיעות אוטובוסים</h3>
 
         <div class="table-actions">
             <button id="clearBusSelectionBtn" type="button">הצג הכל</button>
+            <button id="saveOverrideBtn" type="button">שמור החלפה</button>
+            <button id="disableOverrideBtn" type="button">בטל החלפה</button>
+            <span id="overrideStatus" style="font-size:12px;color:#333;"></span>
         </div>
 
         <div id="busTableTopScroll" class="table-scroll-top">
@@ -207,6 +260,16 @@
 
 </div>
 <!-- endregion COV BLOCK 4 -->
+
+<div id="trainTrendModal" role="dialog" aria-modal="true" aria-labelledby="trainTrendTitle">
+    <div class="modal-content">
+        <div id="trainTrendHeader">
+            <h3 id="trainTrendTitle">מגמת אחוזי עמידה בזמנים</h3>
+            <button id="closeTrainTrendBtn" type="button">סגירה</button>
+        </div>
+        <div id="trainTrendChartHost"></div>
+    </div>
+</div>
 
 
 <script>
@@ -268,6 +331,7 @@ function timeToY(timeValue) {
 const BUS_TO_RAIL_JSON = {{ bus_to_rail_df_js|safe }};
 const RAIL_TO_BUS_JSON = {{ rail_to_bus_df_js|safe }};
 const TRAIN_PERC = {{ train_perc_js|safe }};
+const TRAIN_TREND = {{ train_trend_js|safe }};
 const YEAR_MONTH_PAIRS = {{ year_month_pairs_js|safe }};
 
 const params = new URLSearchParams(window.location.search);
@@ -312,26 +376,32 @@ function updateTitleFromState() {
 
 // region COV 5D
 const DIR_TO_TA = "לכיוון תל אביב";
+const DIR_FROM_TA = "מכיוון תל אביב";
 const KEY_BUS_TIME_TO_STATION = "זמן הגעה לתחנה";
 const KEY_ARRIVAL_TIME_WINDOW = "\u05d8\u05d5\u05d5\u05d7 \u05d6\u05de\u05df \u05d4\u05d4\u05d2\u05e2\u05d4 \u05dc\u05ea\u05d7\u05e0\u05d4";
-const KEY_TRAIN_DEPARTURE_RISHUI = "זמן יציאת הרכבת מהתחנה (רישוי)";
 const KEY_TRAIN_ARRIVAL_RISHUI = "זמן הגעת הרכבת לתחנה (רישוי)";
 const KEY_SIGNAGE = "שילוט";
+const KEY_ASCENDING_AMOUNT = "מספר עולים";
+const KEY_DESCENDING_AMOUNT = "מספר יורדים";
 
 let activeDirection = DIR_TO_TA;
 let activeTrain = null;
 let activeTrainUid = null;
 let activeBusRowKey = null;
 let activeSignage = null;
+let trainRowByUid = {};
+let linkModeSourceRow = null;
+let linkModeSourceBusKey = null;
+let linkModeSourceDot = null;
+let isLinkDragging = false;
+let linkModeConnectedTrainUid = null;
 
 function getMasterData() {
     return (activeDirection === DIR_TO_TA) ? BUS_TO_RAIL_JSON : RAIL_TO_BUS_JSON;
 }
 
 function getTrainTimeByDirection(row) {
-    return (activeDirection === DIR_TO_TA)
-        ? row[KEY_TRAIN_DEPARTURE_RISHUI]
-        : row[KEY_TRAIN_ARRIVAL_RISHUI];
+    return row[KEY_TRAIN_ARRIVAL_RISHUI];
 }
 
 function getBusTimeByDirection(row) {
@@ -417,10 +487,265 @@ function rebuildStationTimes() {
 }
 
 const svg = document.getElementById("arrowSVG");
+const trendModal = document.getElementById("trainTrendModal");
+const trendTitle = document.getElementById("trainTrendTitle");
+const trendHost = document.getElementById("trainTrendChartHost");
+const closeTrendBtn = document.getElementById("closeTrainTrendBtn");
 // endregion COV 5D
 
 
 // region COV 5E
+function buildTrendKey(trainId, row) {
+    const dir = String(row["כיוון נסיעת הרכבת"] ?? "").trim().replace(/\s+/g, " ");
+    if (!trainId || !dir) return null;
+    return String(trainId).trim() + "||" + dir;
+}
+
+function closeTrainTrendModal() {
+    if (!trendModal) return;
+    trendModal.classList.remove("open");
+}
+
+function renderTrainTrendChart(series) {
+    if (!trendHost) return;
+    trendHost.innerHTML = "";
+
+    if (!series || !series.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "אין נתונים עבור רכבת זו.";
+        trendHost.appendChild(empty);
+        return;
+    }
+
+    const points = [...series].sort((a, b) => {
+        const ay = parseInt(a.year, 10);
+        const am = parseInt(a.month, 10);
+        const by = parseInt(b.year, 10);
+        const bm = parseInt(b.month, 10);
+        if (ay !== by) return ay - by;
+        return am - bm;
+    });
+
+    const ns = "http://www.w3.org/2000/svg";
+    const width = 780;
+    const height = 320;
+    const margin = { top: 20, right: 20, bottom: 58, left: 52 };
+    const plotW = width - margin.left - margin.right;
+    const plotH = height - margin.top - margin.bottom;
+
+    const svgEl = document.createElementNS(ns, "svg");
+    svgEl.setAttribute("width", "100%");
+    svgEl.setAttribute("viewBox", "0 0 " + width + " " + height);
+
+    const yMin = 0;
+    const yMax = 100;
+    const xStep = points.length > 1 ? (plotW / (points.length - 1)) : 0;
+
+    function toY(v) {
+        const n = Number(v);
+        const clamped = Number.isFinite(n) ? Math.max(yMin, Math.min(yMax, n)) : yMin;
+        const t = (clamped - yMin) / (yMax - yMin);
+        return margin.top + (1 - t) * plotH;
+    }
+
+    function toX(i) {
+        return margin.left + (i * xStep);
+    }
+
+    const axisX = document.createElementNS(ns, "line");
+    axisX.setAttribute("x1", String(margin.left));
+    axisX.setAttribute("y1", String(margin.top + plotH));
+    axisX.setAttribute("x2", String(margin.left + plotW));
+    axisX.setAttribute("y2", String(margin.top + plotH));
+    axisX.setAttribute("stroke", "#444");
+    svgEl.appendChild(axisX);
+
+    const axisY = document.createElementNS(ns, "line");
+    axisY.setAttribute("x1", String(margin.left));
+    axisY.setAttribute("y1", String(margin.top));
+    axisY.setAttribute("x2", String(margin.left));
+    axisY.setAttribute("y2", String(margin.top + plotH));
+    axisY.setAttribute("stroke", "#444");
+    svgEl.appendChild(axisY);
+
+    [0, 25, 50, 75, 100].forEach(tick => {
+        const y = toY(tick);
+        const grid = document.createElementNS(ns, "line");
+        grid.setAttribute("x1", String(margin.left));
+        grid.setAttribute("y1", String(y));
+        grid.setAttribute("x2", String(margin.left + plotW));
+        grid.setAttribute("y2", String(y));
+        grid.setAttribute("stroke", "#e8e8e8");
+        svgEl.appendChild(grid);
+
+        const label = document.createElementNS(ns, "text");
+        label.textContent = tick + "%";
+        label.setAttribute("x", String(margin.left - 35));
+        label.setAttribute("y", String(y + 4));
+        label.setAttribute("text-anchor", "end");
+        label.setAttribute("font-size", "11");
+        label.setAttribute("fill", "#444");
+        svgEl.appendChild(label);
+    });
+
+    let pathData = "";
+    points.forEach((p, i) => {
+        const x = toX(i);
+        const y = toY(p.perc);
+        pathData += (i === 0 ? "M" : " L") + x + " " + y;
+    });
+
+    const line = document.createElementNS(ns, "path");
+    line.setAttribute("d", pathData);
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", "#0b5fff");
+    line.setAttribute("stroke-width", "2");
+    svgEl.appendChild(line);
+
+    points.forEach((p, i) => {
+        const x = toX(i);
+        const y = toY(p.perc);
+        const monthNum = parseInt(p.month, 10);
+        const ymLabel = String(p.year) + "-" + String(monthNum).padStart(2, "0");
+
+        const dot = document.createElementNS(ns, "circle");
+        dot.setAttribute("cx", String(x));
+        dot.setAttribute("cy", String(y));
+        dot.setAttribute("r", "3.5");
+        dot.setAttribute("fill", "#0b5fff");
+        const title = document.createElementNS(ns, "title");
+        title.textContent = ymLabel + ": " + String(p.perc) + "%";
+        dot.appendChild(title);
+        svgEl.appendChild(dot);
+
+        const xLabel = document.createElementNS(ns, "text");
+        xLabel.textContent = ymLabel;
+        xLabel.setAttribute("x", String(x));
+        xLabel.setAttribute("y", String(margin.top + plotH + 20));
+        xLabel.setAttribute("text-anchor", "middle");
+        xLabel.setAttribute("font-size", "11");
+        xLabel.setAttribute("fill", "#333");
+        svgEl.appendChild(xLabel);
+    });
+
+    trendHost.appendChild(svgEl);
+}
+
+function openTrainTrendModal(trainId, row) {
+    if (!trendModal || !trendHost || !trendTitle) return;
+
+    const trendKey = buildTrendKey(trainId, row);
+    const series = trendKey ? TRAIN_TREND[trendKey] : [];
+    const dir = String(row["כיוון נסיעת הרכבת"] ?? "").trim();
+
+    trendTitle.textContent = "אחוזי סנכרון עבור רכבת " + trainId;
+    renderTrainTrendChart(Array.isArray(series) ? series : []);
+    trendModal.classList.add("open");
+}
+
+if (closeTrendBtn) {
+    closeTrendBtn.addEventListener("click", closeTrainTrendModal);
+}
+if (trendModal) {
+    trendModal.addEventListener("click", (e) => {
+        if (e.target === trendModal) closeTrainTrendModal();
+    });
+}
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        closeTrainTrendModal();
+        exitLinkMode();
+    }
+});
+
+function getConnectedTrainUidForBusRow(row) {
+    const trainId = getTrainIdValue(row);
+    const trainTime = extractHHMM(getTrainTimeByDirection(row) || "") || String(getTrainTimeByDirection(row) || "").trim();
+    if (!trainId || !trainTime) return "";
+    return trainId + "||" + trainTime;
+}
+
+function clearTrainOutlineHighlights() {
+    svg.querySelectorAll(".train-item").forEach(tri => {
+        tri.removeAttribute("stroke");
+        tri.removeAttribute("stroke-width");
+    });
+}
+
+function applyLinkModeVisuals() {
+    const busEls = svg.querySelectorAll(".bus-item");
+    if (!linkModeSourceBusKey) {
+        busEls.forEach(el => { el.style.display = ""; });
+        clearTrainOutlineHighlights();
+        return;
+    }
+
+    busEls.forEach(el => {
+        const k = String(el.getAttribute("data-bus-key") || "");
+        el.style.display = (k && k === linkModeSourceBusKey) ? "" : "none";
+    });
+
+    clearTrainOutlineHighlights();
+    if (linkModeConnectedTrainUid) {
+        const tri = svg.querySelector('.train-item[data-train-uid="' + linkModeConnectedTrainUid + '"]');
+        if (tri) {
+            tri.setAttribute("stroke", "#17a34a");
+            tri.setAttribute("stroke-width", "3");
+        }
+    }
+}
+
+function exitLinkMode() {
+    linkModeSourceRow = null;
+    linkModeSourceBusKey = null;
+    linkModeSourceDot = null;
+    isLinkDragging = false;
+    linkModeConnectedTrainUid = null;
+    applyLinkModeVisuals();
+}
+
+function getSvgPoint(clientX, clientY) {
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+async function saveDraggedOverride(sourceRow, targetRow) {
+    if (!sourceRow || !targetRow) return;
+    if (!Number.isFinite(activeYear) || !Number.isFinite(activeMonth)) return;
+
+    const payload = {
+        week_period: String(sourceRow["תקופת שבוע"] ?? "").trim() || String(activeWeek ?? "").trim(),
+        link_direction: (activeDirection === DIR_TO_TA) ? "bus_to_rail" : "rail_to_bus",
+        makat: sourceRow['מק"ט'],
+        direction: sourceRow["כיוון"],
+        alternative: String(sourceRow["חלופה"] ?? "").trim(),
+        departure_time: String(sourceRow["זמן יציאה"] ?? "").trim(),
+        train_station_code: sourceRow["__train_station_code"],
+        from_train_number: sourceRow["__from_train_number"],
+        from_train_rishui_train_arrival_time: String(sourceRow["__from_train_rishui_train_arrival_time"] ?? "").trim(),
+        to_train_number: targetRow["מספר הרכבת"],
+        to_train_rishui_train_arrival_time: String(targetRow["זמן הגעת הרכבת לתחנה (רישוי)"] ?? "").trim(),
+        effective_month: String(activeYear) + "-" + String(activeMonth).padStart(2, "0"),
+        change_reason: "",
+        changed_by: "",
+    };
+
+    const ok = window.confirm("מתבצעת התאמה לרכבת אחרת עבור אוטובוס זה , שינוי זה ישפיע על סנכרונים עתידיים, האם להמשיך?");
+    if (!ok) return;
+
+    const statusEl = document.getElementById("overrideStatus");
+    try {
+        await postOverride("/convergence/override/save/", payload);
+        if (statusEl) statusEl.textContent = "החלפה נשמרה בהצלחה.";
+        exitLinkMode();
+        redrawBuses();
+    } catch (e) {
+        if (statusEl) statusEl.textContent = "שמירת החלפה נכשלה: " + String(e.message || e);
+    }
+}
+
 function applyBusFilter() {
     const buses = svg.querySelectorAll(".bus-item");
     buses.forEach(b => {
@@ -682,6 +1007,7 @@ function getFilteredTimes() {
 }
 
 function refreshAllAfterFilterChange() {
+    exitLinkMode();
     activeBusRowKey = null;
     activeSignage = null;
 
@@ -737,6 +1063,7 @@ monthSelect.addEventListener("change", () => {
 });
 
 weekSelect.addEventListener("change", () => {
+    exitLinkMode();
     activeWeek = weekSelect.value;
     populateOperatorDropdown();
 
@@ -750,6 +1077,7 @@ weekSelect.addEventListener("change", () => {
 });
 
 operatorSelect.addEventListener("change", () => {
+    exitLinkMode();
     activeOperator = operatorSelect.value;
 
     activeBusRowKey = null;
@@ -766,6 +1094,7 @@ operatorSelect.addEventListener("change", () => {
 // region COV 5J
 function redrawTrains() {
     svg.querySelectorAll(".train-item, .perc-item").forEach(el => el.remove());
+    trainRowByUid = {};
 
     const filteredTimes = getFilteredTimes();
   const weekOnlyTimes = stationTimes.filter(r => String(r[COL_WEEK] ?? "").trim() === activeWeek);
@@ -822,6 +1151,7 @@ function redrawTrains() {
 
     uniqueTrainRows.forEach(item => {
         const { row, timeVal, y, trainId, trainUid, xOffset } = item;
+        trainRowByUid[trainUid] = row;
 
         if (activeDirection === DIR_TO_TA) {
             const percKey = buildPercKeyForLookup(row, trainId);
@@ -877,23 +1207,39 @@ function redrawTrains() {
         tri.style.cursor = "pointer";
 
         const trainTimeStr = extractHHMM(timeVal) || String(timeVal);
+        let paxLabel = "";
+        let paxValue = null;
+        if (activeDirection === DIR_TO_TA) {
+            paxLabel = KEY_ASCENDING_AMOUNT;
+            paxValue = row[KEY_ASCENDING_AMOUNT];
+        } else if (activeDirection === DIR_FROM_TA) {
+            paxLabel = KEY_DESCENDING_AMOUNT;
+            paxValue = row[KEY_DESCENDING_AMOUNT];
+        }
+        const paxText = (paxValue === null || paxValue === undefined || String(paxValue).trim() === "")
+          ? "—"
+          : String(paxValue).trim();
+
         const tTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-        tTitle.textContent = "זמן: " + trainTimeStr + " | רכבת: " + trainId;
+        tTitle.textContent = "זמן: " + trainTimeStr + " | רכבת: " + trainId + " | " + paxLabel + ": " + paxText;
         tri.appendChild(tTitle);
 
         tri.addEventListener("click", (e) => {
             e.stopPropagation();
-            if (activeTrainUid === trainUid) {
-                setActiveTrain(null);
-            } else {
-                setActiveTrain(trainId, trainUid);
-            }
+            setActiveTrain(trainId, trainUid);
+        });
+
+        tri.addEventListener("dblclick", (e) => {
+            e.stopPropagation();
+            if (activeTrainUid !== trainUid) return;
+            openTrainTrendModal(trainId, row);
         });
 
         svg.appendChild(tri);
     });
 
     setActiveTrain(activeTrain, activeTrainUid);
+    applyLinkModeVisuals();
     updateBusHeadersSticky();
 }
 // endregion COV 5J
@@ -1163,6 +1509,7 @@ function redrawBuses() {
     const { row, x, y, trainId, fontSize, makat, timeStr, xOffset } = item;
     const dotX = x + xOffset;
     const dotRadius = Math.max(0.5, fontSize * 0.05);
+    const busKey = buildBusRowKey(row);
 
     const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     dot.setAttribute("cx", dotX);
@@ -1184,6 +1531,30 @@ function redrawBuses() {
     dot.classList.add("bus-item");
     dot.setAttribute("data-train", trainId);
     dot.setAttribute("data-signage", getSignageValue(row));
+    dot.setAttribute("data-bus-key", busKey);
+    dot.setAttribute("data-origin-cx", String(dotX));
+    dot.setAttribute("data-origin-cy", String(y));
+
+    dot.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      linkModeSourceRow = row;
+      linkModeSourceBusKey = busKey;
+      linkModeSourceDot = dot;
+      isLinkDragging = false;
+      setActiveBusRow(row);
+      linkModeConnectedTrainUid = getConnectedTrainUidForBusRow(row);
+      setActiveTrain(getTrainIdValue(row), linkModeConnectedTrainUid);
+      applyLinkModeVisuals();
+    });
+
+    dot.addEventListener("pointerdown", (e) => {
+      if (!linkModeSourceDot || linkModeSourceDot !== dot) return;
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      isLinkDragging = true;
+      dot.setPointerCapture(e.pointerId);
+    });
 
     // Tooltip for bus label
     const bTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
@@ -1207,6 +1578,7 @@ function redrawBuses() {
       alert.classList.add("bus-alert");
       alert.setAttribute("data-train", trainId);
       alert.setAttribute("data-signage", getSignageValue(row));
+      alert.setAttribute("data-bus-key", busKey);
 
       const aTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
       aTitle.textContent = "טווח הגעה לתחנה: " + String(row[KEY_ARRIVAL_TIME_WINDOW] ?? "");
@@ -1218,7 +1590,36 @@ function redrawBuses() {
   // Ensure bus visibility + perc visibility matches selected train state
   applyBusFilter();
   applyPercFilter();
+  applyLinkModeVisuals();
 }
+
+svg.addEventListener("pointermove", (e) => {
+  if (!isLinkDragging || !linkModeSourceDot) return;
+  const p = getSvgPoint(e.clientX, e.clientY);
+  linkModeSourceDot.setAttribute("cx", String(p.x));
+  linkModeSourceDot.setAttribute("cy", String(p.y));
+});
+
+svg.addEventListener("pointerup", async (e) => {
+  if (!isLinkDragging || !linkModeSourceDot) return;
+  isLinkDragging = false;
+
+  const originCx = linkModeSourceDot.getAttribute("data-origin-cx");
+  const originCy = linkModeSourceDot.getAttribute("data-origin-cy");
+  if (originCx !== null) linkModeSourceDot.setAttribute("cx", originCx);
+  if (originCy !== null) linkModeSourceDot.setAttribute("cy", originCy);
+
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const tri = el && el.closest ? el.closest(".train-item") : null;
+  if (!tri) return;
+
+  const targetUid = String(tri.getAttribute("data-train-uid") || "");
+  if (!targetUid) return;
+  const targetRow = trainRowByUid[targetUid] || null;
+  if (!targetRow) return;
+
+  await saveDraggedOverride(linkModeSourceRow, targetRow);
+});
 
 
 
@@ -1426,10 +1827,157 @@ function renderBusTable() {
   updateTopTableScrollbar();
   alignTableScrollToRight();
 }
+
+function getCsrfToken(name = "csrftoken") {
+  const cookies = document.cookie ? document.cookie.split(";") : [];
+  for (const c of cookies) {
+    const part = c.trim();
+    if (part.startsWith(name + "=")) return decodeURIComponent(part.slice(name.length + 1));
+  }
+  return "";
+}
+
+function getActiveBusRow() {
+  if (!activeBusRowKey) return null;
+  const rows = getBusRowsForCurrentView();
+  return rows.find(r => buildBusRowKey(r) === activeBusRowKey) || null;
+}
+
+function getTrainUidForRow(row) {
+  const trainId = getTrainIdValue(row);
+  const t = extractHHMM(getTrainTimeByDirection(row) || "") || String(getTrainTimeByDirection(row) || "").trim();
+  if (!trainId || !t) return "";
+  return trainId + "||" + t;
+}
+
+function getActiveTrainRow() {
+  if (!activeTrainUid) return null;
+  const rows = getFilteredTimes();
+  return rows.find(r => getTrainUidForRow(r) === activeTrainUid) || null;
+}
+
+function buildDefaultKeyPayload() {
+  const busRow = getActiveBusRow();
+  if (!busRow) {
+    return { error: "יש לבחור נקודת אוטובוס לפני שמירה/ביטול החלפה." };
+  }
+
+  const linkDirection = (activeDirection === DIR_TO_TA) ? "bus_to_rail" : "rail_to_bus";
+
+  return {
+    week_period: String(busRow["תקופת שבוע"] ?? "").trim() || String(activeWeek ?? "").trim(),
+    link_direction: linkDirection,
+    makat: busRow['מק"ט'],
+    direction: busRow["כיוון"],
+    alternative: String(busRow["חלופה"] ?? "").trim(),
+    departure_time: String(busRow["זמן יציאה"] ?? "").trim(),
+    train_station_code: busRow["__train_station_code"],
+    from_train_number: busRow["__from_train_number"],
+    from_train_rishui_train_arrival_time: String(busRow["__from_train_rishui_train_arrival_time"] ?? "").trim(),
+  };
+}
+
+function buildOverridePayload() {
+  const base = buildDefaultKeyPayload();
+  if (base.error) return base;
+
+  const trainRow = getActiveTrainRow();
+  if (!trainRow) {
+    return { error: "יש לבחור רכבת יעד לפני שמירת החלפה." };
+  }
+  if (!Number.isFinite(activeYear) || !Number.isFinite(activeMonth)) {
+    return { error: "לא נבחרו שנה וחודש." };
+  }
+
+  return {
+    ...base,
+    to_train_number: trainRow["מספר הרכבת"],
+    to_train_rishui_train_arrival_time: String(trainRow["זמן הגעת הרכבת לתחנה (רישוי)"] ?? "").trim(),
+    effective_month: String(activeYear) + "-" + String(activeMonth).padStart(2, "0"),
+  };
+}
+
+async function postOverride(url, payload) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCsrfToken(),
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) {
+    const errText = data.error ? String(data.error) : ("http_" + res.status);
+    throw new Error(errText);
+  }
+  return data;
+}
+
+async function saveCurrentOverride() {
+  const statusEl = document.getElementById("overrideStatus");
+  const base = buildOverridePayload();
+  if (base.error) {
+    if (statusEl) statusEl.textContent = base.error;
+    return;
+  }
+
+  const changeReason = window.prompt("סיבת שינוי:", "") || "";
+  const changedBy = window.prompt("שם המשתמש שביצע את השינוי:", "") || "";
+  const payload = {
+    ...base,
+    change_reason: changeReason,
+    changed_by: changedBy,
+  };
+
+  try {
+    await postOverride("/convergence/override/save/", payload);
+    if (statusEl) statusEl.textContent = "החלפה נשמרה בהצלחה.";
+  } catch (e) {
+    if (statusEl) statusEl.textContent = "שמירת החלפה נכשלה: " + String(e.message || e);
+  }
+}
+
+async function disableCurrentOverride() {
+  const statusEl = document.getElementById("overrideStatus");
+  const base = buildDefaultKeyPayload();
+  if (base.error) {
+    if (statusEl) statusEl.textContent = base.error;
+    return;
+  }
+
+  const disableReason = window.prompt("סיבת ביטול ההחלפה:", "") || "";
+  const disabledBy = window.prompt("שם המשתמש שמבטל:", "") || "";
+
+  const payload = {
+    week_period: base.week_period,
+    link_direction: base.link_direction,
+    makat: base.makat,
+    direction: base.direction,
+    alternative: base.alternative,
+    departure_time: base.departure_time,
+    train_station_code: base.train_station_code,
+    from_train_number: base.from_train_number,
+    from_train_rishui_train_arrival_time: base.from_train_rishui_train_arrival_time,
+    disable_reason: disableReason,
+    disabled_by: disabledBy,
+  };
+
+  try {
+    await postOverride("/convergence/override/disable/", payload);
+    if (statusEl) statusEl.textContent = "החלפה בוטלה בהצלחה.";
+  } catch (e) {
+    if (statusEl) statusEl.textContent = "ביטול החלפה נכשל: " + String(e.message || e);
+  }
+}
+
 // Clicking "הצג הכל" resets table back to all rows
 const clearBusBtn = document.getElementById("clearBusSelectionBtn");
+const saveOverrideBtn = document.getElementById("saveOverrideBtn");
+const disableOverrideBtn = document.getElementById("disableOverrideBtn");
 if (clearBusBtn) {
   clearBusBtn.addEventListener("click", () => {
+    exitLinkMode();
     activeBusRowKey = null;
     activeSignage = null;
     activeHeaderFilters.operator = "";
@@ -1437,6 +1985,12 @@ if (clearBusBtn) {
     applyBusFilter();
     renderBusTable();
   });
+}
+if (saveOverrideBtn) {
+  saveOverrideBtn.addEventListener("click", saveCurrentOverride);
+}
+if (disableOverrideBtn) {
+  disableOverrideBtn.addEventListener("click", disableCurrentOverride);
 }
 // endregion COV 5L
 
