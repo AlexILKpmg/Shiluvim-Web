@@ -59,7 +59,7 @@ def _to_int_or_none(value):
         return None
 
 
-def _serialize_bus_row(row):
+def _serialize_bus_to_rail(row):
     return {
         COL_YEAR: row.year,
         COL_MONTH: row.month,
@@ -92,7 +92,7 @@ def _serialize_bus_row(row):
     }
 
 
-def _serialize_rail_row(row):
+def _serialize_rail_to_bus(row):
     return {
         COL_YEAR: row.year,
         COL_MONTH: row.month,
@@ -329,25 +329,25 @@ def convergence(request):
         bus_qs = bus_qs.filter(month=month)
         rail_qs = rail_qs.filter(month=month)
 
-    bus_rows = [_serialize_bus_row(row) for row in bus_qs]
-    rail_rows = [_serialize_rail_row(row) for row in rail_qs]
-    bus_rows_all = [_serialize_bus_row(row) for row in bus_qs_all]
-    rail_rows_all = [_serialize_rail_row(row) for row in rail_qs_all]
+    bus_to_rail_rows = [_serialize_bus_to_rail(row) for row in bus_qs]
+    rail_to_bus_rows = [_serialize_rail_to_bus(row) for row in rail_qs]
+    bus_to_rail_rows_all = [_serialize_bus_to_rail(row) for row in bus_qs_all]
+    rail_to_bus_rows_all = [_serialize_rail_to_bus(row) for row in rail_qs_all]
 
     effective_month = ""
     if year is not None and month is not None:
         effective_month = f"{int(year):04d}-{int(month):02d}"
 
     overrides = _build_override_lookup(effective_month)
-    _apply_overrides_to_rows(bus_rows, overrides)
-    _apply_overrides_to_rows(rail_rows, overrides)
+    _apply_overrides_to_rows(bus_to_rail_rows, overrides)
+    _apply_overrides_to_rows(rail_to_bus_rows, overrides)
 
-    combined_for_perc = bus_rows + rail_rows
+    combined_for_perc = bus_to_rail_rows + rail_to_bus_rows
     train_perc_map = _build_train_perc_map(combined_for_perc)
-    train_trend_map = _build_train_trend_map(bus_rows_all + rail_rows_all)
+    train_trend_map = _build_train_trend_map(bus_to_rail_rows_all + rail_to_bus_rows_all)
 
     debug_message = ""
-    if not bus_rows and not rail_rows:
+    if not bus_to_rail_rows and not rail_to_bus_rows:
         debug_message = f"no convergence rows found for station='{station}', year='{year}', month='{month}'"
 
     context = {
@@ -355,8 +355,8 @@ def convergence(request):
         "station": station,
         "year": year or "",
         "month": month or "",
-        "bus_to_rail_df_js": json.dumps(bus_rows, ensure_ascii=False),
-        "rail_to_bus_df_js": json.dumps(rail_rows, ensure_ascii=False),
+        "bus_to_rail_df_js": json.dumps(bus_to_rail_rows, ensure_ascii=False),
+        "rail_to_bus_df_js": json.dumps(rail_to_bus_rows, ensure_ascii=False),
         "train_perc_js": json.dumps(train_perc_map, ensure_ascii=False),
         "train_trend_js": json.dumps(train_trend_map, ensure_ascii=False),
         "year_month_pairs_js": json.dumps(year_month_pairs, ensure_ascii=False),
