@@ -54,22 +54,14 @@
             text-align: right;
         }
 
-        .filter-reset-btn {
-            margin: 40px 0 0 0;
-            padding: 6px 10px;
-            cursor: pointer;
-            border: 1px solid #999;
-            background: #fff;
-            border-radius: 6px;
-        }
-
         .filter-select {
-            margin: 10px 10px;
-            padding: 4px;
-            border-radius: 6px;
-            cursor: pointer;
+              margin: 10px 10px;
+              padding: 4px;
+              border-radius: 6px;
+              cursor: pointer;
+              background: #fff;
+              border: 1px solid #999;
         }
-
 
         .table-scroll {
             max-height: 900px;
@@ -111,7 +103,7 @@
             white-space: nowrap;
         }
 
-        /* In RTL table, first DOM column is visually rightmost ("מפעיל"). */
+
         #busTable th:first-child,
         #busTable td:first-child {
             padding-right: 22px;
@@ -263,7 +255,7 @@
 
 
 <script>
-// region Helpers General
+// region Helpers and General
 function extractHHMM(timeValue) {
     if (timeValue === null || timeValue === undefined) return null;
 
@@ -316,35 +308,6 @@ function toIntAny(v) {
     const n = parseInt(String(v ?? "").trim(), 10);
     return Number.isFinite(n) ? n : null;
 }
-// endregion Helpers General
-
-
-
-// region uploading the data from View
-const BUS_TO_RAIL_JSON = {{ bus_to_rail_df_js|safe }};
-const RAIL_TO_BUS_JSON = {{ rail_to_bus_df_js|safe }};
-const TRAIN_PERC = {{ train_perc_js|safe }};
-const TRAIN_TREND = {{ train_trend_js|safe }};
-const YEAR_MONTH_PAIRS = {{ year_month_pairs_js|safe }};
-// endregion uploading the data from View
-
-
-
-// region General
-
-const params = new URLSearchParams(window.location.search);
-const station = (params.get("station") || "").trim();
-const yearStr = params.get("year");
-const monthStr = params.get("month");
-
-
-/*/just making sure the year and month (that i got from the URL) are intergers: /*/
-const selectedYear  = yearStr  ? parseInt(yearStr, 10)  : null;
-const selectedMonth = monthStr ? parseInt(monthStr, 10) : null;
-
-/*/and if they are mistakenly not finite they will become nulls/*/
-let activeYear  = Number.isFinite(selectedYear)  ? selectedYear  : null;
-let activeMonth = Number.isFinite(selectedMonth) ? selectedMonth : null;
 
 function updateTitleFromState() {
     const titleEl = document.getElementById("stationTitle");
@@ -369,33 +332,56 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
-function exitLinkMode() {
-    linkModeSourceRow = null;
-    linkModeSourceBusKey = null;
-    linkModeSourceDot = null;
-    isLinkDragging = false;
-    linkModeConnectedTrainUid = null;
-    applyLinkModeVisuals();
+// endregion Helpers and General
+
+
+// region prepering the data for bus_to_rail and rail_to_bus and TRAIN_PERC (not trend)
+const BUS_TO_RAIL_JSON = {{ bus_to_rail_df_js|safe }};
+const RAIL_TO_BUS_JSON = {{ rail_to_bus_df_js|safe }};
+const TRAIN_PERC = {{ train_perc_js|safe }};
+
+let stationTimes = [];
+
+function rebuildStationTimes() {
+    stationTimes = (activeDirection === BUS_TO_RAIL_DIRECTION)
+      ? BUS_TO_RAIL_JSON
+      : RAIL_TO_BUS_JSON;
 }
 
-/*/ reset button and filters:/*/
-const resetBtn = document.createElement("button");
-resetBtn.textContent = "איפוס סינון רכבות";
-resetBtn.className = "filter-reset-btn";
-const h2 = document.querySelector("h2");
-if (h2 && h2.parentNode) {
-    h2.parentNode.insertBefore(resetBtn, h2.nextSibling);
-}
-resetBtn.addEventListener("click", () => {
-    setActiveTrain(null);
-});
 
-const dirSelect = document.createElement("select");
-dirSelect.innerHTML = `
-    <option value="לכיוון תל אביב">לכיוון תל אביב</option>
-    <option value="מכיוון תל אביב">מכיוון תל אביב</option>`;
-dirSelect.className = "filter-select";
-resetBtn.parentNode.insertBefore(dirSelect, resetBtn.nextSibling);
+function getWeekFiltered(rows = stationTimes) {
+    return rows.filter(r => String(r[KEY_WEEK_PERIOD] ?? "").trim() === activeWeek);
+}
+
+function getOperatorFiltered(rows) {
+    if (!activeOperator) return rows;
+    return rows.filter(r => String(r[KEY_OPERATOR] ?? "").trim() === activeOperator);
+}
+
+function getFilteredTimes() {
+    return getOperatorFiltered(getWeekFiltered(stationTimes));
+}
+
+
+// endregion prepering the data for
+
+
+// region year/month dropdown filter:
+const YEAR_MONTH_PAIRS = {{ year_month_pairs_js|safe }};
+
+const KEY_YEAR = "שנה";
+const KEY_MONTH = "חודש";
+
+const params = new URLSearchParams(window.location.search);
+const station = (params.get("station") || "").trim();
+const yearStr = params.get("year");
+const monthStr = params.get("month");
+
+const selectedYear = yearStr ? parseInt(yearStr, 10) : null;
+let activeYear = selectedYear
+
+const selectedMonth = monthStr ? parseInt(monthStr, 10) : null;
+let activeMonth = selectedMonth
 
 const yearSelect = document.createElement("select");
 yearSelect.className = "filter-select";
@@ -403,20 +389,6 @@ yearSelect.className = "filter-select";
 const monthSelect = document.createElement("select");
 monthSelect.className = "filter-select";
 
-resetBtn.parentNode.insertBefore(yearSelect, dirSelect.nextSibling);
-resetBtn.parentNode.insertBefore(monthSelect, yearSelect.nextSibling);
-
-
-const weekSelect = document.createElement("select");
-weekSelect.className = "filter-select";
-
-resetBtn.parentNode.insertBefore(weekSelect, monthSelect.nextSibling);
-
-const operatorSelect = document.createElement("select");
-operatorSelect.className = "filter-select";
-
-resetBtn.parentNode.insertBefore(operatorSelect, weekSelect.nextSibling);
-/*/ end of listners /*/
 
 function getYearMonthPairsForStation() {
     return (YEAR_MONTH_PAIRS || [])
@@ -435,18 +407,7 @@ function populateYearDropdown() {
         opt.textContent = String(y);
         yearSelect.appendChild(opt);
     });
-
-    if (Number.isFinite(activeYear) && years.includes(activeYear)) {
-        yearSelect.value = String(activeYear);
-    } else if (Number.isFinite(selectedYear) && years.includes(selectedYear)) {
-        yearSelect.value = String(selectedYear);
-        activeYear = selectedYear;
-    } else if (years.length) {
-        yearSelect.value = String(years[0]);
-        activeYear = years[0];
-    } else {
-        activeYear = null;
-    }
+    yearSelect.value = String(activeYear);
 }
 
 function populateMonthDropdown() {
@@ -464,23 +425,97 @@ function populateMonthDropdown() {
         opt.textContent = String(m).padStart(2, "0");
         monthSelect.appendChild(opt);
     });
-
-    if (Number.isFinite(activeMonth) && months.includes(activeMonth)) {
-        monthSelect.value = String(activeMonth);
-    } else if (
-        Number.isFinite(selectedMonth) &&
-        months.includes(selectedMonth) &&
-        String(ySel) === String(selectedYear)
-    ) {
-        monthSelect.value = String(selectedMonth);
-        activeMonth = selectedMonth;
-    } else if (months.length) {
-        monthSelect.value = String(months[0]);
-        activeMonth = months[0];
-    } else {
-        activeMonth = null;
-    }
+    monthSelect.value = String(activeMonth);
 }
+
+function navigateWithYearMonth() {
+    if (!station || !Number.isFinite(activeYear) || !Number.isFinite(activeMonth)) return;
+
+    const p = new URLSearchParams(window.location.search);
+    p.set("station", station);
+    p.set("year", String(activeYear));
+    p.set("month", String(activeMonth));
+
+    window.location.href = "/convergence/?" + p.toString();
+}
+
+yearSelect.addEventListener("change", () => {
+    const ySel = parseInt(yearSelect.value, 10);
+    activeYear = Number.isFinite(ySel) ? ySel : null;
+
+    populateMonthDropdown();
+
+    const mSel = parseInt(monthSelect.value, 10);
+    activeMonth = Number.isFinite(mSel) ? mSel : null;
+
+    navigateWithYearMonth();
+});
+monthSelect.addEventListener("change", () => {
+    const mSel = parseInt(monthSelect.value, 10);
+    activeMonth = Number.isFinite(mSel) ? mSel : null;
+
+    navigateWithYearMonth();
+});
+// endregion year/month dropdown filter
+
+
+// region train direction dropdown filter
+const KEY_RAIL_DIRECTION = "כיוון נסיעת הרכבת";
+
+const BUS_TO_RAIL_DIRECTION = String(BUS_TO_RAIL_JSON[0][KEY_RAIL_DIRECTION]).trim();
+const RAIL_TO_BUS_DIRECTION = String(RAIL_TO_BUS_JSON[0][KEY_RAIL_DIRECTION]).trim();
+
+let activeDirection = BUS_TO_RAIL_DIRECTION; // default
+
+const dirSelect = document.createElement("select");
+dirSelect.className = "filter-select";
+
+function populateDirectionDropdown() {
+    const dirs = [BUS_TO_RAIL_DIRECTION, RAIL_TO_BUS_DIRECTION];
+    dirSelect.innerHTML = "";
+
+    dirs.forEach(d => {
+      const opt = document.createElement("option");
+      opt.value = d;
+      opt.textContent = d;
+      dirSelect.appendChild(opt);
+    });
+
+    dirSelect.value = activeDirection;
+}
+
+populateDirectionDropdown();
+
+function refreshAllAfterFilterChange() {
+    exitLinkMode();
+    activeBusRowKey = null;
+    activeSignage = null;
+
+    rebuildStationTimes();
+    populateWeekDropdown();
+    populateOperatorDropdown();
+
+    setActiveTrain(null);
+    redrawTrains();
+    redrawBuses();
+    renderBusTable();
+}
+
+dirSelect.addEventListener("change", () => {
+    activeDirection = dirSelect.value;
+    refreshAllAfterFilterChange();
+});
+
+// endregion train direction dropdown filter
+
+
+// region WeekPeriod filter
+const KEY_WEEK_PERIOD = "תקופת שבוע";
+
+const weekSelect = document.createElement("select");
+weekSelect.className = "filter-select";
+
+let activeWeek = "יום חול"; //defualt mode
 
 function populateWeekDropdown() {
     weekSelect.innerHTML = "";
@@ -500,14 +535,33 @@ function populateWeekDropdown() {
         weekSelect.appendChild(opt);
     });
 
-    if (weeks.includes("יום חול")) {
-        activeWeek = "יום חול";
-    } else if (weeks.length) {
-        activeWeek = weeks[0];
-    }
-
     weekSelect.value = activeWeek;
 }
+
+weekSelect.addEventListener("change", () => {
+    exitLinkMode();
+    activeWeek = weekSelect.value;
+    populateOperatorDropdown();
+
+    activeBusRowKey = null;
+    activeSignage = null;
+    setActiveTrain(null);
+
+    redrawTrains();
+    redrawBuses();
+    renderBusTable();
+});
+
+// endregion WeekPeriod filter
+
+
+// region Operator filter
+const operatorSelect = document.createElement("select");
+operatorSelect.className = "filter-select";
+
+const KEY_OPERATOR = "מפעיל";
+let activeOperator = "";
+
 
 function populateOperatorDropdown() {
     operatorSelect.innerHTML = "";
@@ -537,805 +591,45 @@ function populateOperatorDropdown() {
     }
 }
 
-function getFilteredTimes() {
-    return stationTimes.filter(r => {
-        const weekOk = String(r[KEY_WEEK_PERIOD] ?? "").trim() === activeWeek;
-        if (!weekOk) return false;
-        if (!activeOperator) return true;
-        return String(r[KEY_OPERATOR] ?? "").trim() === activeOperator;
-    });
-}
-
-function refreshAllAfterFilterChange() {
-    exitLinkMode();
-    activeBusRowKey = null;
-    activeSignage = null;
-
-    rebuildStationTimes();
-    populateWeekDropdown();
-    populateOperatorDropdown();
-
-    setActiveTrain(null);
-    redrawTrains();
-    redrawBuses();
-    renderBusTable();
-}
-
-function navigateWithYearMonth() {
-    if (!station || !Number.isFinite(activeYear) || !Number.isFinite(activeMonth)) return;
-
-    const p = new URLSearchParams(window.location.search);
-    p.set("station", station);
-    p.set("year", String(activeYear));
-    p.set("month", String(activeMonth));
-
-    window.location.href = "/convergence/?" + p.toString();
-}
-
-
-dirSelect.addEventListener("change", () => {
-    activeDirection = dirSelect.value;
-
-    populateYearDropdown();
-    populateMonthDropdown();
-    refreshAllAfterFilterChange();
-});
-
-yearSelect.addEventListener("change", () => {
-    const ySel = parseInt(yearSelect.value, 10);
-    activeYear = Number.isFinite(ySel) ? ySel : null;
-
-    populateMonthDropdown();
-
-    const mSel = parseInt(monthSelect.value, 10);
-    activeMonth = Number.isFinite(mSel) ? mSel : null;
-
-    navigateWithYearMonth();
-});
-
-monthSelect.addEventListener("change", () => {
-    const mSel = parseInt(monthSelect.value, 10);
-    activeMonth = Number.isFinite(mSel) ? mSel : null;
-
-    navigateWithYearMonth();
-});
-
-weekSelect.addEventListener("change", () => {
-    exitLinkMode();
-    activeWeek = weekSelect.value;
-    populateOperatorDropdown();
-
-    activeBusRowKey = null;
-    activeSignage = null;
-
-    setActiveTrain(null);
-    redrawTrains();
-    redrawBuses();
-    renderBusTable();
-});
-
 operatorSelect.addEventListener("change", () => {
     exitLinkMode();
     activeOperator = operatorSelect.value;
 
     activeBusRowKey = null;
     activeSignage = null;
-
     setActiveTrain(null);
+
     redrawTrains();
     redrawBuses();
     renderBusTable();
 });
+// endregion Operator filter
 
 
-// endregion General
+// region reset button
 
-
-
-// region bus_to_rail and rail_to_bus
-let stationTimes = [];
-function getMasterData() {
-    return (activeDirection === DIR_TO_TA) ? BUS_TO_RAIL_JSON : RAIL_TO_BUS_JSON;
+const resetBtn = document.createElement("button");
+resetBtn.textContent = "איפוס סינון רכבות";
+resetBtn.className = "filter-select";
+const h2 = document.querySelector("h2");
+if (h2 && h2.parentNode) {
+    h2.parentNode.insertBefore(resetBtn, h2.nextSibling);
 }
-function rebuildStationTimes() {
-    const data = getMasterData();
-
-    stationTimes = data.filter(t => {
-        const st = String(t[KEY_STATION_NAME] ?? "").trim();
-        if (!station || st !== station) return false;
-
-        if (Number.isFinite(activeYear)) {
-            const y = toIntAny(t[KEY_YEAR]);
-            if (y !== null && y !== activeYear) return false;
-        }
-        if (Number.isFinite(activeMonth)) {
-            const m = toIntAny(t[KEY_MONTH]);
-            if (m !== null && m !== activeMonth) return false;
-        }
-
-        return true;
-    });
-}
-
-const DIR_TO_TA = "לכיוון תל אביב";
-const DIR_FROM_TA = "מכיוון תל אביב";
-const KEY_YEAR = "שנה";
-const KEY_MONTH = "חודש";
-const KEY_WEEK_PERIOD = "תקופת שבוע";
-const KEY_STATION_NAME = "שם תחנת הרכבת";
-const KEY_RAIL_DIRECTION = "כיוון נסיעת הרכבת";
-const KEY_TRAIN_ID = "מספר הרכבת";
-const KEY_OPERATOR = "מפעיל";
-const KEY_MAKAT = 'מק"ט';
-const KEY_DIRECTION = "כיוון";
-const KEY_ALTERNATIVE = "חלופה";
-const KEY_BUS_TIME_TO_STATION = "זמן הגעה לתחנה";
-const KEY_BUS_DEPARTURE_TIME = "זמן יציאה";
-const KEY_AVG_PASSENGERS = "ממוצע נוסעים לנסיעה";
-const KEY_ARRIVAL_TIME_WINDOW = "טווח זמן ההגעה לתחנה";
-const KEY_IS_BUS_ON_TIME = "האם האוטובוס מגיע בזמן";
-const KEY_TRAIN_ARRIVAL_RISHUI = "זמן הגעת הרכבת לתחנה (רישוי)";
-const KEY_IS_GOLD_TRAIN = "רכבת זהב";
-const KEY_ON_TIME_PERCENT = "אחוז הנסיעות שעמדו בזמנים";
-const KEY_MINUTES_GAP_B2R = "הפרש בדקות (מאוטובוס לרכבת)";
-const KEY_MINUTES_GAP_R2B = "הפרש בדקות (מרכבת לאוטובוס)";
-const KEY_RECOMMENDED_MINUTES = "המלצה (דקות)";
-const KEY_INTERNAL_TRAIN_STATION_CODE = "__train_station_code";
-const KEY_INTERNAL_FROM_TRAIN_NUMBER = "__from_train_number";
-const KEY_INTERNAL_FROM_TRAIN_ARRIVAL = "__from_train_rishui_train_arrival_time";
-const KEY_SIGNAGE = "שילוט";
-const KEY_ASCENDING_AMOUNT = "מספר עולים";
-const KEY_DESCENDING_AMOUNT = "מספר יורדים";
-
-let activeDirection = DIR_TO_TA;
-dirSelect.value = activeDirection;
-let activeTrain = null;
-let activeTrainUid = null;
-let activeBusRowKey = null;
-let activeSignage = null;
-let activeOperator = "";
-let activeWeek = "יום חול";
-let trainRowByUid = {};
-
-// endregion bus_to_rail and rail_to_bus
-
-
-
-// region Map - Trains
-function getTrainTimeByDirection(row) {
-    return row[KEY_TRAIN_ARRIVAL_RISHUI];
-}
-
-const svg = document.getElementById("arrowSVG");
-
-function getConnectedTrainUidForBusRow(row) {
-    const trainId = getTrainIdValue(row);
-    const trainTime = extractHHMM(getTrainTimeByDirection(row) || "") || String(getTrainTimeByDirection(row) || "").trim();
-    if (!trainId || !trainTime) return "";
-    return trainId + "||" + trainTime;
-}
-
-function applyLinkModeVisuals() {
-    const busEls = svg.querySelectorAll(".bus-item");
-    if (!linkModeSourceBusKey) {
-        busEls.forEach(el => { el.style.display = ""; });
-        clearTrainOutlines();
-        return;
-    }
-
-    busEls.forEach(el => {
-        const k = String(el.getAttribute("data-bus-key") || "");
-        el.style.display = (k && k === linkModeSourceBusKey) ? "" : "none";
-    });
-
-    clearTrainOutlines();
-    if (linkModeConnectedTrainUid) {
-        const tri = svg.querySelector('.train-item[data-train-uid="' + linkModeConnectedTrainUid + '"]');
-        if (tri) {
-            tri.setAttribute("stroke", "#17a34a");
-            tri.setAttribute("stroke-width", "3");
-        }
-    }
-}
-
-function applyBusFilter() {
-    const buses = svg.querySelectorAll(".bus-item");
-    buses.forEach(b => {
-        const tid = b.getAttribute("data-train") || "";
-        const signage = b.getAttribute("data-signage") || "";
-        const trainOk = (!activeTrain || tid === activeTrain);
-        const signageOk = (!activeSignage || signage === activeSignage);
-        b.style.display = (trainOk && signageOk) ? "" : "none";
-    });
-}
-
-function clearTrainOutlines() {
-    const trains = svg.querySelectorAll(".train-item");
-    trains.forEach(t => {
-        t.setAttribute("stroke", "none");
-        t.setAttribute("stroke-width", "0");
-    });
-}
-
-function applyPercFilter() {
-    const percs = svg.querySelectorAll(".perc-item");
-    percs.forEach(p => {
-        const uid = p.getAttribute("data-train-uid") || "";
-        const tid = p.getAttribute("data-train") || "";
-        if (!activeTrain) {
-            p.style.display = "none";
-            return;
-        }
-        p.style.display = (activeTrainUid ? (uid === activeTrainUid) : (tid === activeTrain)) ? "" : "none";
-    });
-}
-
-function setActiveTrain(trainId, trainUid = null) {
-    activeTrain = trainId ? String(trainId) : null;
-    activeTrainUid = trainUid ? String(trainUid) : null;
-
-    applyBusFilter();
-    applyPercFilter();
-
-    clearTrainOutlines();
-    if (activeTrain) {
-        const selector = activeTrainUid
-            ? '.train-item[data-train-uid="' + activeTrainUid + '"]'
-            : '.train-item[data-train="' + activeTrain + '"]';
-        const selected = svg.querySelectorAll(selector);
-        selected.forEach(t => {
-            t.setAttribute("stroke", "#cc0000");
-            t.setAttribute("stroke-width", "1.5");
-        });
-    }
-
-    if (typeof renderBusTable === "function") {
-        renderBusTable();
-    }
-}
-
-function redrawTrains() {
-    // deleting old traingles and percentages:
-    svg.querySelectorAll(".train-item, .perc-item").forEach(el => el.remove());
-    //
-
-    trainRowByUid = {};
-    const filteredTimes = getFilteredTimes();
-    const seenTrainTime = new Set();
-    const uniqueTrainRows = [];
-
-    // building a unique trainId||time (for later traingles creation)
-    filteredTimes.forEach(row => {
-        const timeVal = getTrainTimeByDirection(row);
-
-        const y = timeToY(timeVal);
-        if (y === null) return;
-
-        const trainId = getTrainIdValue(row);
-        if (!trainId) return;
-
-        const normalizedTime = extractHHMM(timeVal) || String(timeVal ?? "").trim();
-        if (!normalizedTime) return;
-
-        const uniqueKey = trainId + "||" + normalizedTime;
-        if (seenTrainTime.has(uniqueKey)) return;
-        seenTrainTime.add(uniqueKey);
-
-        uniqueTrainRows.push({
-            row,
-            timeVal,
-            normalizedTime,
-            y,
-            trainId,
-            trainUid: uniqueKey,
-            xOffset: 0
-        });
-    });
-    //
-
-    // Jitter only unique train-time items that are closer than 4 minutes.
-    const pxPerMinute = (1920 - 40) / (24 * 60);
-    const jitterThresholdPx = 4 * pxPerMinute;
-    const jitterStepX = 10;
-
-    uniqueTrainRows.sort((a, b) => a.y - b.y);
-
-    let i = 0;
-    while (i < uniqueTrainRows.length) {
-        let j = i + 1;
-        while (j < uniqueTrainRows.length && (uniqueTrainRows[j].y - uniqueTrainRows[j - 1].y) < jitterThresholdPx) {
-            j += 1;
-        }
-
-        const clusterSize = j - i;
-        const startX = -((clusterSize - 1) * jitterStepX) / 2;
-        for (let k = 0; k < clusterSize; k += 1) {
-            uniqueTrainRows[i + k].xOffset = startX + (k * jitterStepX);
-        }
-        i = j;
-    }
-    //
-
-    // the train percentage label creation
-    uniqueTrainRows.forEach(item => {
-        const { row, timeVal, normalizedTime, y, trainId, trainUid, xOffset } = item;
-        trainRowByUid[trainUid] = row;
-
-        if (activeDirection === DIR_TO_TA) {
-            const percKey = buildPercKeyForLookup(row, trainId);
-            const percStr = percKey ? TRAIN_PERC[percKey] : null;
-
-            if (percStr !== undefined && percStr !== null && String(percStr).trim() !== "") {
-                const percText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-
-                percText.setAttribute("x", String(110 + xOffset));
-                percText.setAttribute("y", String(y));
-                percText.setAttribute("font-size", "12");
-                percText.setAttribute("fill", "#333");
-                percText.setAttribute("text-anchor", "end");
-                percText.setAttribute("dominant-baseline", "middle");
-
-                percText.setAttribute("direction", "ltr");
-                percText.setAttribute("unicode-bidi", "plaintext");
-
-                percText.textContent = String(percStr);
-
-                const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-                pTitle.textContent = "אחוז הנסיעות המסונכרנות";
-                percText.appendChild(pTitle);
-
-                percText.classList.add("perc-item");
-                percText.setAttribute("data-train", trainId);
-                percText.setAttribute("data-train-uid", trainUid);
-                percText.style.display = "none";
-
-                svg.appendChild(percText);
-            }
-        }
-        //
-
-        // gold train creation
-        const isGold = String(row[KEY_IS_GOLD_TRAIN] ?? "").trim() === "כן";
-        const color = isGold ? "gold" : "black";
-        //
-
-        // creating the triangles:
-        const tri = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-        const x = 120 + xOffset;
-        const size = 12;
-        const yPos = y - size / 2;
-
-        const p1 = x + "," + yPos;
-        const p2 = (x - size / 2) + "," + (yPos + size);
-        const p3 = (x + size / 2) + "," + (yPos + size);
-
-        tri.setAttribute("points", p1 + " " + p2 + " " + p3);
-        tri.setAttribute("fill", color);
-
-        tri.classList.add("train-item");
-        tri.setAttribute("data-train", trainId);
-        tri.setAttribute("data-train-uid", trainUid);
-        //
-
-        // creating the hovering information on the traingles:
-        const trainTimeStr = normalizedTime;
-        let paxLabel = "";
-        let paxValue = null;
-        if (activeDirection === DIR_TO_TA) {
-            paxLabel = KEY_ASCENDING_AMOUNT;
-            paxValue = row[KEY_ASCENDING_AMOUNT];
-        } else if (activeDirection === DIR_FROM_TA) {
-            paxLabel = KEY_DESCENDING_AMOUNT;
-            paxValue = row[KEY_DESCENDING_AMOUNT];
-        }
-        const paxText = (paxValue === null || paxValue === undefined || String(paxValue).trim() === "")
-          ? "—"
-          : String(paxValue).trim();
-
-        const tTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-        tTitle.textContent = "זמן: " + trainTimeStr + " | רכבת: " + trainId + " | " + paxLabel + ": " + paxText;
-        tri.appendChild(tTitle);
-        //
-
-        // single-click to select (with red outline) a single train:
-        tri.addEventListener("click", (e) => {
-            e.stopPropagation();
-            setActiveTrain(trainId, trainUid);
-        });
-        //
-        // double-click to open the trend persentages graph:
-        tri.addEventListener("dblclick", (e) => {
-            e.stopPropagation();
-            if (activeTrainUid !== trainUid) return;
-            openTrainTrendModal(trainId, row);
-        });
-        //
-
-        svg.appendChild(tri);
-    });
-
-    setActiveTrain(activeTrain, activeTrainUid);
-    applyLinkModeVisuals();
-    updateBusHeadersSticky();
-}
-// endregion Map - Trains
-
-
-
-// region Map - Bus
-function getBusTimeByDirection(row) {
-    return (activeDirection === DIR_TO_TA)
-        ? row[KEY_BUS_TIME_TO_STATION]
-        : row[KEY_BUS_DEPARTURE_TIME];
-}
-
-function parseDurationMinutes(durationValue) {
-    if (durationValue === null || durationValue === undefined) return null;
-    const s = String(durationValue).trim();
-    if (!s) return null;
-
-    const match = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (!match) return null;
-
-    const hh = parseInt(match[1], 10);
-    const mm = parseInt(match[2], 10);
-    const ss = match[3] !== undefined ? parseInt(match[3], 10) : 0;
-    if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return null;
-
-    return (hh * 60) + mm + (ss / 60);
-}
-
-function hasLargeArrivalWindow(row) {
-    if (activeDirection !== DIR_TO_TA) return false;
-    const minutes = parseDurationMinutes(row[KEY_ARRIVAL_TIME_WINDOW]);
-    return minutes !== null && minutes >= 5;
-}
-
-function getTrainIdValue(row) {
-    const raw = row[KEY_TRAIN_ID];
-    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
-    const n = Number(raw);
-    if (Number.isFinite(n)) return String(Math.trunc(n));
-    return String(raw).trim();
-}
-
-function getSignageValue(row) {
-    const raw = row[KEY_SIGNAGE];
-    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
-    const n = Number(raw);
-    if (Number.isFinite(n)) return String(Math.trunc(n));
-    return String(raw).trim();
-}
-
-function getMakatValue(row) {
-    const raw = row[KEY_MAKAT];
-    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
-    const n = Number(raw);
-    if (Number.isFinite(n)) return String(Math.trunc(n));
-    return String(raw).trim();
-}
-
-function updateBusHeaderSelectionVisuals() {
-    const headers = svg.querySelectorAll(".bus-header");
-    headers.forEach(h => {
-        const signage = h.getAttribute("data-signage") || "";
-        const isActive = !!activeSignage && signage === activeSignage;
-
-        h.setAttribute("fill", isActive ? "#0b5fff" : "#000");
-        const bg = h.previousElementSibling;
-        if (bg && bg.classList.contains("bus-header-bg")) {
-            bg.setAttribute("fill", isActive ? "#e9f1ff" : "#fff");
-            bg.setAttribute("stroke", isActive ? "#0b5fff" : "#ddd");
-        }
-    });
-}
-
-function buildBusRowKey(row) {
-  const trainId = getTrainIdValue(row);
-  const shilot  = getSignageValue(row);
-  const makat = getMakatValue(row);
-  const t = extractHHMM(getBusTimeByDirection(row) ?? "") || "";
-  return trainId + "||" + shilot + "||" + makat + "||" + t;
-}
-
-function setActiveBusRow(rowOrNull) {
-  activeBusRowKey = rowOrNull ? buildBusRowKey(rowOrNull) : null;
-  renderBusTable();
-}
-
-let busHeaderStickyBound = false;
-function updateBusHeadersSticky() {
-    const headers = svg.querySelectorAll(".bus-header");
-    if (!headers.length) return;
-
-    const svgRect = svg.getBoundingClientRect();
-    const svgTopAbs = window.scrollY + svgRect.top;
-    const baseY = 18;      // original header y in SVG
-    const topPad = 8;      // distance from top while sticky
-    const maxY = 1910;     // keep inside svg
-
-    let desiredY = baseY;
-    if (window.scrollY > svgTopAbs) {
-      desiredY = baseY + (window.scrollY - svgTopAbs) + topPad;
-    }
-
-    desiredY = Math.min(desiredY, maxY);
-
-    headers.forEach(h => {
-        h.setAttribute("y", String(desiredY));
-
-        const bg = h.previousElementSibling;
-        if (bg && bg.classList.contains("bus-header-bg")) {
-            const bb = h.getBBox();
-            const padX = 6;
-            const padY = 3;
-            bg.setAttribute("x", String(bb.x - padX));
-            bg.setAttribute("y", String(bb.y - padY));
-            bg.setAttribute("width", String(bb.width + padX * 2));
-            bg.setAttribute("height", String(bb.height + padY * 2));
-
-            // Keep header layer above bus dots.
-            svg.appendChild(bg);
-            svg.appendChild(h);
-        }
-    });
-}
-
-function redrawBuses() {
-  //Removes previous bus dots, header text, and header backgrounds so you don’t duplicate them.
-  svg.querySelectorAll(".bus-item, .bus-header, .bus-header-bg").forEach(el => el.remove());
-  //
-
-  // when resizing the page the stickey bus headers should resize accordingly
-  if (!busHeaderStickyBound) {
-    window.addEventListener("scroll", updateBusHeadersSticky, { passive: true });
-    window.addEventListener("resize", updateBusHeadersSticky);
-    busHeaderStickyBound = true;
-  }
-  updateBusHeadersSticky();
-
-  // filtering the dots: :
-  const filteredTimes = getFilteredTimes(); // using operator and week period
-  const busRows = filteredTimes.filter(r =>
-  getBusTimeByDirection(r) && getMakatValue(r) !== "" // give me the bus time and makat
-  );
-
-  // filtering the shilot header values - using only week period:
-    // I do it so operator will not affect the values that are presented!
-  const weekOnlyTimes = stationTimes.filter(r => String(r[KEY_WEEK_PERIOD] ?? "").trim() === activeWeek);
-  const headerRows = weekOnlyTimes.filter(r =>
-    getBusTimeByDirection(r) && getMakatValue(r) !== ""
-  );
-  const shilotValues = Array.from(new Set(headerRows.map(r => getSignageValue(r))));
-
-  // Sort signage: numeric signage in numeric order, then strings alphabetically
-  shilotValues.sort((a, b) => {
-    const na = parseFloat(a);
-    const nb = parseFloat(b);
-    const aIsNum = !Number.isNaN(na);
-    const bIsNum = !Number.isNaN(nb);
-    if (aIsNum && bIsNum) return na - nb;
-    return a.localeCompare(b);
-  });
-
-  // X layout math for columns
-  const baseX = 170;
-  const colW  = 34;
-  const rightPad = 20;
-
-  // Resize SVG width if there are many signage columns
-  const minSvgWidth = 240;
-  const neededWidth = baseX + shilotValues.length * colW + rightPad;
-  svg.setAttribute("width", String(Math.max(minSvgWidth, neededWidth)));
-
-  // Map signage value -> x coordinate
-  const shilotToX = new Map();
-  shilotValues.forEach((val, idx) => {
-    shilotToX.set(val, baseX + idx * colW);
-  });
-
-  // Draw column headers at the top of SVG
-  shilotValues.forEach(val => {
-    const hx = shilotToX.get(val);
-
-    const header = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    header.classList.add("bus-header");
-    header.setAttribute("data-signage", String(val));
-    header.setAttribute("x", hx);
-    header.setAttribute("y", "18");
-    header.setAttribute("font-size", "12");
-    header.setAttribute("fill", "#000");
-    header.setAttribute("font-weight", "700");
-    header.setAttribute("text-anchor", "middle");
-    header.setAttribute("direction", "ltr");
-    header.setAttribute("unicode-bidi", "plaintext");
-    header.style.cursor = "pointer";
-
-    // White "pill" background around each header value
-    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    bg.classList.add("bus-header-bg");
-    bg.setAttribute("data-signage", String(val));
-    bg.setAttribute("rx", "4");
-    bg.setAttribute("ry", "4");
-    bg.setAttribute("fill", "#fff");
-    bg.setAttribute("stroke", "#ddd");
-    bg.setAttribute("stroke-width", "0.8");
-    bg.style.cursor = "pointer";
-
-    header.textContent = val;
-    svg.appendChild(bg);
-    svg.appendChild(header);
-
-    // Must happen after header is in DOM so getBBox() is correct
-    const bb = header.getBBox();
-    const padX = 6;
-    const padY = 3;
-    bg.setAttribute("x", String(bb.x - padX));
-    bg.setAttribute("y", String(bb.y - padY));
-    bg.setAttribute("width", String(bb.width + padX * 2));
-    bg.setAttribute("height", String(bb.height + padY * 2));
-
-    const signageValue = String(val);
-    const onHeaderClick = (e) => {
-      e.stopPropagation();
-      activeSignage = (activeSignage === signageValue) ? null : signageValue;
-      activeBusRowKey = null;
-      updateBusHeaderSelectionVisuals();
-      applyBusFilter();
-      renderBusTable();
-    };
-    header.addEventListener("click", onHeaderClick);
-    bg.addEventListener("click", onHeaderClick);
-  });
-  updateBusHeadersSticky();
-  updateBusHeaderSelectionVisuals();
-
-  // For font scaling we need min/max passengers
-  const passengerVals = busRows
-    .map(r => parseFloat(r[KEY_AVG_PASSENGERS]))
-    .filter(v => !Number.isNaN(v));
-  const pMin = passengerVals.length ? Math.min(...passengerVals) : 0.1;
-  const pMax = passengerVals.length ? Math.max(...passengerVals) : 66;
-  const minFont = 10;
-  const maxFont = 26;
-  function scaleFont(p) {
-    let v = parseFloat(p);
-    if (Number.isNaN(v)) v = pMin;
-    const t = (pMax === pMin) ? 0.5 : (v - pMin) / (pMax - pMin);
-    const curved = Math.sqrt(Math.max(0, Math.min(1, t)));
-    return minFont + curved * (maxFont - minFont);
-  }
-
-  const busItems = [];
-  busRows.forEach(row => {
-    const busTimeVal = getBusTimeByDirection(row);
-    const y = timeToY(busTimeVal);
-    if (y === null) return;
-    const shilot = getSignageValue(row);
-    const x = shilotToX.get(shilot);
-    if (x === undefined) return;
-    const trainId = getTrainIdValue(row);
-    if (!trainId) return;
-    const avgPassengers = row[KEY_AVG_PASSENGERS];
-    const fontSize = (scaleFont(avgPassengers) * 3);
-
-    busItems.push({
-      row,
-      x,
-      y,
-      trainId,
-      fontSize,
-      makat: getMakatValue(row),
-      timeStr: extractHHMM(busTimeVal) || String(busTimeVal)
-    });
-  });
-
-  // Draw each bus as circle at (x=signage column, y=timeToY)
-  busItems.forEach(item => {
-    const { row, x, y, trainId, fontSize, makat, timeStr } = item;
-    const dotX = x;
-    const dotRadius = Math.max(0.5, fontSize * 0.05);
-    const busKey = buildBusRowKey(row);
-
-    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    dot.setAttribute("cx", dotX);
-    dot.setAttribute("cy", y);
-    dot.setAttribute("r", String(dotRadius));
-
-    // green if on time, red if not
-    const onTime = Number(row[KEY_IS_BUS_ON_TIME]);
-    const busColor = (onTime === 1) ? "#118a2a" : "#7a0c0c";
-    dot.setAttribute("fill", busColor);
-
-    // Click => show only this row in the right-side table
-    dot.addEventListener("click", (e) => {
-      e.stopPropagation();
-      setActiveBusRow(row);
-    });
-
-    dot.classList.add("bus-item");
-    dot.setAttribute("data-train", trainId);
-    dot.setAttribute("data-signage", getSignageValue(row));
-    dot.setAttribute("data-bus-key", busKey);
-    dot.setAttribute("data-origin-cx", String(dotX));
-    dot.setAttribute("data-origin-cy", String(y));
-
-    // double click on the dot:
-    dot.addEventListener("dblclick", (e) => {
-      e.stopPropagation();
-      linkModeSourceRow = row;
-      linkModeSourceBusKey = busKey;
-      linkModeSourceDot = dot;
-      isLinkDragging = false;
-      setActiveBusRow(row);
-      linkModeConnectedTrainUid = getConnectedTrainUidForBusRow(row);
-      setActiveTrain(getTrainIdValue(row), linkModeConnectedTrainUid);
-      applyLinkModeVisuals();
-    });
-
-    // drag mode for a bus dot
-    dot.addEventListener("pointerdown", (e) => {
-      if (!linkModeSourceDot || linkModeSourceDot !== dot) return;
-      if (e.button !== 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      isLinkDragging = true;
-      dot.setPointerCapture(e.pointerId);
-    });
-
-    // hoovering for bus label
-    const bTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-    bTitle.textContent =
-      "זמן: " + timeStr +
-      " | מק\"ט: " + (makat || "�");
-
-    dot.appendChild(bTitle);
-    svg.appendChild(dot);
-
-    // creates the "!' is there is a large SD:
-    if (hasLargeArrivalWindow(row)) {
-      const alert = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      alert.textContent = "!";
-      alert.setAttribute("x", String(dotX + dotRadius + 6));
-      alert.setAttribute("y", String(y));
-      alert.setAttribute("font-size", "12");
-      alert.setAttribute("font-weight", "700");
-      alert.setAttribute("fill", "#000");
-      alert.setAttribute("text-anchor", "start");
-      alert.setAttribute("dominant-baseline", "middle");
-      alert.classList.add("bus-item");
-      alert.classList.add("bus-alert");
-      alert.setAttribute("data-train", trainId);
-      alert.setAttribute("data-signage", getSignageValue(row));
-      alert.setAttribute("data-bus-key", busKey);
-
-      const aTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-      aTitle.textContent = "טווח הגעה לתחנה: " + String(row[KEY_ARRIVAL_TIME_WINDOW] ?? "");
-      alert.appendChild(aTitle);
-      svg.appendChild(alert);
-    }
-  });
-
-  // Ensure bus visibility + perc visibility matches selected train state
-  applyBusFilter();
-  applyPercFilter();
-  applyLinkModeVisuals();
-}
-
-// endregion Map - Bus
-
+resetBtn.addEventListener("click", () => {
+    setActiveTrain(null);
+});
+
+resetBtn.parentNode.insertBefore(dirSelect, resetBtn.nextSibling);
+resetBtn.parentNode.insertBefore(yearSelect, dirSelect.nextSibling);
+resetBtn.parentNode.insertBefore(monthSelect, yearSelect.nextSibling);
+resetBtn.parentNode.insertBefore(weekSelect, monthSelect.nextSibling);
+resetBtn.parentNode.insertBefore(operatorSelect, weekSelect.nextSibling);
+
+// endregion reset button
 
 
 // region percentage graph
-function buildPercKeyForLookup(row, trainId) {
-    const y = Number.isFinite(activeYear) ? activeYear : toIntAny(row[KEY_YEAR]);
-    const m = Number.isFinite(activeMonth) ? activeMonth : toIntAny(row[KEY_MONTH]);
-    const dir = String(row[KEY_RAIL_DIRECTION] ?? "").trim().replace(/\s+/g, " ");
-
-    if (y === null || m === null || !trainId || !dir) return null;
-    return String(y) + "_" + String(m) + "_" + String(trainId).trim() + "_" + dir;
-}
-
+const TRAIN_TREND = {{ train_trend_js|safe }};
 
 const trendTitle = document.getElementById("trainTrendTitle");
 const trendModal = document.getElementById("trainTrendModal");
@@ -1503,17 +797,39 @@ if (trendModal) {
 // endregion percentage graph
 
 
+// region Bus Table
 
-// region Table
-function getBusRowsForCurrentView() {
-  const filteredTimes = getFilteredTimes();
+let activeSignage = null;
 
-  return filteredTimes.filter(r =>
-    getBusTimeByDirection(r) && getMakatValue(r) !== ""
-  );
+const KEY_SIGNAGE = "שילוט";
+function getSignageValue(row) {
+    const raw = row[KEY_SIGNAGE];
+    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
+    const n = Number(raw);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+    return String(raw).trim();
 }
 
-/*/ Defines which fields appear in the table and in what order/*/
+const KEY_MAKAT = 'מק"ט';
+function getMakatValue(row) {
+    const raw = row[KEY_MAKAT];
+    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
+    const n = Number(raw);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+    return String(raw).trim();
+}
+
+const KEY_DIRECTION = "כיוון";
+const KEY_ALTERNATIVE = "חלופה";
+const KEY_BUS_DEPARTURE_TIME = "זמן יציאה";
+const KEY_AVG_PASSENGERS = "ממוצע נוסעים לנסיעה";
+const KEY_BUS_TIME_TO_STATION = "זמן הגעה לתחנה";
+const KEY_ARRIVAL_TIME_WINDOW = "טווח זמן ההגעה לתחנה";
+const KEY_MINUTES_GAP_B2R = "הפרש בדקות (מאוטובוס לרכבת)";
+const KEY_RECOMMENDED_MINUTES = "המלצה (דקות)";
+const KEY_ON_TIME_PERCENT = "אחוז הנסיעות שעמדו בזמנים";
+const KEY_IS_BUS_ON_TIME = "האם האוטובוס מגיע בזמן";
+
 const TABLE_FIELDS_BUS_TO_RAIL = [
   { key: KEY_OPERATOR, label: "מפעיל" },
   { key: KEY_MAKAT, label: 'מק"ט' },
@@ -1527,6 +843,9 @@ const TABLE_FIELDS_BUS_TO_RAIL = [
   { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
   { key: KEY_ON_TIME_PERCENT, label: "אחוז הנסיעות שעמדו בזמנים" },
 ];
+
+const KEY_MINUTES_GAP_R2B = "הפרש בדקות (מרכבת לאוטובוס)";
+
 const TABLE_FIELDS_RAIL_TO_BUS = [
   { key: KEY_OPERATOR, label: "מפעיל" },
   { key: KEY_MAKAT, label: 'מק"ט' },
@@ -1538,13 +857,30 @@ const TABLE_FIELDS_RAIL_TO_BUS = [
   { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
 ];
 
+
+
+// Defines which fields appear in the table and in what order
 function getTableFields() {
-  return (activeDirection === DIR_TO_TA)
+  return (activeDirection === BUS_TO_RAIL_DIRECTION)
     ? TABLE_FIELDS_BUS_TO_RAIL
     : TABLE_FIELDS_RAIL_TO_BUS;
 }
 
-let tableScrollSyncBound = false;
+let activeBusRowKey = null;
+function buildBusRowKey(row) {
+    const trainId = getTrainIdValue(row);
+    const makat = getMakatValue(row);
+    const direction = String(row[KEY_DIRECTION] ?? "").trim();
+    const alternative = String(row[KEY_ALTERNATIVE] ?? "").trim();
+    const departure = extractHHMM(row[KEY_BUS_DEPARTURE_TIME] ?? "") || "";
+    return trainId + "||" + makat + "||" + direction + "||" + alternative + "||" + departure;
+  }
+
+function setActiveBusRow(rowOrNull) {
+  activeBusRowKey = rowOrNull ? buildBusRowKey(rowOrNull) : null;
+  renderBusTable();
+}
+
 
 function updateTopTableScrollbar() {
   const top = document.getElementById("busTableTopScroll");
@@ -1557,6 +893,8 @@ function updateTopTableScrollbar() {
   topInner.style.width = width + "px";
   top.style.display = width > main.clientWidth ? "block" : "none";
 }
+
+let tableScrollSyncBound = false;
 
 function bindTableScrollSync() {
   if (tableScrollSyncBound) return;
@@ -1603,6 +941,7 @@ function renderBusTable() {
 
 
   const tableFields = getTableFields();
+
   // Build header
   headerRow.innerHTML = "";
   tableFields.forEach((f) => {
@@ -1612,13 +951,21 @@ function renderBusTable() {
   });
 
   // Choose which rows to show
-  const allRows = getBusRowsForCurrentView();
-  const trainFilteredRows = activeTrain
-    ? allRows.filter(r => buildBusRowKey(r).startsWith(String(activeTrain).trim() + "||"))
+  const allRows = getFilteredTimes();
+
+  const trainFilteredRows = activeTrainUid
+    ? allRows.filter(r => {
+        const trainId = getTrainIdValue(r);
+        const normalizedTime = extractHHMM(r[KEY_TRAIN_ARRIVAL_RISHUI]);
+        if (!trainId || !normalizedTime) return false;
+        return (trainId + "||" + normalizedTime) === activeTrainUid;
+      })
     : allRows;
+
   const signageFilteredRows = activeSignage
     ? trainFilteredRows.filter(r => getSignageValue(r) === activeSignage)
     : trainFilteredRows;
+
   const rows = activeBusRowKey
     ? signageFilteredRows.filter(r => buildBusRowKey(r) === activeBusRowKey)
     : signageFilteredRows;
@@ -1670,22 +1017,629 @@ function renderBusTable() {
   updateTopTableScrollbar();
   alignTableScrollToRight();
 }
-// endregion Table
 
+// endregion Bus Table
+
+
+// region Map - Trains
+
+let activeTrainUid = null;
+
+const KEY_TRAIN_ID = "מספר הרכבת";
+const KEY_TRAIN_ARRIVAL_RISHUI = "זמן הגעת הרכבת לתחנה (רישוי)";
+const KEY_IS_GOLD_TRAIN = "רכבת זהב";
+const KEY_ASCENDING_AMOUNT = "מספר עולים";
+const KEY_DESCENDING_AMOUNT = "מספר יורדים";
+
+
+const svg = document.getElementById("arrowSVG");
+
+
+function getTrainIdValue(row) {
+    const raw = row[KEY_TRAIN_ID];
+    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
+    const n = Number(raw);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+    return String(raw).trim();
+}
+
+function applyBusFilter() {
+  const buses = svg.querySelectorAll(".bus-item");
+  buses.forEach(b => {
+      const uid = b.getAttribute("data-train-uid") || "";
+      const signage = b.getAttribute("data-signage") || "";
+      const trainOk = (!activeTrainUid || uid === activeTrainUid);
+      const signageOk = (!activeSignage || signage === activeSignage);
+      b.style.display = (trainOk && signageOk) ? "" : "none";
+  });
+}
+
+function applyPercFilter() {
+  const percs = svg.querySelectorAll(".perc-item");
+  percs.forEach(p => {
+      const uid = p.getAttribute("data-train-uid") || "";
+      p.style.display = (activeTrainUid && uid === activeTrainUid) ? "" : "none";
+  });
+}
+
+function clearTrainOutlines() {
+    const trains = svg.querySelectorAll(".train-item");
+    trains.forEach(t => {
+        t.setAttribute("stroke", "none");
+        t.setAttribute("stroke-width", "0");
+    });
+}
+
+function setActiveTrain(trainUid = null) {
+      activeTrainUid = trainUid ? String(trainUid) : null;
+
+      applyBusFilter();
+      applyPercFilter();
+
+      clearTrainOutlines();
+      if (activeTrainUid) {
+          const selector = '.train-item[data-train-uid="' + activeTrainUid + '"]';
+          const selected = svg.querySelectorAll(selector);
+          selected.forEach(t => {
+              t.setAttribute("stroke", "#cc0000");
+              t.setAttribute("stroke-width", "1.5");
+          });
+      }
+      renderBusTable();
+}
+
+function buildPercKeyForLookup(row, trainId) {
+    const y = Number.isFinite(activeYear) ? activeYear : toIntAny(row[KEY_YEAR]);
+    const m = Number.isFinite(activeMonth) ? activeMonth : toIntAny(row[KEY_MONTH]);
+    const dir = String(row[KEY_RAIL_DIRECTION] ?? "").trim().replace(/\s+/g, " ");
+
+    if (y === null || m === null || !trainId || !dir) return null;
+    return String(y) + "_" + String(m) + "_" + String(trainId).trim() + "_" + dir;
+}
+
+
+function redrawTrains() {
+    // deleting old traingles and percentages:
+    svg.querySelectorAll(".train-item, .perc-item").forEach(el => el.remove());
+    //
+
+    // building a unique trainId||time (for later traingles creation)
+    const filteredTimes = getFilteredTimes();
+    const seenTrainTime = new Set();
+    const uniqueTrainRows = [];
+
+    filteredTimes.forEach(row => {
+        const rawTime = row[KEY_TRAIN_ARRIVAL_RISHUI];
+        const normalizedTime = extractHHMM(rawTime);
+        if (!normalizedTime) return;
+
+        const y = timeToY(normalizedTime);
+        if (y === null) return;
+
+        const trainId = getTrainIdValue(row);
+        if (!trainId) return;
+
+        const trainUid = trainId + "||" + normalizedTime;
+        if (seenTrainTime.has(trainUid)) return;
+        seenTrainTime.add(trainUid);
+
+        uniqueTrainRows.push({
+            row,
+            normalizedTime,
+            y,
+            trainId,
+            trainUid,
+            xOffset: 0
+        });
+    });
+
+    //
+
+    // Jitter only unique train-time items that are closer than 4 minutes.
+    const pxPerMinute = (1920 - 40) / (24 * 60);
+    const jitterThresholdPx = 4 * pxPerMinute;
+    const jitterStepX = 10;
+
+    uniqueTrainRows.sort((a, b) => a.y - b.y);
+
+    let i = 0;
+    while (i < uniqueTrainRows.length) {
+        let j = i + 1;
+        while (j < uniqueTrainRows.length && (uniqueTrainRows[j].y - uniqueTrainRows[j - 1].y) < jitterThresholdPx) {
+            j += 1;
+        }
+
+        const clusterSize = j - i;
+        const startX = -((clusterSize - 1) * jitterStepX) / 2;
+        for (let k = 0; k < clusterSize; k += 1) {
+            uniqueTrainRows[i + k].xOffset = startX + (k * jitterStepX);
+        }
+        i = j;
+    }
+    //
+
+    uniqueTrainRows.forEach(item => {
+    const { row, normalizedTime, y, trainId, trainUid, xOffset } = item;
+        // the train percentage label creation (only when BUS_TO_RAIL_DIRECTION)
+        if (activeDirection === BUS_TO_RAIL_DIRECTION) {
+            const percKey = buildPercKeyForLookup(row, trainId);
+            const percStr = percKey ? TRAIN_PERC[percKey] : null;
+
+            if (percStr !== undefined && percStr !== null && String(percStr).trim() !== "") {
+                const percText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+
+                percText.setAttribute("x", String(110 + xOffset));
+                percText.setAttribute("y", String(y));
+                percText.setAttribute("font-size", "12");
+                percText.setAttribute("fill", "#333");
+                percText.setAttribute("text-anchor", "end");
+                percText.setAttribute("dominant-baseline", "middle");
+
+                percText.setAttribute("direction", "ltr");
+                percText.setAttribute("unicode-bidi", "plaintext");
+
+                percText.textContent = String(percStr);
+
+                const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+                pTitle.textContent = "אחוז הנסיעות המסונכרנות";
+                percText.appendChild(pTitle);
+                percText.classList.add("perc-item");
+                percText.setAttribute("data-train-uid", trainUid);
+                percText.style.display = "none";
+
+                svg.appendChild(percText);
+            }
+        }
+        //
+
+        // train color and gold train creation
+        const isGold = String(row[KEY_IS_GOLD_TRAIN] ?? "").trim() === "כן";
+        const color = isGold ? "gold" : "black";
+        //
+
+        // creating the triangles:
+        const tri = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        const size = 12;
+
+        const x = 120 + xOffset;
+        const yPos = y - size / 2;
+
+        const p1 = x + "," + yPos;
+        const p2 = (x - size / 2) + "," + (yPos + size);
+        const p3 = (x + size / 2) + "," + (yPos + size);
+
+        tri.setAttribute("points", p1 + " " + p2 + " " + p3);
+        tri.setAttribute("fill", color);
+        tri.classList.add("train-item");
+        tri.setAttribute("data-train-uid", trainUid);
+        //
+
+        // creating the hovering information on the traingles:
+        const trainTimeStr = normalizedTime;
+        let paxLabel = "";
+        let paxValue = null;
+        if (activeDirection === BUS_TO_RAIL_DIRECTION) {
+            paxLabel = KEY_ASCENDING_AMOUNT;
+            paxValue = row[KEY_ASCENDING_AMOUNT];
+        } else if (activeDirection === RAIL_TO_BUS_DIRECTION) {
+            paxLabel = KEY_DESCENDING_AMOUNT;
+            paxValue = row[KEY_DESCENDING_AMOUNT];
+        }
+        const paxText = (paxValue === null || paxValue === undefined || String(paxValue).trim() === "")
+          ? "—"
+          : String(paxValue).trim();
+
+        const tTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        tTitle.textContent = "זמן: " + trainTimeStr + " | רכבת: " + trainId + " | " + paxLabel + ": " + paxText;
+        tri.appendChild(tTitle);
+        //
+
+        // single-click to select (with red outline) a single train:
+          tri.addEventListener("click", (e) => {
+              e.stopPropagation();
+              setActiveTrain(trainUid);
+          });
+
+        // double-click to open the trend persentages graph:
+        tri.addEventListener("dblclick", (e) => {
+            e.stopPropagation();
+            if (activeTrainUid !== trainUid) return;
+            openTrainTrendModal(trainId, row);
+        });
+
+
+        svg.appendChild(tri);
+    });
+
+}
+
+
+// endregion Map - Trains
+
+
+// region Map - Bus
+
+function getBusTimeByDirection(row) {
+    return (activeDirection === BUS_TO_RAIL_DIRECTION)
+        ? row[KEY_BUS_TIME_TO_STATION]
+        : row[KEY_BUS_DEPARTURE_TIME];
+}
+
+function getConnectedTrainUidForBusRow(row) {
+    const trainId = getTrainIdValue(row);
+    const trainTime = extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] || "") || String(row[KEY_TRAIN_ARRIVAL_RISHUI] || "").trim();
+    if (!trainId || !trainTime) return "";
+    return trainId + "||" + trainTime;
+}
+
+function parseDurationMinutes(durationValue) {
+    if (durationValue === null || durationValue === undefined) return null;
+    const s = String(durationValue).trim();
+    if (!s) return null;
+
+    const match = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!match) return null;
+
+    const hh = parseInt(match[1], 10);
+    const mm = parseInt(match[2], 10);
+    const ss = match[3] !== undefined ? parseInt(match[3], 10) : 0;
+    if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return null;
+
+    return (hh * 60) + mm + (ss / 60);
+}
+
+function hasLargeArrivalWindow(row) {
+    if (activeDirection === RAIL_TO_BUS_DIRECTION) return false;
+    const minutes = parseDurationMinutes(row[KEY_ARRIVAL_TIME_WINDOW]);
+    return minutes !== null && minutes >= 5;
+}
+
+function updateBusHeaderSelectionVisuals() {
+    const headers = svg.querySelectorAll(".bus-header");
+    headers.forEach(h => {
+        const signage = h.getAttribute("data-signage") || "";
+        const isActive = !!activeSignage && signage === activeSignage;
+
+        h.setAttribute("fill", isActive ? "#0b5fff" : "#000");
+        const bg = h.previousElementSibling;
+        if (bg && bg.classList.contains("bus-header-bg")) {
+            bg.setAttribute("fill", isActive ? "#e9f1ff" : "#fff");
+            bg.setAttribute("stroke", isActive ? "#0b5fff" : "#ddd");
+        }
+    });
+}
+
+let busHeaderStickyBound = false;
+
+function updateBusHeadersSticky() {
+    const headers = svg.querySelectorAll(".bus-header");
+    if (!headers.length) return;
+
+    const svgRect = svg.getBoundingClientRect();
+    const svgTopAbs = window.scrollY + svgRect.top;
+    const baseY = 18;      // original header y in SVG
+    const topPad = 8;      // distance from top while sticky
+    const maxY = 1910;     // keep inside svg
+
+    let desiredY = baseY;
+    if (window.scrollY > svgTopAbs) {
+      desiredY = baseY + (window.scrollY - svgTopAbs) + topPad;
+    }
+
+    desiredY = Math.min(desiredY, maxY);
+
+    headers.forEach(h => {
+        h.setAttribute("y", String(desiredY));
+
+        const bg = h.previousElementSibling;
+        if (bg && bg.classList.contains("bus-header-bg")) {
+            const bb = h.getBBox();
+            const padX = 6;
+            const padY = 3;
+            bg.setAttribute("x", String(bb.x - padX));
+            bg.setAttribute("y", String(bb.y - padY));
+            bg.setAttribute("width", String(bb.width + padX * 2));
+            bg.setAttribute("height", String(bb.height + padY * 2));
+
+            // Keep header layer above bus dots.
+            svg.appendChild(bg);
+            svg.appendChild(h);
+        }
+    });
+}
+
+function redrawBuses() {
+  //Removes previous bus dots, header text, and header backgrounds so you don’t duplicate them.
+  svg.querySelectorAll(".bus-item, .bus-header, .bus-header-bg").forEach(el => el.remove());
+  //
+
+  // when resizing the page the stickey bus headers should resize accordingly
+  if (!busHeaderStickyBound) {
+    window.addEventListener("scroll", updateBusHeadersSticky, { passive: true });
+    window.addEventListener("resize", updateBusHeadersSticky);
+    busHeaderStickyBound = true;
+  }
+  updateBusHeadersSticky();
+
+  // filtering the dots: :
+  const filteredTimes = getFilteredTimes(); // using operator and week period
+  const busRows = filteredTimes.filter(r =>
+  getBusTimeByDirection(r) && getMakatValue(r) !== "" //  if there is not getBusTimeByDirection(r) && getMakatValue(r) filter it out!
+  );
+
+  // filtering the shilot header values - using only week period:
+    // I do it so operator will not affect the values that are presented!
+  const weekOnlyTimes = stationTimes.filter(r => String(r[KEY_WEEK_PERIOD] ?? "").trim() === activeWeek);
+  const headerRows = weekOnlyTimes.filter(r =>
+    getBusTimeByDirection(r) && getMakatValue(r) !== ""
+  ); //  if there is not getBusTimeByDirection(r) && getMakatValue(r) filter it out!
+  const shilotValues = Array.from(new Set(headerRows.map(r => getSignageValue(r))));
+
+  // Sort signage: numeric signage in numeric order, then strings alphabetically
+  shilotValues.sort((a, b) => {
+    const na = parseFloat(a);
+    const nb = parseFloat(b);
+    const aIsNum = !Number.isNaN(na);
+    const bIsNum = !Number.isNaN(nb);
+    if (aIsNum && bIsNum) return na - nb;
+    return a.localeCompare(b);
+  });
+
+  // X layout math for columns
+  const baseX = 170;
+  const colW  = 34;
+  const rightPad = 20;
+
+  // Resize SVG width if there are many signage columns
+  const minSvgWidth = 240;
+  const neededWidth = baseX + shilotValues.length * colW + rightPad;
+  svg.setAttribute("width", String(Math.max(minSvgWidth, neededWidth)));
+
+  // Map signage value -> x coordinate
+  const shilotToX = new Map();
+  shilotValues.forEach((val, idx) => {
+    shilotToX.set(val, baseX + idx * colW);
+  });
+
+  // Draw column headers at the top of SVG
+  shilotValues.forEach(val => {
+    const hx = shilotToX.get(val);
+
+    const header = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    header.classList.add("bus-header");
+    header.setAttribute("data-signage", String(val));
+    header.setAttribute("x", hx);
+    header.setAttribute("y", "18");
+    header.setAttribute("font-size", "12");
+    header.setAttribute("fill", "#000");
+    header.setAttribute("font-weight", "700");
+    header.setAttribute("text-anchor", "middle");
+    header.setAttribute("direction", "ltr");
+    header.setAttribute("unicode-bidi", "plaintext");
+    header.style.cursor = "pointer";
+
+    // White "pill" background around each header value
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.classList.add("bus-header-bg");
+    bg.setAttribute("data-signage", String(val));
+    bg.setAttribute("rx", "4");
+    bg.setAttribute("ry", "4");
+    bg.setAttribute("fill", "#fff");
+    bg.setAttribute("stroke", "#ddd");
+    bg.setAttribute("stroke-width", "0.8");
+    bg.style.cursor = "pointer";
+
+    header.textContent = val;
+    svg.appendChild(bg);
+    svg.appendChild(header);
+
+    // Must happen after header is in DOM so getBBox() is correct
+    const bb = header.getBBox();
+    const padX = 6;
+    const padY = 3;
+    bg.setAttribute("x", String(bb.x - padX));
+    bg.setAttribute("y", String(bb.y - padY));
+    bg.setAttribute("width", String(bb.width + padX * 2));
+    bg.setAttribute("height", String(bb.height + padY * 2));
+
+    const signageValue = String(val);
+    const onHeaderClick = (e) => {
+      e.stopPropagation();
+      activeSignage = (activeSignage === signageValue) ? null : signageValue;
+      activeBusRowKey = null;
+      updateBusHeaderSelectionVisuals();
+      applyBusFilter();
+      renderBusTable();
+    };
+    header.addEventListener("click", onHeaderClick);
+    bg.addEventListener("click", onHeaderClick);
+  });
+
+  updateBusHeadersSticky();
+  updateBusHeaderSelectionVisuals();
+
+  // For font scaling we need min/max passengers
+  const passengerVals = busRows
+    .map(r => parseFloat(r[KEY_AVG_PASSENGERS]))
+    .filter(v => !Number.isNaN(v));
+  const pMin = passengerVals.length ? Math.min(...passengerVals) : 0.1;
+  const pMax = passengerVals.length ? Math.max(...passengerVals) : 66;
+  const minFont = 10;
+  const maxFont = 26;
+  function scaleFont(p) {
+    let v = parseFloat(p);
+    if (Number.isNaN(v)) v = pMin;
+    const t = (pMax === pMin) ? 0.5 : (v - pMin) / (pMax - pMin);
+    const curved = Math.sqrt(Math.max(0, Math.min(1, t)));
+    return minFont + curved * (maxFont - minFont);
+  }
+
+  const busItems = [];
+  busRows.forEach(row => {
+    const busTimeVal = getBusTimeByDirection(row);
+    const y = timeToY(busTimeVal);
+    if (y === null) return;
+    const shilot = getSignageValue(row);
+    const x = shilotToX.get(shilot);
+    if (x === undefined) return;
+    const trainId = getTrainIdValue(row);
+    if (!trainId) return;
+    const avgPassengers = row[KEY_AVG_PASSENGERS];
+    const fontSize = (scaleFont(avgPassengers) * 3);
+
+    busItems.push({
+      row,
+      x,
+      y,
+      trainId,
+      fontSize,
+      makat: getMakatValue(row),
+      timeStr: extractHHMM(busTimeVal) || String(busTimeVal)
+    });
+  });
+
+  // Draw each bus as circle at (x=signage column, y=timeToY)
+  busItems.forEach(item => {
+    const { row, x, y, trainId, fontSize, makat, timeStr } = item;
+    const dotX = x;
+    const dotRadius = Math.max(0.5, fontSize * 0.05);
+    const busKey = buildBusRowKey(row);
+
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", dotX);
+    dot.setAttribute("cy", y);
+    dot.setAttribute("r", String(dotRadius));
+
+    // green if on time, red if not
+    const onTime = Number(row[KEY_IS_BUS_ON_TIME]);
+    const busColor = (onTime === 1) ? "#13ba34" : "#ed0c0c";
+    dot.setAttribute("fill", busColor);
+
+    // Click => show only this row in the right-side table
+    dot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setActiveBusRow(row);
+    });
+
+    dot.classList.add("bus-item");
+    const connectedTrainUid = getConnectedTrainUidForBusRow(row);
+    dot.setAttribute("data-train-uid", connectedTrainUid);
+    dot.setAttribute("data-signage", getSignageValue(row));
+    dot.setAttribute("data-bus-key", busKey);
+    dot.setAttribute("data-origin-cx", String(dotX));
+    dot.setAttribute("data-origin-cy", String(y));
+
+    // double-click on the dot:
+    dot.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      linkModeSourceRow = row;
+      linkModeSourceBusKey = busKey;
+      linkModeSourceDot = dot;
+      isLinkDragging = false;
+      setActiveBusRow(row);
+      linkModeConnectedTrainUid = getConnectedTrainUidForBusRow(row);
+      setActiveTrain(linkModeConnectedTrainUid);
+      applyLinkModeVisuals();
+    });
+
+    // drag mode for a bus dot
+    dot.addEventListener("pointerdown", (e) => {
+      if (!linkModeSourceDot || linkModeSourceDot !== dot) return;
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      isLinkDragging = true;
+      dot.setPointerCapture(e.pointerId);
+    });
+
+    // hoovering for bus label
+    const bTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    bTitle.textContent =
+      "זמן: " + timeStr +
+      " | מק\"ט: " + (makat || "�");
+
+    dot.appendChild(bTitle);
+    svg.appendChild(dot);
+
+    // creates the "!' is there is a large SD:
+    if (hasLargeArrivalWindow(row)) {
+      const alert = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      alert.textContent = "!";
+      alert.setAttribute("x", String(dotX + dotRadius + 6));
+      alert.setAttribute("y", String(y));
+      alert.setAttribute("font-size", "12");
+      alert.setAttribute("font-weight", "700");
+      alert.setAttribute("fill", "#000");
+      alert.setAttribute("text-anchor", "start");
+      alert.setAttribute("dominant-baseline", "middle");
+      alert.classList.add("bus-item");
+      alert.classList.add("bus-alert");
+      alert.setAttribute("data-train", trainId);
+      alert.setAttribute("data-signage", getSignageValue(row));
+      alert.setAttribute("data-bus-key", busKey);
+
+      const aTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+      aTitle.textContent = "טווח הגעה לתחנה: " + String(row[KEY_ARRIVAL_TIME_WINDOW] ?? "");
+      alert.appendChild(aTitle);
+      svg.appendChild(alert);
+    }
+  });
+
+  // Ensure bus visibility + perc visibility matches selected train state
+  applyBusFilter();
+  applyPercFilter();
+  applyLinkModeVisuals();
+}
+
+// endregion Map - Bus
 
 
 // region manualy sync
-let linkModeSourceRow = null;
 let linkModeSourceBusKey = null;
+let linkModeSourceRow = null;
 let linkModeSourceDot = null;
-let isLinkDragging = false;
 let linkModeConnectedTrainUid = null;
 
-function getSvgPoint(clientX, clientY) {
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    return pt.matrixTransform(svg.getScreenCTM().inverse());
+let isLinkDragging = false;
+
+
+const KEY_INTERNAL_TRAIN_STATION_CODE = "__train_station_code";
+const KEY_INTERNAL_FROM_TRAIN_NUMBER = "__from_train_number";
+const KEY_INTERNAL_FROM_TRAIN_ARRIVAL = "__from_train_rishui_train_arrival_time";
+
+
+
+
+function applyLinkModeVisuals() {
+    const busEls = svg.querySelectorAll(".bus-item");
+    if (!linkModeSourceBusKey) {
+        busEls.forEach(el => { el.style.display = ""; });
+        clearTrainOutlines();
+        return;
+    }
+
+    busEls.forEach(el => {
+        const k = String(el.getAttribute("data-bus-key") || "");
+        el.style.display = (k && k === linkModeSourceBusKey) ? "" : "none";
+    });
+
+    clearTrainOutlines();
+    if (linkModeConnectedTrainUid) {
+        const tri = svg.querySelector('.train-item[data-train-uid="' + linkModeConnectedTrainUid + '"]');
+        if (tri) {
+            tri.setAttribute("stroke", "#17a34a");
+            tri.setAttribute("stroke-width", "3");
+        }
+    }
+}
+
+function exitLinkMode() {
+    linkModeSourceRow = null;
+    linkModeSourceBusKey = null;
+    linkModeSourceDot = null;
+    isLinkDragging = false;
+    linkModeConnectedTrainUid = null;
+    applyLinkModeVisuals();
 }
 
 async function saveDraggedOverride(sourceRow, targetRow) {
@@ -1694,7 +1648,7 @@ async function saveDraggedOverride(sourceRow, targetRow) {
 
     const payload = {
         week_period: String(sourceRow[KEY_WEEK_PERIOD] ?? "").trim() || String(activeWeek ?? "").trim(),
-        link_direction: (activeDirection === DIR_TO_TA) ? "bus_to_rail" : "rail_to_bus",
+        link_direction: (activeDirection === BUS_TO_RAIL_DIRECTION) ? "bus_to_rail" : "rail_to_bus",
         makat: sourceRow[KEY_MAKAT],
         direction: sourceRow[KEY_DIRECTION],
         alternative: String(sourceRow[KEY_ALTERNATIVE] ?? "").trim(),
@@ -1722,6 +1676,28 @@ async function saveDraggedOverride(sourceRow, targetRow) {
     }
 }
 
+function findRowByTrainUid(targetUid) {
+    const rows = getFilteredTimes();
+    for (const row of rows) {
+      const trainId = getTrainIdValue(row);
+      if (!trainId) continue;
+
+      const normalizedTime = extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI]);
+      if (!normalizedTime) continue;
+
+      const uid = trainId + "||" + normalizedTime;
+      if (uid === targetUid) return row;
+    }
+    return null;
+}
+
+function getSvgPoint(clientX, clientY) {
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+
 svg.addEventListener("pointermove", (e) => {
   if (!isLinkDragging || !linkModeSourceDot) return;
   const p = getSvgPoint(e.clientX, e.clientY);
@@ -1744,7 +1720,7 @@ svg.addEventListener("pointerup", async (e) => {
 
   const targetUid = String(tri.getAttribute("data-train-uid") || "");
   if (!targetUid) return;
-  const targetRow = trainRowByUid[targetUid] || null;
+  const targetRow = findRowByTrainUid(targetUid);
   if (!targetRow) return;
 
   await saveDraggedOverride(linkModeSourceRow, targetRow);
@@ -1775,24 +1751,22 @@ async function postOverride(url, payload) {
   }
   return data;
 }
-
 // endregion manualy sync
 
 
-
 // region finalizing
+
+
+
+refreshAllAfterFilterChange();
 populateYearDropdown();
 populateMonthDropdown();
 updateTitleFromState();
 
-rebuildStationTimes();
-populateWeekDropdown();
-populateOperatorDropdown();
 
-redrawTrains();
-redrawBuses();
-renderBusTable();
 // endregion finalizing
+
+
 
 
 </script>

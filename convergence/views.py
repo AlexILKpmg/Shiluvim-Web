@@ -29,8 +29,6 @@ COL_FROM_TRAIN_NUMBER = "__from_train_number"
 COL_FROM_TRAIN_ARRIVAL = "__from_train_rishui_train_arrival_time"
 COL_LINK_DIRECTION = "__link_direction"
 
-DIR_TO_TA = "לכיוון תל אביב"
-DIR_FROM_TA = "מכיוון תל אביב"
 
 
 def _format_percentage(value):
