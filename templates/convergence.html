@@ -253,6 +253,10 @@
 </div>
 <!-- endregion defining DOM elements -->
 
+{{ bus_to_rail_df|json_script:"bus-to-rail-data" }}
+{{ bus_to_rail_trend_df|json_script:"bus-to-rail-trend-data" }}
+{{ rail_to_bus_df|json_script:"rail-to-bus-data" }}
+{{ year_month_pairs|json_script:"year-month-pairs-data" }}
 
 <script>
 // region Helpers and General
@@ -301,11 +305,17 @@ function timeToY(timeValue) {
     const bottomY = 1920;
     const fraction = relative / (24 * 60);
 
-    return topY + fraction * (bottomY - topY);
-}
+    return topY + fraction * (bottomY - topY);}
 
-function toIntAny(v) {
-    const n = parseInt(String(v ?? "").trim(), 10);
+
+function toPercentNumber(v) {
+    if (v === null || v === undefined) return null;
+    const raw = String(v).trim();
+    if (!raw) return null;
+
+    // Support formats like "85", "85.2", "85%", "85,2%".
+    const normalized = raw.replace("%", "").replace(",", ".");
+    const n = Number(normalized);
     return Number.isFinite(n) ? n : null;
 }
 
@@ -331,14 +341,22 @@ document.addEventListener("keydown", (e) => {
         renderBusTable();
     }
 });
-
 // endregion Helpers and General
 
 
-// region prepering the data for bus_to_rail and rail_to_bus and TRAIN_PERC (not trend)
-const BUS_TO_RAIL_JSON = {{ bus_to_rail_df_js|safe }};
-const RAIL_TO_BUS_JSON = {{ rail_to_bus_df_js|safe }};
-const TRAIN_PERC = {{ train_perc_js|safe }};
+
+// region prepering the data for bus_to_rail and rail_to_bus
+const BUS_TO_RAIL_JSON = JSON.parse(
+    document.getElementById("bus-to-rail-data").textContent
+  );
+
+const RAIL_TO_BUS_JSON = JSON.parse(
+    document.getElementById("rail-to-bus-data").textContent
+  );
+
+const BUS_TO_RAIL_TREND_JSON = JSON.parse(
+    document.getElementById("bus-to-rail-trend-data").textContent
+  );
 
 let stationTimes = [];
 
@@ -347,7 +365,6 @@ function rebuildStationTimes() {
       ? BUS_TO_RAIL_JSON
       : RAIL_TO_BUS_JSON;
 }
-
 
 function getWeekFiltered(rows = stationTimes) {
     return rows.filter(r => String(r[KEY_WEEK_PERIOD] ?? "").trim() === activeWeek);
@@ -367,7 +384,9 @@ function getFilteredTimes() {
 
 
 // region year/month dropdown filter:
-const YEAR_MONTH_PAIRS = {{ year_month_pairs_js|safe }};
+const YEAR_MONTH_PAIRS = JSON.parse(
+    document.getElementById("year-month-pairs-data").textContent
+  );
 
 const KEY_YEAR = "שנה";
 const KEY_MONTH = "חודש";
@@ -629,7 +648,7 @@ resetBtn.parentNode.insertBefore(operatorSelect, weekSelect.nextSibling);
 
 
 // region percentage graph
-const TRAIN_TREND = {{ train_trend_js|safe }};
+const KEY_ON_TIME_PERCENT_BY_TRAIN = "אחוז הנסיעות שעמדו בזמנים ברמת נסיעת הרכבת";
 
 const trendTitle = document.getElementById("trainTrendTitle");
 const trendModal = document.getElementById("trainTrendModal");
@@ -637,10 +656,11 @@ const trendHost = document.getElementById("trainTrendChartHost");
 const closeTrendBtn = document.getElementById("closeTrainTrendBtn");
 
 function buildTrendKey(trainId, row) {
-    const dir = String(row[KEY_RAIL_DIRECTION] ?? "").trim().replace(/\s+/g, " ");
-    if (!trainId || !dir) return null;
-    return String(trainId).trim() + "||" + dir;
-}
+      const dir = String(row[KEY_RAIL_DIRECTION] ?? "").trim().replace(/\s+/g, " ");
+      const normalizedTime = extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] ?? "");
+      if (!trainId || !normalizedTime || !dir) return null;
+      return String(trainId).trim() + "||" + normalizedTime + "||" + dir;
+  }
 
 function closeTrainTrendModal() {
     if (!trendModal) return;
@@ -773,15 +793,47 @@ function renderTrainTrendChart(series) {
 }
 
 function openTrainTrendModal(trainId, row) {
-    if (!trendModal || !trendHost || !trendTitle) return;
+  if (!trendModal || !trendHost || !trendTitle) return;
 
-    const trendKey = buildTrendKey(trainId, row);
-    const series = trendKey ? TRAIN_TREND[trendKey] : [];
-    const dir = String(row[KEY_RAIL_DIRECTION] ?? "").trim();
+  const trendKey = buildTrendKey(trainId, row);
+  if (!trendKey) {
+      renderTrainTrendChart([]);
+      trendModal.classList.add("open");
+      return;
+  }
 
-    trendTitle.textContent = "אחוזי סנכרון עבור רכבת " + trainId;
-    renderTrainTrendChart(Array.isArray(series) ? series : []);
-    trendModal.classList.add("open");
+  // Keep trend within the selected week period
+  const selectedWeek = String(activeWeek ?? "").trim();
+
+  const byYm = new Map();
+  for (const r of BUS_TO_RAIL_TREND_JSON) {
+      const rid = getTrainIdValue(r);
+      const rk = buildTrendKey(rid, r);
+      if (!rk || rk !== trendKey) continue;
+
+      const week = String(r[KEY_WEEK_PERIOD] ?? "").trim();
+      if (selectedWeek && week !== selectedWeek) continue;
+
+      const y = parseInt(r[KEY_YEAR], 10);
+      const m = parseInt(r[KEY_MONTH], 10);
+      const p = toPercentNumber(r[KEY_ON_TIME_PERCENT_BY_TRAIN]);
+      if (!Number.isFinite(y) || !Number.isFinite(m) || p === null) continue;
+
+      const ymKey = `${y}-${String(m).padStart(2, "0")}`;
+      if (!byYm.has(ymKey)) {
+          byYm.set(ymKey, { year: y, month: m, perc: p });
+      }
+  }
+
+  const series = Array.from(byYm.values()).sort(
+      (a, b) => (a.year - b.year) || (a.month - b.month)
+  );
+
+  trendTitle.textContent =
+      "אחוזי סנכרון עבור רכבת " + trainId + (selectedWeek ? " | " + selectedWeek : "");
+
+  renderTrainTrendChart(series);
+  trendModal.classList.add("open");
 }
 
 if (closeTrendBtn) {
@@ -1088,14 +1140,6 @@ function setActiveTrain(trainUid = null) {
       renderBusTable();
 }
 
-function buildPercKeyForLookup(row, trainId) {
-    const y = Number.isFinite(activeYear) ? activeYear : toIntAny(row[KEY_YEAR]);
-    const m = Number.isFinite(activeMonth) ? activeMonth : toIntAny(row[KEY_MONTH]);
-    const dir = String(row[KEY_RAIL_DIRECTION] ?? "").trim().replace(/\s+/g, " ");
-
-    if (y === null || m === null || !trainId || !dir) return null;
-    return String(y) + "_" + String(m) + "_" + String(trainId).trim() + "_" + dir;
-}
 
 
 function redrawTrains() {
@@ -1162,9 +1206,7 @@ function redrawTrains() {
     const { row, normalizedTime, y, trainId, trainUid, xOffset } = item;
         // the train percentage label creation (only when BUS_TO_RAIL_DIRECTION)
         if (activeDirection === BUS_TO_RAIL_DIRECTION) {
-            const percKey = buildPercKeyForLookup(row, trainId);
-            const percStr = percKey ? TRAIN_PERC[percKey] : null;
-
+            const percStr = row[KEY_ON_TIME_PERCENT_BY_TRAIN];
             if (percStr !== undefined && percStr !== null && String(percStr).trim() !== "") {
                 const percText = document.createElementNS("http://www.w3.org/2000/svg", "text");
 
@@ -1237,16 +1279,12 @@ function redrawTrains() {
         // single-click to select (with red outline) a single train:
           tri.addEventListener("click", (e) => {
               e.stopPropagation();
+              const wasActive = (activeTrainUid === trainUid);
               setActiveTrain(trainUid);
+              if (wasActive) {
+                  openTrainTrendModal(trainId, row);
+              }
           });
-
-        // double-click to open the trend persentages graph:
-        tri.addEventListener("dblclick", (e) => {
-            e.stopPropagation();
-            if (activeTrainUid !== trainUid) return;
-            openTrainTrendModal(trainId, row);
-        });
-
 
         svg.appendChild(tri);
     });
@@ -1608,8 +1646,6 @@ const KEY_INTERNAL_FROM_TRAIN_NUMBER = "__from_train_number";
 const KEY_INTERNAL_FROM_TRAIN_ARRIVAL = "__from_train_rishui_train_arrival_time";
 
 
-
-
 function applyLinkModeVisuals() {
     const busEls = svg.querySelectorAll(".bus-item");
     if (!linkModeSourceBusKey) {
@@ -1646,6 +1682,14 @@ async function saveDraggedOverride(sourceRow, targetRow) {
     if (!sourceRow || !targetRow) return;
     if (!Number.isFinite(activeYear) || !Number.isFinite(activeMonth)) return;
 
+    let changeReason = "";
+    while (!changeReason) {
+        const input = window.prompt("יש להזין סיבת שינוי:", "");
+        if (input === null) return; // cancel -> stop action
+        changeReason = String(input).trim();
+        if (!changeReason) window.alert("יש להזין סיבת שינוי");
+    }
+
     const payload = {
         week_period: String(sourceRow[KEY_WEEK_PERIOD] ?? "").trim() || String(activeWeek ?? "").trim(),
         link_direction: (activeDirection === BUS_TO_RAIL_DIRECTION) ? "bus_to_rail" : "rail_to_bus",
@@ -1659,7 +1703,7 @@ async function saveDraggedOverride(sourceRow, targetRow) {
         to_train_number: targetRow[KEY_TRAIN_ID],
         to_train_rishui_train_arrival_time: String(targetRow[KEY_TRAIN_ARRIVAL_RISHUI] ?? "").trim(),
         effective_month: String(activeYear) + "-" + String(activeMonth).padStart(2, "0"),
-        change_reason: "",
+        change_reason: changeReason,
         changed_by: "",
     };
 
@@ -1755,8 +1799,6 @@ async function postOverride(url, payload) {
 
 
 // region finalizing
-
-
 
 refreshAllAfterFilterChange();
 populateYearDropdown();

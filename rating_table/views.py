@@ -16,22 +16,23 @@ def main_page(request):
     m = request.GET.get("month", "").strip()
     month = int(m) if m else None
 
-    ranking_qs = Ranking.objects.all()
-    matrix_qs = PassengerMatrix.objects.all()
-    bus_qs = BusInfo.objects.all()
-
-    if station_name:
-        ranking_qs = ranking_qs.filter(train_station_name=station_name)
-        matrix_qs = matrix_qs.filter(from_station_name=station_name)
-        bus_qs = bus_qs.filter(train_station_name=station_name)
-
-    if year is not None:
-        ranking_qs = ranking_qs.filter(year=year)
-        matrix_qs = matrix_qs.filter(year=year)
-
-    if month is not None:
-        ranking_qs = ranking_qs.filter(month=month)
-        matrix_qs = matrix_qs.filter(month=month)
+    has_full_filters = bool(station_name) and (year is not None) and (month is not None)
+    if has_full_filters:
+        ranking_qs = Ranking.objects.filter(
+            train_station_name=station_name,
+            year=year,
+            month=month,
+        )
+        matrix_qs = PassengerMatrix.objects.filter(
+            from_station_name=station_name,
+            year=year,
+            month=month,
+        )
+        bus_qs = BusInfo.objects.filter(train_station_name=station_name)
+    else:
+        ranking_qs = Ranking.objects.none()
+        matrix_qs = PassengerMatrix.objects.none()
+        bus_qs = BusInfo.objects.none()
 
     df_ranking = [
         {
@@ -109,6 +110,34 @@ def main_page(request):
         )
     ]
 
+    pairs_qs = Ranking.objects.all()
+    if station_name:
+        pairs_qs = pairs_qs.filter(train_station_name=station_name)
+    year_month_pairs = [
+        {"year": y, "month": m}
+        for y, m in pairs_qs.values_list("year", "month").distinct().order_by("year", "month")
+    ]
+
+    # station list JSON source
+    stations_qs = Ranking.objects.all()
+    station_options = [
+        {"station_name": s}
+        for s in stations_qs.values_list("train_station_name", flat=True).distinct().order_by("train_station_name")
+    ]
+
+    # filter options source (from BusInfo model fields)
+    bus_direction_options = [
+        v
+        for v in BusInfo.objects.all().values_list("bus_direction", flat=True).distinct().order_by("bus_direction")
+        if v is not None and str(v).strip() != ""
+    ]
+
+    week_period_options = [
+        v
+        for v in BusInfo.objects.all().values_list("week_period", flat=True).distinct().order_by("week_period")
+        if v is not None and str(v).strip() != ""
+    ]
+
     context = {
         "station_name": station_name or "",
         "year": year or "",
@@ -117,6 +146,10 @@ def main_page(request):
         "matrix_cols": matrix_cols,
         "matrix_rows": matrix_rows,
         "bus_info": bus_info,
+        "year_month_pairs": year_month_pairs,
+        "station_options": station_options,
+        "bus_direction_options": bus_direction_options,
+        "week_period_options": week_period_options,
     }
 
     return render(request, "main_page.html", context)

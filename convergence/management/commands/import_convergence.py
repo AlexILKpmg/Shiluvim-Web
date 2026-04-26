@@ -1,5 +1,4 @@
-﻿import re
-from decimal import Decimal, InvalidOperation
+﻿from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import pandas as pd
@@ -13,16 +12,10 @@ from convergence.models import ConvergenceBusToRail, ConvergenceRailToBus
 SHEET_BUS_TO_RAIL = "bus_to_rail"
 SHEET_RAIL_TO_BUS = "rail_to_bus"
 
-FILE_RE = re.compile(r"^(WeekDay|Friday|Saturday)_rail_bus_convergence_(\d{4}-\d{2})\.xlsx$", re.IGNORECASE)
-WEEK_LABELS = {
-    "WeekDay": "יום חול",
-    "Friday": "שישי",
-    "Saturday": "שבת",
-}
-
 COMMON_REQUIRED = {
     "שנה": "year",
     "חודש": "month",
+    "תקופת שבוע": "week_period",
     "שם תחנת הרכבת": "train_station_name",
     "כיוון נסיעת הרכבת": "rail_direction",
     "מספר הרכבת": "train_number",
@@ -53,6 +46,7 @@ BUS_TO_RAIL_OPTIONAL = {
     "מספר תצפיות": "observations_count",
     "מספר הנסיעות שעמדו בזמנים": "on_time_count",
     "אחוז הנסיעות שעמדו בזמנים": "on_time_percentage",
+    "אחוז הנסיעות שעמדו בזמנים ברמת נסיעת הרכבת": "on_time_percentage_by_train",
 }
 
 RAIL_TO_BUS_OPTIONAL = {
@@ -101,7 +95,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--dir",
             default="tables",
-            help="Directory to scan for *_rail_bus_convergence_YYYY-MM.xlsx files.",
+            help="Directory to scan for rail_bus_convergence_YYYY-MM.xlsx files.",
         )
         parser.add_argument(
             "--dry-run",
@@ -164,7 +158,7 @@ class Command(BaseCommand):
             root = Path(scan_dir).expanduser()
             if not root.exists():
                 raise CommandError(f"Directory not found: {root}")
-            files.extend(sorted(root.glob("*_rail_bus_convergence_*.xlsx")))
+            files.extend(sorted(root.glob("rail_bus_convergence_*.xlsx")))
 
         return sorted(set(files))
 
@@ -173,7 +167,6 @@ class Command(BaseCommand):
 
         for source_path in files:
             totals["files"] += 1
-            week_period = self._derive_week_period(source_path.name)
 
             for sheet_name, model, sheet_optional, lookup_fields in (
                 (SHEET_BUS_TO_RAIL, ConvergenceBusToRail, BUS_TO_RAIL_OPTIONAL, BUS_LOOKUP_FIELDS),
@@ -194,7 +187,7 @@ class Command(BaseCommand):
                         continue
                     totals["total_rows"] += 1
                     try:
-                        payload = self._normalize_row(row, week_period, sheet_optional, source_path.name, sheet_name, idx)
+                        payload = self._normalize_row(row, sheet_optional, source_path.name, sheet_name, idx)
                         outcome = self._upsert(model, payload, lookup_fields, dry_run=dry_run)
                         totals[outcome] += 1
                     except CommandError as exc:
@@ -227,15 +220,7 @@ class Command(BaseCommand):
                 return False
         return True
 
-    def _derive_week_period(self, file_name):
-        match = FILE_RE.match(file_name)
-        if not match:
-            return ""
-        week_key = match.group(1)
-        week_key = week_key[0].upper() + week_key[1:]
-        return WEEK_LABELS.get(week_key, "")
-
-    def _normalize_row(self, row, week_period, sheet_optional, file_name, sheet_name, row_number):
+    def _normalize_row(self, row, sheet_optional, file_name, sheet_name, row_number):
         normalized = {}
 
         for src, dst in COMMON_REQUIRED.items():
@@ -255,7 +240,6 @@ class Command(BaseCommand):
                 continue
             normalized[dst] = candidate
 
-        normalized["week_period"] = week_period or self._clean_text(row.get("תקופת שבוע"))
 
         payload = {
             "year": self._to_int(normalized["year"], "year", file_name, sheet_name, row_number),
@@ -286,6 +270,7 @@ class Command(BaseCommand):
             payload["observations_count"] = self._to_int_or_none(normalized.get("observations_count"))
             payload["on_time_count"] = self._to_int_or_none(normalized.get("on_time_count"))
             payload["on_time_percentage"] = self._to_decimal_or_none(normalized.get("on_time_percentage"))
+            payload["on_time_percentage_by_train"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_train"))
 
         if "minutes_gap_rail_to_bus" in normalized:
             payload["rishui_train_arrival_time"] = self._clean_text(normalized.get("rishui_train_arrival_time"))
@@ -361,3 +346,4 @@ class Command(BaseCommand):
             return Decimal(text)
         except (InvalidOperation, ValueError):
             return None
+

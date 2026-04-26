@@ -31,6 +31,7 @@ class ConvergenceBusToRail(models.Model):
     observations_count = models.IntegerField(null=True, blank=True)
     on_time_count = models.IntegerField(null=True, blank=True)
     on_time_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    on_time_percentage_by_train = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     class Meta:
         constraints = [
@@ -104,16 +105,6 @@ class ConvergenceRailToBus(models.Model):
         )
 
 
-class VM_raw_data(models.Model):
-    year = models.IntegerField()
-    month = models.IntegerField()
-    week_period = models.CharField(max_length=50)
-    makat = models.IntegerField(null=True, blank=True)
-    direction = models.IntegerField(null=True, blank=True)
-    alternative = models.CharField(max_length=255, blank=True)
-    departure_time = models.CharField(max_length=32, blank=True)
-    arrival_time_to_station_raw = models.CharField(max_length=32, blank=True)
-
 
 class OverrideConv(models.Model):
     week_period = models.CharField(max_length=50)
@@ -138,6 +129,9 @@ class OverrideConv(models.Model):
 
     class Meta:
         db_table = "override_conv"
+        permissions = [
+            ("can_manage_convergence_overrides", "Can manage convergence overrides"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=(

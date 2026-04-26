@@ -1,4 +1,4 @@
-# <third_app_name>/models.py
+# bus_info_per_train_station_table/models.py
 from django.db import models
 
 
