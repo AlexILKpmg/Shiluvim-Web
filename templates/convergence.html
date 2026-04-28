@@ -52,6 +52,7 @@
         .table-wrap h3 {
             margin: 20px 0 8px 0;
             text-align: right;
+            color: #0b3a66;
         }
 
         .filter-select {
@@ -61,6 +62,7 @@
               cursor: pointer;
               background: #fff;
               border: 1px solid #999;
+              color: #5A4630;
         }
 
         .table-scroll {
@@ -96,10 +98,10 @@
         }
 
         #busTable th, #busTable td {
-            border-bottom: 1px solid #ddd;
-            padding: 8px 10px;
+            border: none;
+            padding: 8px 12px;
             font-size: 12px;
-            text-align: right;
+            text-align: center;
             white-space: nowrap;
         }
 
@@ -112,28 +114,37 @@
         #busTable th {
             position: sticky;
             top: 0;
-            background: #f3f3f3;
+            background: #0077cc;
+            color: #ffffff;
             z-index: 2;
             font-weight: 700;
-            font-size: 13px;
+            font-size: 14px;
             max-width: 10ch;
             white-space: normal;
-            overflow-wrap: anywhere;
-            word-break: break-word;
+            overflow-wrap: normal;
+            word-break: normal;
+            hyphens: none;
             line-height: 1.2;
         }
 
+        #busTable tbody td {
+            color: #0b3a66;
+        }
+
         #busTable tbody tr:nth-child(even) {
-            background: #fafafa;
+            background: #f7f7f7;
         }
 
         #busTable tbody tr:hover {
-            background: #eef6ff;
+            background: #dfefff;
         }
 
         #busTable a,
         #busTable a:visited {
             color: #0077cc;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            font-weight: 400;
         }
 
         #trainTrendModal {
@@ -186,6 +197,17 @@
             min-height: 120px;
         }
 
+        #openStationTrendBtn {
+            margin-inline-start: 8px;
+            border: none;
+            background: transparent;
+            padding: 0;
+            line-height: 1;
+            cursor: pointer;
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
     </style>
 </head>
 <!-- endregion styling -->
@@ -194,6 +216,7 @@
 <body>
 <!-- region defining DOM elements -->
 <h2 id="stationTitle"></h2>
+<button id="openStationTrendBtn" type="button" aria-label="פתח גרף תחנה" title="פתח גרף תחנה">📈</button>
 
 <div class="layout-row">
 
@@ -342,7 +365,6 @@ document.addEventListener("keydown", (e) => {
     }
 });
 // endregion Helpers and General
-
 
 
 // region prepering the data for bus_to_rail and rail_to_bus
@@ -631,8 +653,10 @@ const resetBtn = document.createElement("button");
 resetBtn.textContent = "איפוס סינון רכבות";
 resetBtn.className = "filter-select";
 const h2 = document.querySelector("h2");
+const openStationTrendBtn = document.getElementById("openStationTrendBtn");
 if (h2 && h2.parentNode) {
-    h2.parentNode.insertBefore(resetBtn, h2.nextSibling);
+    const insertAfterNode = openStationTrendBtn || h2;
+    h2.parentNode.insertBefore(resetBtn, insertAfterNode.nextSibling);
 }
 resetBtn.addEventListener("click", () => {
     setActiveTrain(null);
@@ -847,6 +871,169 @@ if (trendModal) {
 }
 
 // endregion percentage graph
+
+
+// region percentage graph STATION LEVEL
+const COL_PERC_BY_TRAIN_STATION = "אחוז הנסיעות שעמדו בזמנים ברמת תחנת רכבת";
+
+function renderStationTrendChart(rows) {
+    if (!trendHost) return;
+    trendHost.innerHTML = "";
+
+    if (!Array.isArray(rows) || !rows.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "אין נתונים ברמת תחנה.";
+        trendHost.appendChild(empty);
+        return;
+    }
+
+    const byYm = new Map();
+    for (const r of rows) {
+        const y = parseInt(r[KEY_YEAR], 10);
+        const m = parseInt(r[KEY_MONTH], 10);
+        if (!Number.isFinite(y) || !Number.isFinite(m)) continue;
+        const p = toPercentNumber(r[COL_PERC_BY_TRAIN_STATION]);
+        if (p === null) continue;
+        const ymKey = `${y}-${String(m).padStart(2, "0")}`;
+        if (!byYm.has(ymKey)) {
+            byYm.set(ymKey, { year: y, month: m, perc: Math.max(0, Math.min(100, p)) });
+        }
+    }
+
+    const points = Array.from(byYm.values()).sort(
+        (a, b) => (a.year - b.year) || (a.month - b.month)
+    );
+
+    if (!points.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "אין נתונים";
+        trendHost.appendChild(empty);
+        return;
+    }
+
+    const ns = "http://www.w3.org/2000/svg";
+    const width = 780;
+    const height = 320;
+    const margin = { top: 20, right: 20, bottom: 58, left: 52 };
+    const plotW = width - margin.left - margin.right;
+    const plotH = height - margin.top - margin.bottom;
+
+    const svgEl = document.createElementNS(ns, "svg");
+    svgEl.setAttribute("width", "100%");
+    svgEl.setAttribute("viewBox", "0 0 " + width + " " + height);
+
+    const yMin = 0;
+    const yMax = 100;
+
+    function toY(v) {
+        const n = Number(v);
+        const clamped = Number.isFinite(n) ? Math.max(yMin, Math.min(yMax, n)) : yMin;
+        const t = (clamped - yMin) / (yMax - yMin);
+        return margin.top + (1 - t) * plotH;
+    }
+
+    const axisX = document.createElementNS(ns, "line");
+    axisX.setAttribute("x1", String(margin.left));
+    axisX.setAttribute("y1", String(margin.top + plotH));
+    axisX.setAttribute("x2", String(margin.left + plotW));
+    axisX.setAttribute("y2", String(margin.top + plotH));
+    axisX.setAttribute("stroke", "#444");
+    svgEl.appendChild(axisX);
+
+    const axisY = document.createElementNS(ns, "line");
+    axisY.setAttribute("x1", String(margin.left));
+    axisY.setAttribute("y1", String(margin.top));
+    axisY.setAttribute("x2", String(margin.left));
+    axisY.setAttribute("y2", String(margin.top + plotH));
+    axisY.setAttribute("stroke", "#444");
+    svgEl.appendChild(axisY);
+
+    [0, 25, 50, 75, 100].forEach(tick => {
+        const y = toY(tick);
+        const grid = document.createElementNS(ns, "line");
+        grid.setAttribute("x1", String(margin.left));
+        grid.setAttribute("y1", String(y));
+        grid.setAttribute("x2", String(margin.left + plotW));
+        grid.setAttribute("y2", String(y));
+        grid.setAttribute("stroke", "#e8e8e8");
+        svgEl.appendChild(grid);
+
+        const label = document.createElementNS(ns, "text");
+        label.textContent = tick + "%";
+        label.setAttribute("x", String(margin.left - 35));
+        label.setAttribute("y", String(y + 4));
+        label.setAttribute("text-anchor", "end");
+        label.setAttribute("font-size", "11");
+        label.setAttribute("fill", "#444");
+        svgEl.appendChild(label);
+    });
+
+    const xStep = points.length > 1 ? (plotW / (points.length - 1)) : 0;
+    function toX(i) {
+        return margin.left + (i * xStep);
+    }
+
+    let pathData = "";
+    points.forEach((p, i) => {
+        const x = toX(i);
+        const y = toY(p.perc);
+        pathData += (i === 0 ? "M" : " L") + x + " " + y;
+    });
+
+    const line = document.createElementNS(ns, "path");
+    line.setAttribute("d", pathData);
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", "#0b5fff");
+    line.setAttribute("stroke-width", "2");
+    svgEl.appendChild(line);
+
+    points.forEach((p, i) => {
+        const x = toX(i);
+        const y = toY(p.perc);
+        const monthNum = parseInt(p.month, 10);
+        const ymLabel = String(p.year) + "-" + String(monthNum).padStart(2, "0");
+
+        const dot = document.createElementNS(ns, "circle");
+        dot.setAttribute("cx", String(x));
+        dot.setAttribute("cy", String(y));
+        dot.setAttribute("r", "3.5");
+        dot.setAttribute("fill", "#0b5fff");
+        const title = document.createElementNS(ns, "title");
+        title.textContent = ymLabel + ": " + String(p.perc) + "%";
+        dot.appendChild(title);
+        svgEl.appendChild(dot);
+
+        const xLabel = document.createElementNS(ns, "text");
+        xLabel.textContent = ymLabel;
+        xLabel.setAttribute("x", String(x));
+        xLabel.setAttribute("y", String(margin.top + plotH + 20));
+        xLabel.setAttribute("text-anchor", "middle");
+        xLabel.setAttribute("font-size", "11");
+        xLabel.setAttribute("fill", "#333");
+        svgEl.appendChild(xLabel);
+    });
+
+    trendHost.appendChild(svgEl);
+}
+
+function openStationTrendModal() {
+    if (!trendModal || !trendHost || !trendTitle) return;
+
+    const rows = BUS_TO_RAIL_TREND_JSON;
+
+    trendTitle.textContent = "אחוזי סנכרון ברמת תחנה";
+    renderStationTrendChart(rows);
+    trendModal.classList.add("open");
+}
+
+if (openStationTrendBtn) {
+    openStationTrendBtn.addEventListener("click", () => {
+        openStationTrendModal();
+    });
+}
+
+
+// endregion percentage graph STATION LEVEL
 
 
 // region Bus Table
@@ -1799,7 +1986,6 @@ async function postOverride(url, payload) {
 
 
 // region finalizing
-
 refreshAllAfterFilterChange();
 populateYearDropdown();
 populateMonthDropdown();

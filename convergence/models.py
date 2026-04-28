@@ -12,6 +12,7 @@ class ConvergenceBusToRail(models.Model):
     train_number = models.IntegerField()
     signage = models.IntegerField()
     is_gold_train = models.CharField(max_length=10, blank=True)
+    express_train = models.CharField(max_length=10, blank=True)
     is_bus_on_time = models.IntegerField(null=True, blank=True)
     rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
     train_ascending_amount = models.IntegerField(null=True, blank=True)
@@ -32,6 +33,7 @@ class ConvergenceBusToRail(models.Model):
     on_time_count = models.IntegerField(null=True, blank=True)
     on_time_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     on_time_percentage_by_train = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    on_time_percentage_by_train_station = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     class Meta:
         constraints = [

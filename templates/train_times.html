@@ -31,8 +31,9 @@
 
     .table-box h3 {
       text-align: center;
-      font-size: 24px;
+      font-size: 20px;
       margin: 0 0 20px 0;
+      color: #0b3a66;
     }
 
     .table-box h4 {
@@ -44,7 +45,7 @@
       border: 1px solid #ddd;
       background: #f7f7f7;
       border-radius: 8px;
-      color: #333;
+      color: #0b3a66;
     }
 
     .v-sep {
@@ -59,16 +60,21 @@
     }
 
     th, td {
-      border: 1px solid #444;
+      border: none;
       padding: 8px 12px;
       text-align: center;
       font-family: Arial, sans-serif;
       font-size: 12px;
     }
 
+    td {
+      color: #0b3a66;
+    }
+
     th {
-      background-color: #d9d9d9;
-      font-size: 16px;
+      background-color: #0077cc;
+      color: #ffffff;
+      font-size: 14px;
       font-weight: 700;
     }
     /* --- header search icon + popup --- */
@@ -154,9 +160,10 @@
     .hdr-popup .btn:hover { background: #f0f0f0; }
 
     .train-link {
-      color: #0a5;
-      text-decoration: none;
-      font-weight: 700;
+      color: #0077cc;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      font-weight: 400;
     }
     .train-link:hover {
       text-decoration: underline;
@@ -168,10 +175,29 @@
       background-color: #f7f7f7;
     }
 
+    #arrWrap table tbody tr:hover,
+    #depWrap table tbody tr:hover {
+      background: #dfefff;
+    }
+
     .meta {
       margin-top: 10px;
       font-size: 14px;
       color: #333;
+    }
+
+    .meta label{
+      color: #5A4630;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: Arial, sans-serif;
+    }
+
+    .meta select{
+      color: #5A4630;
+      font-size: 14px;
+      font-weight: 400;
+      font-family: Arial, sans-serif;
     }
 
     body.loading .tables-row {
@@ -196,15 +222,13 @@
   </style>
 </head>
 <!-- endregion styling -->
-
-
 <!-- region defining DOM elements -->
 <body class="loading">
 
 <h2 id="stationTitle">לוז רכבות</h2>
 
 <div class="meta" style="margin-top:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-  <label for="weekPeriodFilter" style="font-weight:700;">תקופת שבוע:</label>
+  <label for="weekPeriodFilter">תקופת שבוע:</label>
   <select id="weekPeriodFilter"></select>
 </div>
 
@@ -800,4 +824,5 @@ document.body.classList.remove("loading");
 
 </body>
 </html>
+
 

@@ -45,10 +45,12 @@ COL_RAIL_DIR = "כיוון נסיעת הרכבת"
 COL_TRAIN_ID = "מספר הרכבת"
 COL_PERC = "אחוז הנסיעות שעמדו בזמנים"
 COL_PERC_BY_TRAIN = "אחוז הנסיעות שעמדו בזמנים ברמת נסיעת הרכבת"
+COL_PERC_BY_TRAIN_STATION = "אחוז הנסיעות שעמדו בזמנים ברמת תחנת רכבת"
 COL_N = "מספר תצפיות"
 COL_N_POSITIVE_FLAGGED = "מספר הנסיעות שעמדו בזמנים"
 COL_SIGNAGE = "שילוט"
 COL_GOLD_TRAIN = "רכבת זהב"
+COL_EXPRESS_TRAIN = "סוג רכבת"
 COL_BUS_ON_TIME = "האם האוטובוס מגיע בזמן"
 COL_LICENSED_TRAIN_ARRIVAL = "זמן הגעת הרכבת לתחנה (רישוי)"
 
@@ -67,6 +69,7 @@ def _serialize_bus_to_rail(row):
         COL_TRAIN_ID: row.train_number,
         COL_SIGNAGE: row.signage,
         COL_GOLD_TRAIN: row.is_gold_train,
+        COL_EXPRESS_TRAIN: row.express_train,
         COL_BUS_ON_TIME: row.is_bus_on_time,
         COL_LICENSED_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         COL_TRAIN_STATION_CODE: row.train_station_code,
@@ -119,7 +122,7 @@ def _serialize_rail_to_bus(row):
     }
 
 
-def _serialize_bus_to_rail_trend(row):
+def _serialize_bus_to_rail_trend(row): #NOTE - for trend by station level i will use a column from "_serialize_bus_to_rail"
     return {
         COL_RAIL_DIR: row.rail_direction,
         COL_YEAR: row.year,
@@ -128,7 +131,9 @@ def _serialize_bus_to_rail_trend(row):
         COL_TRAIN_ID: row.train_number,
         COL_LICENSED_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         COL_PERC_BY_TRAIN: _format_percentage(row.on_time_percentage_by_train),
+        COL_PERC_BY_TRAIN_STATION: _format_percentage(row.on_time_percentage_by_train_station),
     }
+
 # endregion organizing the data from DB
 
 # region override

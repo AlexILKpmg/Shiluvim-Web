@@ -10,6 +10,15 @@
 
 <!-- region styling -->
     <style>
+        :root{
+            --main-blue: #1E88E5;
+            --dark-blue: #0B3A66;
+            --light-blue-bg: #F3F8FF;
+            --soft-blue-border: #D6E8FF;
+            --input-border: #BFD7F5;
+            --white: #FFFFFF;
+        }
+
         body {
             font-family: Arial, sans-serif;
             margin: 40px;
@@ -23,18 +32,114 @@
             margin-top: 80px;
         }
 
-        /* Matrix table should sit close to the headline */
-        #matrix_table_container table{
-          margin-top: 5px;   /* overrides the global 80px */
+         /* rating information */
+        #rating_table .rating-row {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          column-gap: 28px; /* space between items in same row */
+          row-gap: 12px;
+          margin-top: 70px;
         }
 
+        #rating_table .rating-item {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          white-space: nowrap;
+          margin-top: 70px;
+        }
+
+        #rating_table .rating-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #0077cc;
+          display: inline-block;
+          flex: 0 0 auto;
+        }
+
+        /* Matrix table should sit close to the headline */
+
+        #matrixBarChart {
+          width: 90%;
+          margin-top: 8px;
+          display: flex;          /* was grid */
+          flex-wrap: nowrap;      /* prevent wrapping */
+          gap: 12px;
+          align-items: flex-end;
+          overflow-x: auto;       /* horizontal scroll when expanded */
+          overflow-y: hidden;
+          border-bottom: 1px solid #d9e2ec;
+          padding-bottom: 8px;
+          direction: rtl;         /* bars extend left->right even in RTL page */
+        }
+
+        .matrix-bar-row {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 6px;
+          min-height: 280px;
+          flex: 0 0 72px;         /* fixed width per bar block */
+        }
+
+        .matrix-bar-fill {
+          width: 28px;
+          background: #0077cc;
+          border-radius: 6px 6px 0 0;
+          min-height: 4px;
+        }
+
+        .matrix-bar-value {
+          font-size: 12px;
+          line-height: 1.2;
+          text-align: center;
+          white-space: nowrap;
+        }
+
+        .matrix-bar-label {
+          font-size: 12px;
+          line-height: 1.2;
+          text-align: center;
+          max-width: 70px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
         /* Convergence table should sit close to the filters */
         #convergence_data_container table{
           margin-top: 5px;   /* overrides the global 80px */
         }
 
         .filter-container.convergence-filters{
-          top: 0 !important;   /* cancels the global top:50px only here */
+          top: 0 !important;
+          background: transparent;
+          border: none;
+          box-shadow: none;
+          border-radius: 0;
+          padding: 0;
+        }
+
+        .filter-container.convergence-filters .filter-group > label{
+            display: none;
+        }
+
+        .filter-container.convergence-filters .filter-group select{
+            background: #ffffff;
+            border: 1px solid #999;
+            border-radius: 6px;
+            color: #5A4630;
+            padding: 4px;
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        .filter-container.convergence-filters .filter-group select:focus{
+            outline: none;
+            border-color: #999;
+            box-shadow: none;
         }
 
         th, td {
@@ -47,19 +152,47 @@
             background-color: #f0f0f0;
         }
 
+        h3 {
+            color: #0b3a66;
+        }
+
+        #convergence_data_container table thead th {
+          background-color: #0077cc;
+          color: #ffffff;
+        }
+
+        #convergence_data_container table th,
+        #convergence_data_container table td {
+            border: none;
+          font-size: 14px;
+        }
+
+        #convergence_data_container table tbody td {
+            color: #0b3a66;
+            font-size: 12px;
+        }
+
+        #convergence_data_container table tbody tr:nth-child(even) {
+            background-color: #f7f7f7;
+        }
+
+        #convergence_data_container table tbody tr:hover {
+            background: #dfefff;
+        }
+
         .filter-container{
             position: relative;
-            display: flex;
+            display:flex;
+            width: fit-content;
             gap: 14px;
             flex-wrap: wrap;
             top: 50px;
-            right: 20px;
 
-            background-color: #ffffff;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 8px 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: #FCF8F2;
+            border: 1px solid #E8DCCB;
+            border-radius: 10px;
+            padding: 10px 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
             font-size: 14px;
         }
 
@@ -71,8 +204,19 @@
         }
 
         .filter-group select{
-            padding: 4px 8px;
+            background: var(--white);
+            border: 1px solid #C8D7E8;
+            border-radius: 7px;
+            color: #5A4630;
+            padding: 6px 10px;
             font-size: 14px;
+            font-weight: 400;
+        }
+
+        .filter-group select:focus{
+            outline: none;
+            border-color: #0077cc;
+            box-shadow: 0 0 0 3px rgba(0,119,204,0.16);
         }
 
         .checkbox-group{
@@ -83,22 +227,41 @@
             align-items:center;
         }
 
+        .filter-group label,
+        .checkbox-group label{
+            color: #5A4630;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .filter-container .filter-group > label{
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            font-family: Arial, sans-serif !important;
+        }
+
         .checkbox-group label{
             display:flex;
             gap:3px;
             cursor: default;
             align-items:center;
-            font-size:16px;
+            font-size:14px;
+            font-weight: 400;
         }
 
         .checkbox-group input[type="checkbox"]{
             cursor: default;
             width:18px;
             height:18px;
+            accent-color: #5A4630;
         }
 
         #convergence_data_container table th:nth-child(1),
         #convergence_data_container table td:nth-child(1){
+            display: none;
+        }
+        #convergence_data_container table th:nth-child(13),
+        #convergence_data_container table td:nth-child(13){
             display: none;
         }
 
@@ -112,6 +275,12 @@
             color: #0077cc;
             font-weight: bold;
             padding: 4px 8px;
+        }
+
+        .filter-container .filter-group > label{
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            font-family: Arial, sans-serif !important;
         }
     </style>
   </head>
@@ -152,74 +321,63 @@
 
 </div>
 
+<div id="contentAfterMainFilters" style="display:none;">
 
-<div id="rating_table">
-  <table>
-    <thead>
-      <tr>
-        <th>שנה</th>
-        <th>חודש</th>
-        <th>שם תחנת הרכבת</th>
-        <th>עולים בתחנה</th>
-        <th>יורדים בתחנה</th>
-        <th>דירוג</th>
-      </tr>
-    </thead>
-    <tbody>
+  <div id="rating_table">
+    <div class="rating-row">
       {% for row in df_ranking %}
-      <tr>
-        <td>{{ row.Year }}</td>
-        <td>{{ row.Month }}</td>
-        <td>{{ row.StationName }}</td>
-        <td>{{ row.Ascending_pass }}</td>
-        <td>{{ row.Descending_pass }}</td>
-        <td>{{ row.Rank }}</td>
-      </tr>
+        <div class="rating-item">
+          <span class="rating-dot"></span>
+          <span>דירוג התחנה: {{ row.Rank }}</span>
+        </div>
+        <div class="rating-item">
+          <span class="rating-dot"></span>
+          <span>עולים בתחנה: {{ row.Ascending_pass }}</span>
+        </div>
+        <div class="rating-item">
+          <span class="rating-dot"></span>
+          <span>יורדים בתחנה: {{ row.Descending_pass }}</span>
+        </div>
       {% endfor %}
-    </tbody>
-  </table>
-</div>
-
+    </div>
+  </div>
 
 <!-- Passenger transfers headline -->
 <h3 id="matrixHeadline" style="margin:80px 0 5px 0;">יעדי הנוסעים העולים מתחנה זו:</h3>
 
-<div id="matrixSection" style="display:none;">
-
-  <div id="matrix_table_container">
-    <table>
-      <thead>
+<div id="matrix_table_container">
+  <!-- Keep table as data source only -->
+  <table id="matrixDataTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>FromStationName</th>
+        {% for c in matrix_cols %}
+          <th>{{ c }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in matrix_rows %}
         <tr>
-          <th>FromStationName</th>
-          {% for c in matrix_cols %}
-            <th>{{ c }}</th>
+          <td>{{ r.FromStationName }}</td>
+          {% for v in r.values %}
+            <td>{{ v }}</td>
           {% endfor %}
         </tr>
-      </thead>
+      {% endfor %}
+    </tbody>
+  </table>
 
-      <tbody>
-        {% for r in matrix_rows %}
-          <tr>
-            <td>{{ r.FromStationName }}</td>
-            {% for v in r.values %}
-              <td>{{ v }}</td>
-            {% endfor %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div id="matrixBarChart"></div>
 
-    <!-- Matrix expand/collapse button (close to the table) -->
-    <div style="margin: 4px 0 0 0; text-align: right;">
-      <span id="matrixToggleBtn" class="expand-btn">▼ הצג עוד</span>
-    </div>
+  <div style="margin: 8px 0 0 0; text-align: right;">
+    <span id="matrixToggleBtn" class="expand-btn">הצג עוד</span>
   </div>
-
 </div>
 
 
 
-<h3 id="convergenceHeadline" style="margin:80px 0 5px 0;">פירוט הקווים שעוברים בתחנה:</h3>
+<h3 id="convergenceHeadline" style="margin:80px 0 25px 0;">פירוט הקווים שעוברים בתחנה:</h3>
 
 <div class="filter-container convergence-filters" style="margin-top:5px; margin-bottom:10px;">
   <div class="filter-group">
@@ -280,6 +438,8 @@
   </table>
 </div>
 
+</div>
+
 <!-- endregion defining DOM elements -->
 
 {{ year_month_pairs|json_script:"year-month-pairs-data" }}
@@ -311,6 +471,7 @@ function goToMainPageGet(selectedStation, selectedYearStr, selectedMonthStr) {
   const query = params.toString();
   window.location.href = query ? ("/main_page/?" + query) : "/main_page/";
 }
+
 // endregion general
 
 
@@ -332,6 +493,11 @@ stationDropdown.addEventListener("change", () => {
     goToMainPageGet(stationDropdown.value, yearDropdown.value, monthDropdown.value);
   }
 });
+
+function updateMainContentVisibility() {
+  if (!contentAfterMainFilters) return;
+  contentAfterMainFilters.style.display = hasMainFiltersSelection() ? "" : "none";
+}
 // endregion station filter
 
 
@@ -473,14 +639,10 @@ const busDirectionOptions = JSON.parse(
   document.getElementById("bus-direction-options-data").textContent
 );
 
-function populateBusDirectionDropdownFromView(options, dropdownEl, emptyText) {
+function populateBusDirectionDropdownFromView(options, dropdownEl) {
   if (!dropdownEl) return;
 
   dropdownEl.innerHTML = "";
-  const emptyOpt = document.createElement("option");
-  emptyOpt.value = "";
-  emptyOpt.textContent = emptyText; // "הכל"
-  dropdownEl.appendChild(emptyOpt);
 
   (options || []).forEach(v => {
     const txt = norm(v);
@@ -490,6 +652,8 @@ function populateBusDirectionDropdownFromView(options, dropdownEl, emptyText) {
     opt.textContent = txt;
     dropdownEl.appendChild(opt);
   });
+
+  dropdownEl.value = "לכיוון הרכבת";
 }
 // endregion bus direction filter
 
@@ -498,35 +662,34 @@ function populateBusDirectionDropdownFromView(options, dropdownEl, emptyText) {
 const container_rating = document.getElementById("rating_table");
 const table_rating = container_rating?.querySelector("table");
 
-function formatRatingPassengersWithCommas() {
-  if (!table_rating) return;
-  const tbl = table_rating;
+function formatRatingNumbersInText() {
+    const items = Array.from(document.querySelectorAll("#rating_table .rating-item"));
+    items.forEach(item => {
+      const spans = Array.from(item.querySelectorAll("span"));
+      spans.forEach(span => {
+        const txt = (span.textContent || "").trim();
 
-  const ths = Array.from(tbl.querySelectorAll("th"));
-  const upIdx = ths.findIndex(th => norm(th.textContent) === "עולים בתחנה");
-  const downIdx = ths.findIndex(th => norm(th.textContent) === "יורדים בתחנה");
-  if (upIdx === -1 && downIdx === -1) return;
+        if (!txt.startsWith("עולים בתחנה:") && !txt.startsWith("יורדים בתחנה:")) return;
 
-  const rows = Array.from(tbl.querySelectorAll("tbody tr"));
-  rows.forEach(row => {
-    [upIdx, downIdx].forEach(idx => {
-      if (idx === -1) return;
-      const cell = row.children[idx];
-      if (!cell) return;
-      const raw = norm(cell.textContent).replace(/,/g, "");
-      if (raw === "") return;
-      const n = parseFloat(raw);
-      if (!Number.isFinite(n)) return;
-      cell.textContent = n.toLocaleString("en-US");
+        const parts = txt.split(":");
+        if (parts.length < 2) return;
+
+        const label = parts[0].trim();
+        const raw = parts.slice(1).join(":").trim().replace(/,/g, "");
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return;
+
+        span.textContent = `${label}: ${n.toLocaleString("en-US")}`;
+      });
     });
-  });
-}
+  }
 // endregion rating table
-
 
 // region matrix table
 const matrixSection = document.getElementById("matrixSection");
 const matrixToggleBtn = document.getElementById("matrixToggleBtn");
+const matrixDataTable = document.getElementById("matrixDataTable");
+const matrixBarChart = document.getElementById("matrixBarChart");
 
 function hasMainFiltersSelection() {
   return Boolean(
@@ -541,137 +704,74 @@ function updateMatrixVisibility() {
   matrixSection.style.display = hasMainFiltersSelection() ? "" : "none";
 }
 
-function ensureFirstHeaderEmpty(tbl) {
-  const headerRow = tbl ? tbl.querySelector("tr") : null;
-  if (headerRow && headerRow.children.length > 0) headerRow.children[0].innerText = "";
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function sortMatrixColumnsByTotalDesc(matrixTableEl) {
-    if (!matrixTableEl) return;
+function extractMatrixBarsFromTable() {
+  if (!matrixDataTable) return [];
 
-    const theadRow = matrixTableEl.querySelector("thead tr");
-    const tbodyRows = Array.from(matrixTableEl.querySelectorAll("tbody tr"));
-    if (!theadRow || tbodyRows.length === 0) return;
+  const headers = Array.from(matrixDataTable.querySelectorAll("thead th")).slice(1);
+  const firstRowCells = Array.from(matrixDataTable.querySelectorAll("tbody tr")[0]?.children || []).slice(1);
 
-    const headerCells = Array.from(theadRow.children);
+  const bars = headers.map((th, i) => {
+    const label = norm(th.textContent);
+    const raw = norm(firstRowCells[i]?.textContent || "").replace(/,/g, "");
+    const value = parseFloat(raw);
+    return { label, value: Number.isFinite(value) ? value : 0 };
+  });
 
-    // Column 0 is FromStationName -> never move it
-    const colCount = headerCells.length;
-    if (colCount <= 2) return; // nothing to sort
+  return bars.sort((a, b) => b.value - a.value);
+}
 
-    // Compute total sum per column (skip col 0)
-    const totals = [];
-    for (let colIdx = 1; colIdx < colCount; colIdx++) {
-      let sum = 0;
-      tbodyRows.forEach(r => {
-        const cell = r.children[colIdx];
-        if (!cell) return;
-        const txt = norm(cell.textContent);
+function renderMatrixBars(allBars, topN) {
+  if (!matrixBarChart) return;
+  const expanded = matrixDataTable?.dataset.matrixExpanded === "1";
+  const visibleBars = expanded ? allBars : allBars.slice(0, topN);
+  const maxVal = Math.max(1, ...allBars.map(x => x.value));
+  const maxBarPx = 220;
 
-        // allow numbers like "1,234" or empty
-        const n = parseFloat(txt.replace(/,/g, ""));
-        if (Number.isFinite(n)) sum += n;
-      });
-      totals.push({ colIdx, sum });
-    }
+  matrixBarChart.innerHTML = visibleBars.map(b => {
+    const barPx = Math.max(4, Math.round((b.value / maxVal) * maxBarPx));
+    return `
+      <div class="matrix-bar-row">
+        <div class="matrix-bar-value">${b.value.toLocaleString("en-US")}</div>
+        <div class="matrix-bar-fill" style="height:${barPx}px"></div>
+        <div class="matrix-bar-label" title="${escapeHtml(b.label)}">${escapeHtml(b.label)}</div>
+      </div>
+    `;
+  }).join("");
 
-    // Sort columns by total descending
-    totals.sort((a, b) => b.sum - a.sum);
+  if (matrixToggleBtn) {
+    matrixToggleBtn.textContent = expanded ? "הצג פחות" : "הצג עוד";
+  }
+}
 
-    // Reorder headers (keep first column as-is)
-    const newHeader = [headerCells[0], ...totals.map(t => headerCells[t.colIdx])];
-    newHeader.forEach(cell => theadRow.appendChild(cell));
 
-    // Reorder every row in tbody similarly
-    tbodyRows.forEach(r => {
-      const cells = Array.from(r.children);
-      const newRowCells = [cells[0], ...totals.map(t => cells[t.colIdx])];
-      newRowCells.forEach(cell => r.appendChild(cell));
-    });
+function initMatrixBarChart(topN, btn) {
+  if (!matrixDataTable || !matrixBarChart) return;
+
+  if (matrixDataTable.dataset.matrixExpanded == null) {
+    matrixDataTable.dataset.matrixExpanded = "0";
   }
 
-function initMatrixColumnsTopN(topN, btn) {
-  const tbl = document.querySelector("#matrix_table_container table");
-  if (!tbl) return;
-
-  const theadRow = tbl.querySelector("thead tr");
-  const bodyRows = Array.from(tbl.querySelectorAll("tbody tr"));
-  if (!theadRow || bodyRows.length === 0) return;
-
-  if (tbl.dataset.matrixExpanded == null) tbl.dataset.matrixExpanded = "0";
-
-  function parseNum(txt) {
-    const s = (txt || "").toString().replace(/\s+/g, " ").trim().replace(/,/g, "");
-    const n = parseFloat(s);
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  function apply() {
-    const ths = Array.from(theadRow.children);
-    const firstRowTds = Array.from(bodyRows[0].children);
-
-    const colMeta = [];
-    for (let colIdx = 1; colIdx < ths.length; colIdx++) {
-      colMeta.push({ colIdx, val: parseNum(firstRowTds[colIdx]?.textContent) });
-    }
-    colMeta.sort((a, b) => b.val - a.val);
-
-    const newHeader = [ths[0], ...colMeta.map(x => ths[x.colIdx])];
-    newHeader.forEach(cell => theadRow.appendChild(cell));
-
-    bodyRows.forEach(row => {
-      const tds = Array.from(row.children);
-      const newCells = [tds[0], ...colMeta.map(x => tds[x.colIdx])];
-      newCells.forEach(cell => row.appendChild(cell));
-    });
-
-    const expanded = tbl.dataset.matrixExpanded === "1";
-    const allColsCount = theadRow.children.length;
-
-    for (let i = 0; i < allColsCount; i++) {
-      const visible = i === 0 || expanded || i <= topN;
-      const h = theadRow.children[i];
-      if (h) h.style.display = visible ? "" : "none";
-      bodyRows.forEach(r => {
-        const c = r.children[i];
-        if (c) c.style.display = visible ? "" : "none";
-      });
-    }
-
-    if (btn) {
-      btn.textContent = expanded ? "▼ הצג פחות" : "◀ הצג עוד";
-    }
-  }
+  const allBars = extractMatrixBarsFromTable();
+  renderMatrixBars(allBars, topN);
 
   if (btn && !btn.dataset.bound) {
     btn.dataset.bound = "1";
     btn.addEventListener("click", () => {
-      tbl.dataset.matrixExpanded = (tbl.dataset.matrixExpanded === "1") ? "0" : "1";
-      apply();
+      matrixDataTable.dataset.matrixExpanded =
+        matrixDataTable.dataset.matrixExpanded === "1" ? "0" : "1";
+      renderMatrixBars(allBars, topN);
     });
   }
-
-  apply();
 }
-
-function formatMatrixValuesWithCommas() {
-  const tbl = document.querySelector("#matrix_table_container table");
-  if (!tbl) return;
-
-  const rows = Array.from(tbl.querySelectorAll("tbody tr"));
-  rows.forEach(row => {
-    const cells = Array.from(row.children);
-    cells.forEach((cell, idx) => {
-      if (idx === 0) return; // FromStationName
-      const raw = norm(cell.textContent).replace(/,/g, "");
-      if (raw === "") return;
-      const n = parseFloat(raw);
-      if (!Number.isFinite(n)) return;
-      cell.textContent = n.toLocaleString("en-US");
-    });
-  });
-}
-
 // endregion matrix table
 
 
@@ -743,13 +843,6 @@ if (stationDropdown && yearDropdown && monthDropdown && busDirectionDropdown && 
   yearToMonths = buildYearToMonthsFromPairs(yearMonthPairs);
   populateYearDropdown(yearToMonths);
 
-  // make first header cell empty in matrix table
-  ensureFirstHeaderEmpty(document.querySelector("#matrix_table_container table"));
-
-  // sort the matrix table
-  sortMatrixColumnsByTotalDesc(document.querySelector("#matrix_table_container table"));
-
-
   //set dropdown values from server AFTER populating
   stationDropdown.value = "{{ station_name|escapejs }}";
 
@@ -760,10 +853,9 @@ if (stationDropdown && yearDropdown && monthDropdown && busDirectionDropdown && 
 
   // Matrix: sort columns by value (desc) + show only top 10 until expanded
   if (hasMainFiltersSelection()) {
-    initMatrixColumnsTopN(10, matrixToggleBtn);
-    formatMatrixValuesWithCommas();
+   initMatrixBarChart(10, matrixToggleBtn);
   }
-  formatRatingPassengersWithCommas();
+  formatRatingNumbersInText();
 
 
 
@@ -778,6 +870,7 @@ if (stationDropdown && yearDropdown && monthDropdown && busDirectionDropdown && 
   }
 
   // show matrix section only when all main filters are selected
+  updateMainContentVisibility();
   updateMatrixVisibility();
 
   // update links
@@ -808,6 +901,9 @@ if (stationDropdown && yearDropdown && monthDropdown && busDirectionDropdown && 
   stationDropdown.addEventListener("change", updateMatrixVisibility);
   yearDropdown.addEventListener("change", updateMatrixVisibility);
   monthDropdown.addEventListener("change", updateMatrixVisibility);
+  stationDropdown.addEventListener("change", updateMainContentVisibility);
+  yearDropdown.addEventListener("change", updateMainContentVisibility);
+  monthDropdown.addEventListener("change", updateMainContentVisibility);
 
 }
 

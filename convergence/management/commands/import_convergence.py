@@ -47,6 +47,9 @@ BUS_TO_RAIL_OPTIONAL = {
     "מספר הנסיעות שעמדו בזמנים": "on_time_count",
     "אחוז הנסיעות שעמדו בזמנים": "on_time_percentage",
     "אחוז הנסיעות שעמדו בזמנים ברמת נסיעת הרכבת": "on_time_percentage_by_train",
+    "אחוז הנסיעות שעמדו בזמנים ברמת תחנת רכבת": "on_time_percentage_by_train_station",
+    "סוג רכבת": "express_train"
+
 }
 
 RAIL_TO_BUS_OPTIONAL = {
@@ -271,6 +274,9 @@ class Command(BaseCommand):
             payload["on_time_count"] = self._to_int_or_none(normalized.get("on_time_count"))
             payload["on_time_percentage"] = self._to_decimal_or_none(normalized.get("on_time_percentage"))
             payload["on_time_percentage_by_train"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_train"))
+            payload["on_time_percentage_by_train_station"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_train_station"))
+            payload["express_train"] = self._clean_text(normalized.get("express_train"))
+
 
         if "minutes_gap_rail_to_bus" in normalized:
             payload["rishui_train_arrival_time"] = self._clean_text(normalized.get("rishui_train_arrival_time"))
