@@ -22,3 +22,5 @@ class TrainTime(models.Model):
 
     def __str__(self):
         return f"{self.StationName} #{self.Train_number} {self.event_type} {self.planned_time} ({self.Month}/{self.Year})"
+
+

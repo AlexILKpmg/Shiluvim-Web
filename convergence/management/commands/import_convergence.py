@@ -29,7 +29,7 @@ COMMON_OPTIONAL = {
     'מק"ט': "makat",
     "כיוון": "direction",
     "חלופה": "alternative",
-    "זמן יציאה": "departure_time",
+    "שעת יציאה מתחנת המוצא": "departure_time",
     "ממוצע נוסעים לנסיעה": "avg_passengers_per_trip",
     "שילוט": "signage",
     "רכבת זהב": "is_gold_train",
@@ -37,10 +37,10 @@ COMMON_OPTIONAL = {
 }
 
 BUS_TO_RAIL_OPTIONAL = {
-    "זמן הגעת הרכבת לתחנה (רישוי)": "rishui_train_arrival_time",
+    "שעת הגעת הרכבת לתחנה (רישוי)": "rishui_train_arrival_time",
     "מספר עולים": "train_ascending_amount",
-    "זמן הגעה לתחנה": "arrival_time_to_station",
-    "טווח זמן ההגעה לתחנה": "arrival_time_window",
+    "שעת הגעה לתחנה (בממוצע)": "arrival_time_to_station",
+    "סטיית תקן משעת ההגעה לתחנה": "arrival_time_window",
     "הפרש בדקות (מאוטובוס לרכבת)": "minutes_gap_bus_to_rail",
     "המלצה (דקות)": "recommended_minutes",
     "מספר תצפיות": "observations_count",
@@ -53,7 +53,7 @@ BUS_TO_RAIL_OPTIONAL = {
 }
 
 RAIL_TO_BUS_OPTIONAL = {
-    "זמן הגעת הרכבת לתחנה (רישוי)": "rishui_train_arrival_time",
+    "שעת הגעת הרכבת לתחנה (רישוי)": "rishui_train_arrival_time",
     "מספר יורדים": "train_descending_amount",
     "הפרש בדקות (מרכבת לאוטובוס)": "minutes_gap_rail_to_bus",
     "המלצה (דקות)": "recommended_minutes",

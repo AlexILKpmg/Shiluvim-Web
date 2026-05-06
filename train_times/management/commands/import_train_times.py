@@ -2,6 +2,7 @@ import csv
 from datetime import time
 from pathlib import Path
 
+import pandas as pd
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
@@ -80,13 +81,8 @@ class Command(BaseCommand):
         if not source_path.exists():
             raise CommandError(f"Source file not found: {source_path}")
 
-        with source_path.open("r", encoding="utf-8-sig", newline="") as fp:
-            reader = csv.DictReader(fp)
-            if reader.fieldnames is None:
-                raise CommandError(f"{source_path}: missing header row.")
-            rows = list(reader)
-
-        missing = [col for col in REQUIRED_BASE_COLUMNS if col not in reader.fieldnames]
+        rows, fieldnames = self._read_rows(source_path)
+        missing = [col for col in REQUIRED_BASE_COLUMNS if col not in fieldnames]
         if missing:
             raise CommandError(f"{source_path}: missing required columns: {', '.join(missing)}")
 
@@ -99,6 +95,32 @@ class Command(BaseCommand):
                     raise
                 payloads.append({"__invalid__": True, "__row_number__": index})
         return payloads
+
+    def _read_rows(self, source_path: Path):
+        suffix = source_path.suffix.lower()
+
+        if suffix == ".csv":
+            encodings = ("utf-8-sig", "cp1255", "iso-8859-8")
+            last_exc = None
+            for enc in encodings:
+                try:
+                    with source_path.open("r", encoding=enc, newline="") as fp:
+                        reader = csv.DictReader(fp)
+                        if reader.fieldnames is None:
+                            raise CommandError(f"{source_path}: missing header row.")
+                        return list(reader), reader.fieldnames
+                except UnicodeDecodeError as exc:
+                    last_exc = exc
+            raise CommandError(
+                f"{source_path}: cannot decode CSV. Tried {encodings}. Last error: {last_exc}"
+            )
+
+        if suffix in (".xlsx", ".xls"):
+            df = pd.read_excel(source_path)
+            fieldnames = list(df.columns)
+            return df.to_dict(orient="records"), fieldnames
+
+        raise CommandError("Unsupported file extension. Use .csv, .xlsx, or .xls.")
 
     def _normalize_int(self, value, field_name, row_number):
         text = "" if value is None else str(value).strip()

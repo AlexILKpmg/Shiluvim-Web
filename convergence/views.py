@@ -52,7 +52,7 @@ COL_SIGNAGE = "שילוט"
 COL_GOLD_TRAIN = "רכבת זהב"
 COL_EXPRESS_TRAIN = "סוג רכבת"
 COL_BUS_ON_TIME = "האם האוטובוס מגיע בזמן"
-COL_LICENSED_TRAIN_ARRIVAL = "זמן הגעת הרכבת לתחנה (רישוי)"
+COL_LICENSED_TRAIN_ARRIVAL = "שעת הגעת הרכבת לתחנה (רישוי)"
 
 COL_TRAIN_STATION_CODE = "__train_station_code"
 COL_FROM_TRAIN_NUMBER = "__from_train_number"
@@ -81,10 +81,10 @@ def _serialize_bus_to_rail(row):
         'מק"ט': row.makat,
         "כיוון": row.direction,
         "חלופה": row.alternative,
-        "זמן יציאה": row.departure_time,
+        "שעת יציאה מתחנת המוצא": row.departure_time,
         "ממוצע נוסעים לנסיעה": row.avg_passengers_per_trip,
-        "זמן הגעה לתחנה": row.arrival_time_to_station,
-        "טווח זמן ההגעה לתחנה": row.arrival_time_window,
+        "שעת הגעה לתחנה (בממוצע)": row.arrival_time_to_station,
+        "סטיית תקן משעת ההגעה לתחנה": row.arrival_time_window,
         "הפרש בדקות (מאוטובוס לרכבת)": row.minutes_gap_bus_to_rail,
         "המלצה (דקות)": row.recommended_minutes,
         COL_N: row.observations_count,
@@ -115,7 +115,7 @@ def _serialize_rail_to_bus(row):
         'מק"ט': row.makat,
         "כיוון": row.direction,
         "חלופה": row.alternative,
-        "זמן יציאה": row.departure_time,
+        "שעת יציאה מתחנת המוצא": row.departure_time,
         "ממוצע נוסעים לנסיעה": row.avg_passengers_per_trip,
         "הפרש בדקות (מרכבת לאוטובוס)": row.minutes_gap_rail_to_bus,
         "המלצה (דקות)": row.recommended_minutes,
@@ -144,7 +144,7 @@ def _row_override_key(row):
         _to_int_or_none(row.get('מק"ט')),
         _to_int_or_none(row.get("כיוון")),
         str(row.get("חלופה") or "").strip(),
-        str(row.get("זמן יציאה") or "").strip(),
+        str(row.get("שעת יציאה מתחנת המוצא") or "").strip(),
         _to_int_or_none(row.get(COL_TRAIN_STATION_CODE)),
         _to_int_or_none(row.get(COL_FROM_TRAIN_NUMBER)),
         str(row.get(COL_FROM_TRAIN_ARRIVAL) or "").strip(),

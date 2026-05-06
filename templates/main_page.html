@@ -1,4 +1,4 @@
-<!-- region starting HTML -->
+﻿<!-- region starting HTML -->
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
   <head>
@@ -108,6 +108,27 @@
           text-overflow: ellipsis;
           white-space: nowrap;
         }
+
+        .matrix-y-axis {
+          min-height: 280px;
+          flex: 0 0 34px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-left: 3px solid #d9e2ec;
+          padding-left: 4px;
+        }
+
+        .matrix-y-axis-text {
+          writing-mode: vertical-rl;
+          transform: rotate(180deg);
+          color: #0b3a66;
+          font-size: 16px;
+          font-weight: 700;
+          line-height: 1;
+          white-space: nowrap;
+          letter-spacing: 0.5px;
+        }
         /* Convergence table should sit close to the filters */
         #convergence_data_container table{
           margin-top: 5px;   /* overrides the global 80px */
@@ -152,8 +173,11 @@
             background-color: #f0f0f0;
         }
 
-        h3 {
+        h3,
+        .station-label {
             color: #0b3a66;
+            font-size: 1.17em;
+            font-weight: bold;
         }
 
         #convergence_data_container table thead th {
@@ -328,15 +352,18 @@
       {% for row in df_ranking %}
         <div class="rating-item">
           <span class="rating-dot"></span>
-          <span>דירוג התחנה: {{ row.Rank }}</span>
+          <span class="station-label">דירוג התחנה:</span>
+          <span>{{ row.Rank }}</span>
         </div>
         <div class="rating-item">
           <span class="rating-dot"></span>
-          <span>עולים בתחנה: {{ row.Ascending_pass }}</span>
+          <span class="station-label">עולים בתחנה:</span>
+          <span class="passenger-value">{{ row.Ascending_pass }}</span>
         </div>
         <div class="rating-item">
           <span class="rating-dot"></span>
-          <span>יורדים בתחנה: {{ row.Descending_pass }}</span>
+          <span class="station-label">יורדים בתחנה:</span>
+          <span class="passenger-value">{{ row.Descending_pass }}</span>
         </div>
       {% endfor %}
     </div>
@@ -659,30 +686,16 @@ function populateBusDirectionDropdownFromView(options, dropdownEl) {
 
 
 // region rating table
-const container_rating = document.getElementById("rating_table");
-const table_rating = container_rating?.querySelector("table");
 
 function formatRatingNumbersInText() {
-    const items = Array.from(document.querySelectorAll("#rating_table .rating-item"));
-    items.forEach(item => {
-      const spans = Array.from(item.querySelectorAll("span"));
-      spans.forEach(span => {
-        const txt = (span.textContent || "").trim();
-
-        if (!txt.startsWith("עולים בתחנה:") && !txt.startsWith("יורדים בתחנה:")) return;
-
-        const parts = txt.split(":");
-        if (parts.length < 2) return;
-
-        const label = parts[0].trim();
-        const raw = parts.slice(1).join(":").trim().replace(/,/g, "");
-        const n = Number(raw);
-        if (!Number.isFinite(n)) return;
-
-        span.textContent = `${label}: ${n.toLocaleString("en-US")}`;
-      });
+    const valueSpans = Array.from(document.querySelectorAll("#rating_table .passenger-value"));
+    valueSpans.forEach(span => {
+      const raw = (span.textContent || "").trim().replace(/,/g, "");
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return;
+      span.textContent = n.toLocaleString("en-US");
     });
-  }
+}
 // endregion rating table
 
 // region matrix table
@@ -735,8 +748,9 @@ function renderMatrixBars(allBars, topN) {
   const visibleBars = expanded ? allBars : allBars.slice(0, topN);
   const maxVal = Math.max(1, ...allBars.map(x => x.value));
   const maxBarPx = 220;
+  const yAxisLabel = "מספר נוסעים חודשי";
 
-  matrixBarChart.innerHTML = visibleBars.map(b => {
+  const barsMarkup = visibleBars.map(b => {
     const barPx = Math.max(4, Math.round((b.value / maxVal) * maxBarPx));
     return `
       <div class="matrix-bar-row">
@@ -746,6 +760,13 @@ function renderMatrixBars(allBars, topN) {
       </div>
     `;
   }).join("");
+
+  matrixBarChart.innerHTML = `
+    <div class="matrix-y-axis">
+      <div class="matrix-y-axis-text">${yAxisLabel}</div>
+    </div>
+    ${barsMarkup}
+  `;
 
   if (matrixToggleBtn) {
     matrixToggleBtn.textContent = expanded ? "הצג פחות" : "הצג עוד";

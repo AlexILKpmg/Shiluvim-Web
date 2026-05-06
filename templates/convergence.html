@@ -65,6 +65,20 @@
               color: #5A4630;
         }
 
+        .back-link-wrap {
+            margin-top: 6px;
+            margin-bottom: 4px;
+            text-align: right;
+        }
+
+        .back-link {
+            color: #0077cc;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
         .table-scroll {
             max-height: 900px;
             overflow-y: auto;
@@ -216,7 +230,10 @@
 <body>
 <!-- region defining DOM elements -->
 <h2 id="stationTitle"></h2>
-<button id="openStationTrendBtn" type="button" aria-label="פתח גרף תחנה" title="פתח גרף תחנה">📈</button>
+<div class="back-link-wrap">
+    <a id="backToMainPageLink" class="back-link" href="{% url 'main_page' %}">חזרה לעמוד הראשי</a>
+</div>
+<button id="openStationTrendBtn" type="button" aria-label="גרף אחוזי סנכרון ברמת התחנה" title="גרף אחוזי סנכרון ברמת התחנה" style="cursor: pointer;" >📈</button>
 
 <div class="layout-row">
 
@@ -227,19 +244,19 @@
           <line x1="112" y1="30" x2="112" y2="1920" stroke="#3f3f3f" stroke-width="3"/>
           <line x1="128" y1="30" x2="128" y2="1920" stroke="#3f3f3f" stroke-width="3"/>
 
-          <text x="100" y="40"  font-size="12">05:00</text>
-          <text x="100" y="197" font-size="12">07:00</text>
-          <text x="100" y="354" font-size="12">09:00</text>
-          <text x="100" y="511" font-size="12">11:00</text>
-          <text x="100" y="668" font-size="12">13:00</text>
-          <text x="100" y="825" font-size="12">15:00</text>
-          <text x="100" y="982" font-size="12">17:00</text>
-          <text x="100" y="1139" font-size="12">19:00</text>
-          <text x="100" y="1296" font-size="12">21:00</text>
-          <text x="100" y="1453" font-size="12">23:00</text>
-          <text x="100" y="1610" font-size="12">01:00</text>
-          <text x="100" y="1767" font-size="12">03:00</text>
-          <text x="100" y="1924" font-size="12">05:00</text>
+          <text x="100" y="40"  font-size="12"  font-weight="700">05:00</text>
+          <text x="100" y="197" font-size="12"  font-weight="700">07:00</text>
+          <text x="100" y="354" font-size="12"  font-weight="700">09:00</text>
+          <text x="100" y="511" font-size="12"  font-weight="700">11:00</text>
+          <text x="100" y="668" font-size="12"  font-weight="700">13:00</text>
+          <text x="100" y="825" font-size="12"  font-weight="700">15:00</text>
+          <text x="100" y="982" font-size="12"  font-weight="700">17:00</text>
+          <text x="100" y="1139" font-size="12" font-weight="700">19:00</text>
+          <text x="100" y="1296" font-size="12" font-weight="700">21:00</text>
+          <text x="100" y="1453" font-size="12" font-weight="700">23:00</text>
+          <text x="100" y="1610" font-size="12" font-weight="700">01:00</text>
+          <text x="100" y="1767" font-size="12" font-weight="700">03:00</text>
+          <text x="100" y="1924" font-size="12" font-weight="700">05:00</text>
 
         </svg>
 
@@ -330,7 +347,6 @@ function timeToY(timeValue) {
 
     return topY + fraction * (bottomY - topY);}
 
-
 function toPercentNumber(v) {
     if (v === null || v === undefined) return null;
     const raw = String(v).trim();
@@ -339,7 +355,7 @@ function toPercentNumber(v) {
     // Support formats like "85", "85.2", "85%", "85,2%".
     const normalized = raw.replace("%", "").replace(",", ".");
     const n = Number(normalized);
-    return Number.isFinite(n) ? n : null;
+    return Number.isFinite(n) ? Math.round(n) : null;
 }
 
 function updateTitleFromState() {
@@ -417,6 +433,17 @@ const params = new URLSearchParams(window.location.search);
 const station = (params.get("station") || "").trim();
 const yearStr = params.get("year");
 const monthStr = params.get("month");
+
+function setBackLinkWithCurrentFilters() {
+    const link = document.getElementById("backToMainPageLink");
+    if (!link) return;
+    const baseUrl = link.getAttribute("href") || "";
+    const qp = new URLSearchParams();
+    if (station) qp.set("station", station);
+    if (yearStr) qp.set("year", yearStr);
+    if (monthStr) qp.set("month", monthStr);
+    link.href = qp.toString() ? `${baseUrl}?${qp.toString()}` : baseUrl;
+}
 
 const selectedYear = yearStr ? parseInt(yearStr, 10) : null;
 let activeYear = selectedYear
@@ -569,6 +596,15 @@ function populateWeekDropdown() {
 
     const weeks = Array.from(set).sort();
 
+    const weekOrder = ["יום חול", "שישי", "שבת"];
+    weeks.sort((a, b) => {
+        const ai = weekOrder.indexOf(a);
+        const bi = weekOrder.indexOf(b);
+        const ar = ai === -1 ? Number.MAX_SAFE_INTEGER : ai;
+        const br = bi === -1 ? Number.MAX_SAFE_INTEGER : bi;
+        return ar - br || a.localeCompare(b, "he");
+    });
+
     weeks.forEach(v => {
         const opt = document.createElement("option");
         opt.value = v;
@@ -673,7 +709,6 @@ resetBtn.parentNode.insertBefore(operatorSelect, weekSelect.nextSibling);
 
 // region percentage graph
 const KEY_ON_TIME_PERCENT_BY_TRAIN = "אחוז הנסיעות שעמדו בזמנים ברמת נסיעת הרכבת";
-
 const trendTitle = document.getElementById("trainTrendTitle");
 const trendModal = document.getElementById("trainTrendModal");
 const trendHost = document.getElementById("trainTrendChartHost");
@@ -685,6 +720,7 @@ function buildTrendKey(trainId, row) {
       if (!trainId || !normalizedTime || !dir) return null;
       return String(trainId).trim() + "||" + normalizedTime + "||" + dir;
   }
+
 
 function closeTrainTrendModal() {
     if (!trendModal) return;
@@ -799,7 +835,7 @@ function renderTrainTrendChart(series) {
         dot.setAttribute("r", "3.5");
         dot.setAttribute("fill", "#0b5fff");
         const title = document.createElementNS(ns, "title");
-        title.textContent = ymLabel + ": " + String(p.perc) + "%";
+        title.textContent = String(p.perc) + "%";
         dot.appendChild(title);
         svgEl.appendChild(dot);
 
@@ -1021,7 +1057,7 @@ function openStationTrendModal() {
 
     const rows = BUS_TO_RAIL_TREND_JSON;
 
-    trendTitle.textContent = "אחוזי סנכרון ברמת תחנה";
+    trendTitle.textContent = "אחוזי סנכרון עבור תחנת " + station;
     renderStationTrendChart(rows);
     trendModal.classList.add("open");
 }
@@ -1060,10 +1096,14 @@ function getMakatValue(row) {
 
 const KEY_DIRECTION = "כיוון";
 const KEY_ALTERNATIVE = "חלופה";
-const KEY_BUS_DEPARTURE_TIME = "זמן יציאה";
+const KEY_BUS_DEPARTURE_TIME = "שעת יציאה מתחנת המוצא";
 const KEY_AVG_PASSENGERS = "ממוצע נוסעים לנסיעה";
-const KEY_BUS_TIME_TO_STATION = "זמן הגעה לתחנה";
-const KEY_ARRIVAL_TIME_WINDOW = "טווח זמן ההגעה לתחנה";
+const KEY_BUS_TIME_TO_STATION = "שעת הגעה לתחנה (בממוצע)";
+const KEY_ARRIVAL_TIME_WINDOW = "סטיית תקן משעת ההגעה לתחנה";
+function getArrivalWindowInt(row) {
+    const n = Number(row[KEY_ARRIVAL_TIME_WINDOW]);
+    return Number.isFinite(n) ? Math.round(n) : null;
+}
 const KEY_MINUTES_GAP_B2R = "הפרש בדקות (מאוטובוס לרכבת)";
 const KEY_RECOMMENDED_MINUTES = "המלצה (דקות)";
 const KEY_ON_TIME_PERCENT = "אחוז הנסיעות שעמדו בזמנים";
@@ -1074,10 +1114,10 @@ const TABLE_FIELDS_BUS_TO_RAIL = [
   { key: KEY_MAKAT, label: 'מק"ט' },
   { key: KEY_DIRECTION, label: "כיוון" },
   { key: KEY_ALTERNATIVE, label: "חלופה" },
-  { key: KEY_BUS_DEPARTURE_TIME, label: "זמן יציאה" },
+  { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
   { key: KEY_AVG_PASSENGERS, label: "ממוצע נוסעים לנסיעה" },
-  { key: KEY_BUS_TIME_TO_STATION, label: "זמן הגעה לתחנה" },
-  { key: KEY_ARRIVAL_TIME_WINDOW, label: "טווח זמן ההגעה לתחנה" },
+  { key: KEY_BUS_TIME_TO_STATION, label: "שעת הגעה לתחנה (בממוצע)" },
+  { key: KEY_ARRIVAL_TIME_WINDOW,label: "סטיית תקן משעת ההגעה לתחנה"},
   { key: KEY_MINUTES_GAP_B2R, label: "הפרש בדקות (מאוטובוס לרכבת)" },
   { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
   { key: KEY_ON_TIME_PERCENT, label: "אחוז הנסיעות שעמדו בזמנים" },
@@ -1090,7 +1130,7 @@ const TABLE_FIELDS_RAIL_TO_BUS = [
   { key: KEY_MAKAT, label: 'מק"ט' },
   { key: KEY_DIRECTION, label: "כיוון" },
   { key: KEY_ALTERNATIVE, label: "חלופה" },
-  { key: KEY_BUS_DEPARTURE_TIME, label: "זמן יציאה" },
+  { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
   { key: KEY_AVG_PASSENGERS, label: "ממוצע נוסעים לנסיעה" },
   { key: KEY_MINUTES_GAP_R2B, label: "הפרש בדקות (מרכבת לאוטובוס)" },
   { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
@@ -1116,8 +1156,8 @@ function buildBusRowKey(row) {
   }
 
 function setActiveBusRow(rowOrNull) {
-  activeBusRowKey = rowOrNull ? buildBusRowKey(rowOrNull) : null;
-  renderBusTable();
+    activeBusRowKey = rowOrNull ? buildBusRowKey(rowOrNull) : null;
+    renderBusTable();
 }
 
 
@@ -1221,6 +1261,16 @@ function renderBusTable() {
       let v = "";
 
       v = r[f.key];
+      if (f.key === KEY_ARRIVAL_TIME_WINDOW) {
+        const intVal = getArrivalWindowInt(r);
+        v = (intVal === null) ? "—" : `${intVal} דק`;
+      }
+      if (f.key === KEY_ON_TIME_PERCENT) {
+        const rawPerc = String(v ?? "").trim();
+        const normalizedPerc = rawPerc.replace("%", "").replace(",", ".");
+        const percNum = Number(normalizedPerc);
+        v = Number.isFinite(percNum) ? `${Math.trunc(percNum)}%` : "—";
+      }
       if (v === null || v === undefined || String(v).trim() === "") {
         v = "—";
       } else {
@@ -1246,6 +1296,10 @@ function renderBusTable() {
         td.style.direction = "ltr";
         td.style.unicodeBidi = "plaintext";
       }
+      if (f.key === "הפרש בדקות (מאוטובוס לרכבת)") {
+        td.style.direction = "ltr";
+        td.style.unicodeBidi = "plaintext";
+      }
       tr.appendChild(td);
     });
 
@@ -1265,8 +1319,9 @@ function renderBusTable() {
 let activeTrainUid = null;
 
 const KEY_TRAIN_ID = "מספר הרכבת";
-const KEY_TRAIN_ARRIVAL_RISHUI = "זמן הגעת הרכבת לתחנה (רישוי)";
+const KEY_TRAIN_ARRIVAL_RISHUI = "שעת הגעת הרכבת לתחנה (רישוי)";
 const KEY_IS_GOLD_TRAIN = "רכבת זהב";
+const KEY_IS_EXPRESS_TRAIN = "סוג רכבת";
 const KEY_ASCENDING_AMOUNT = "מספר עולים";
 const KEY_DESCENDING_AMOUNT = "מספר יורדים";
 
@@ -1304,34 +1359,35 @@ function applyPercFilter() {
 function clearTrainOutlines() {
     const trains = svg.querySelectorAll(".train-item");
     trains.forEach(t => {
-        t.setAttribute("stroke", "none");
-        t.setAttribute("stroke-width", "0");
+        t.setAttribute("opacity", "0.5");
     });
 }
 
 function setActiveTrain(trainUid = null) {
-      activeTrainUid = trainUid ? String(trainUid) : null;
+    activeTrainUid = trainUid ? String(trainUid) : null;
 
-      applyBusFilter();
-      applyPercFilter();
+    applyBusFilter();
+    applyPercFilter();
 
-      clearTrainOutlines();
-      if (activeTrainUid) {
-          const selector = '.train-item[data-train-uid="' + activeTrainUid + '"]';
-          const selected = svg.querySelectorAll(selector);
-          selected.forEach(t => {
-              t.setAttribute("stroke", "#cc0000");
-              t.setAttribute("stroke-width", "1.5");
-          });
-      }
-      renderBusTable();
+    clearTrainOutlines();
+    if (activeTrainUid) {
+      const selector = '.train-item[data-train-uid="' + activeTrainUid + '"]';
+      const selected = svg.querySelectorAll(selector);
+      selected.forEach(t => {
+          t.setAttribute("opacity", "1");
+      });
+    }
+      // emoji visibility control
+    svg.querySelectorAll(".train-trend-emoji").forEach(el => {
+      const uid = String(el.getAttribute("data-train-uid") || "");
+      el.style.display = (activeTrainUid && uid === activeTrainUid) ? "" : "none";
+    });
+    renderBusTable();
 }
-
-
 
 function redrawTrains() {
     // deleting old traingles and percentages:
-    svg.querySelectorAll(".train-item, .perc-item").forEach(el => el.remove());
+    svg.querySelectorAll(".train-item, .perc-item, .express-item, .train-trend-emoji").forEach(el => el.remove());
     //
 
     // building a unique trainId||time (for later traingles creation)
@@ -1407,7 +1463,10 @@ function redrawTrains() {
                 percText.setAttribute("direction", "ltr");
                 percText.setAttribute("unicode-bidi", "plaintext");
 
-                percText.textContent = String(percStr);
+                const rawPerc = String(percStr).trim();
+                const normalizedPerc = rawPerc.replace("%", "").replace(",", ".");
+                const percNum = Number(normalizedPerc);
+                percText.textContent = Number.isFinite(percNum) ? `${Math.trunc(percNum)}%` : "";
 
                 const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
                 pTitle.textContent = "אחוז הנסיעות המסונכרנות";
@@ -1421,29 +1480,33 @@ function redrawTrains() {
         }
         //
 
+
         // train color and gold train creation
         const isGold = String(row[KEY_IS_GOLD_TRAIN] ?? "").trim() === "כן";
         const color = isGold ? "gold" : "black";
         //
 
-        // creating the triangles:
-        const tri = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                //creating the sqaures:
+        const tri = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         const size = 12;
 
         const x = 120 + xOffset;
         const yPos = y - size / 2;
 
-        const p1 = x + "," + yPos;
-        const p2 = (x - size / 2) + "," + (yPos + size);
-        const p3 = (x + size / 2) + "," + (yPos + size);
-
-        tri.setAttribute("points", p1 + " " + p2 + " " + p3);
+        tri.setAttribute("rx", "6");
+        tri.setAttribute("x", String(x - size / 2));
+        tri.setAttribute("y", String(yPos));
+        tri.setAttribute("width", String(size));
+        tri.setAttribute("height", String(size));
         tri.setAttribute("fill", color);
+        tri.setAttribute("opacity", "0.5");
         tri.classList.add("train-item");
         tri.setAttribute("data-train-uid", trainUid);
         //
 
-        // creating the hovering information on the traingles:
+
+
+        // creating the hovering information on the circles:
         const trainTimeStr = normalizedTime;
         let paxLabel = "";
         let paxValue = null;
@@ -1463,17 +1526,54 @@ function redrawTrains() {
         tri.appendChild(tTitle);
         //
 
-        // single-click to select (with red outline) a single train:
-          tri.addEventListener("click", (e) => {
-              e.stopPropagation();
-              const wasActive = (activeTrainUid === trainUid);
-              setActiveTrain(trainUid);
-              if (wasActive) {
-                  openTrainTrendModal(trainId, row);
-              }
-          });
-
         svg.appendChild(tri);
+        // create trend emoji (same logic/text you already use in renderStationTrendChart)
+        const trendEmoji = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        trendEmoji.textContent = "📈";
+        const trendTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        trendTitle.textContent = "גרף אחוזי סנכרון";
+        trendEmoji.appendChild(trendTitle);
+        trendEmoji.style.display = "none";
+        trendEmoji.setAttribute("x", String(x + size / 2 + 20)); // right side of train
+        trendEmoji.setAttribute("y", String(y + 4));
+        trendEmoji.setAttribute("font-size", "10");
+        trendEmoji.style.cursor = "pointer";
+        trendEmoji.classList.add("train-trend-emoji");
+        trendEmoji.setAttribute("data-train-uid", trainUid);
+
+        // open modal from emoji click (instead of from second train click)
+        trendEmoji.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openTrainTrendModal(trainId, row);
+        });
+
+        svg.appendChild(trendEmoji);
+
+        // single-click train only selects it
+        tri.addEventListener("click", (e) => {
+            e.stopPropagation();
+            setActiveTrain(trainUid);
+            svg.querySelectorAll(".train-trend-emoji").forEach(el => {
+            el.style.display = "none";
+        });
+            trendEmoji.style.display = "";
+        });
+        // train express
+        const isExpress = String(row[KEY_IS_EXPRESS_TRAIN] ?? "").trim() === "אקספרס";
+        if (isExpress) {
+          const expressText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          expressText.setAttribute("x", x);
+          expressText.setAttribute("y", yPos + size * 0.75); // visually centered in train
+          expressText.setAttribute("text-anchor", "middle");
+          expressText.setAttribute("font-size", "7");
+          expressText.setAttribute("font-weight", "700");
+          expressText.setAttribute("fill", "#FFFFFF"); // white
+          expressText.style.pointerEvents = "none"; // don't block train click
+          expressText.classList.add("express-item");
+          expressText.textContent = "E";
+          svg.appendChild(expressText);
+        }
+        //
     });
 
 }
@@ -1497,26 +1597,11 @@ function getConnectedTrainUidForBusRow(row) {
     return trainId + "||" + trainTime;
 }
 
-function parseDurationMinutes(durationValue) {
-    if (durationValue === null || durationValue === undefined) return null;
-    const s = String(durationValue).trim();
-    if (!s) return null;
-
-    const match = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (!match) return null;
-
-    const hh = parseInt(match[1], 10);
-    const mm = parseInt(match[2], 10);
-    const ss = match[3] !== undefined ? parseInt(match[3], 10) : 0;
-    if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return null;
-
-    return (hh * 60) + mm + (ss / 60);
-}
 
 function hasLargeArrivalWindow(row) {
     if (activeDirection === RAIL_TO_BUS_DIRECTION) return false;
-    const minutes = parseDurationMinutes(row[KEY_ARRIVAL_TIME_WINDOW]);
-    return minutes !== null && minutes >= 5;
+    const windowValue = getArrivalWindowInt(row);
+    return windowValue !== null && windowValue >= 5;
 }
 
 function updateBusHeaderSelectionVisuals() {
@@ -1740,12 +1825,6 @@ function redrawBuses() {
     const busColor = (onTime === 1) ? "#13ba34" : "#ed0c0c";
     dot.setAttribute("fill", busColor);
 
-    // Click => show only this row in the right-side table
-    dot.addEventListener("click", (e) => {
-      e.stopPropagation();
-      setActiveBusRow(row);
-    });
-
     dot.classList.add("bus-item");
     const connectedTrainUid = getConnectedTrainUidForBusRow(row);
     dot.setAttribute("data-train-uid", connectedTrainUid);
@@ -1754,14 +1833,14 @@ function redrawBuses() {
     dot.setAttribute("data-origin-cx", String(dotX));
     dot.setAttribute("data-origin-cy", String(y));
 
-    // double-click on the dot:
-    dot.addEventListener("dblclick", (e) => {
+    // Click => show only this row in the right-side table + select the train + activate override
+    dot.addEventListener("click", (e) => {
       e.stopPropagation();
+      setActiveBusRow(row);
       linkModeSourceRow = row;
       linkModeSourceBusKey = busKey;
       linkModeSourceDot = dot;
       isLinkDragging = false;
-      setActiveBusRow(row);
       linkModeConnectedTrainUid = getConnectedTrainUidForBusRow(row);
       setActiveTrain(linkModeConnectedTrainUid);
       applyLinkModeVisuals();
@@ -1779,9 +1858,13 @@ function redrawBuses() {
 
     // hoovering for bus label
     const bTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    const avgPassengersText = (row[KEY_AVG_PASSENGERS] === null || row[KEY_AVG_PASSENGERS] === undefined || String(row[KEY_AVG_PASSENGERS]).trim() === "")
+      ? "—"
+      : String(row[KEY_AVG_PASSENGERS]).trim();
     bTitle.textContent =
       "זמן: " + timeStr +
-      " | מק\"ט: " + (makat || "�");
+      " | מק\"ט: " + (makat || "—") +
+      " | ממוצע נוסעים לנסיעה: " + avgPassengersText;
 
     dot.appendChild(bTitle);
     svg.appendChild(dot);
@@ -1804,7 +1887,7 @@ function redrawBuses() {
       alert.setAttribute("data-bus-key", busKey);
 
       const aTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-      aTitle.textContent = "טווח הגעה לתחנה: " + String(row[KEY_ARRIVAL_TIME_WINDOW] ?? "");
+      aTitle.textContent = "סטיית תקן משעת ההגעה לתחנה: " + String(getArrivalWindowInt(row) ?? "") + " דק";
       alert.appendChild(aTitle);
       svg.appendChild(alert);
     }
@@ -1837,7 +1920,6 @@ function applyLinkModeVisuals() {
     const busEls = svg.querySelectorAll(".bus-item");
     if (!linkModeSourceBusKey) {
         busEls.forEach(el => { el.style.display = ""; });
-        clearTrainOutlines();
         return;
     }
 
@@ -1850,8 +1932,7 @@ function applyLinkModeVisuals() {
     if (linkModeConnectedTrainUid) {
         const tri = svg.querySelector('.train-item[data-train-uid="' + linkModeConnectedTrainUid + '"]');
         if (tri) {
-            tri.setAttribute("stroke", "#17a34a");
-            tri.setAttribute("stroke-width", "3");
+            tri.setAttribute("opacity", "1");
         }
     }
 }
@@ -1990,11 +2071,10 @@ refreshAllAfterFilterChange();
 populateYearDropdown();
 populateMonthDropdown();
 updateTitleFromState();
+setBackLinkWithCurrentFilters();
 
 
 // endregion finalizing
-
-
 
 
 </script>

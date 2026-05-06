@@ -1,13 +1,12 @@
 ﻿from django.shortcuts import render
-
 from train_times.models import TrainTime
-
+from train_stations_order.models import Ranking
 
 def _format_time(value):
     if value is None:
         return ""
     try:
-        return value.strftime("%H:%M:%S")
+        return value.strftime("%H:%M")
     except Exception:
         return str(value)
 
@@ -34,6 +33,7 @@ def train_times(request):
                 "month": month or "",
                 "arr_rows": [],
                 "dep_rows": [],
+                "station_order_by_train": {},
             },
         )
 
@@ -136,6 +136,28 @@ def train_times(request):
         )
     ]
 
+    train_numbers = {
+        row["Train_number"]
+        for row in (arr_rows + dep_rows)
+        if row.get("Train_number") is not None
+    }
+
+    station_order_by_train = {}
+    if train_numbers:
+        station_order_qs = (
+            Ranking.objects.filter(train_num__in=train_numbers)
+            .order_by("train_num", "train_station_order", "id")
+            .values("train_num", "train_station_name", "train_station_order")
+        )
+        for row in station_order_qs:
+            train_num = row["train_num"]
+            station_order_by_train.setdefault(train_num, []).append(
+                {
+                    "StationName": row["train_station_name"],
+                    "train_rishui_station_order_source": row["train_station_order"],
+                }
+            )
+
     context = {
         "debug_message": debug_message,
         "station": station or "",
@@ -146,6 +168,7 @@ def train_times(request):
         "month_options": month_options,
         "arr_rows": arr_rows,
         "dep_rows": dep_rows,
+        "station_order_by_train": station_order_by_train,
     }
     return render(request, "train_times.html", context)
 
@@ -166,3 +189,4 @@ def train_number(request):
             "month": month,
         },
     )
+
