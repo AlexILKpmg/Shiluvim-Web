@@ -8,7 +8,7 @@ from rating_table.models import Ranking
 
 
 def main_page(request):
-    station_name = request.GET.get("station_name", "").strip()
+    station_name = request.GET.get("station", "").strip()
 
     y = request.GET.get("year", "").strip()
     year = int(y) if y else None

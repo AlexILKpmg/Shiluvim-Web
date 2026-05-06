@@ -237,6 +237,19 @@
             font-weight: 400;
         }
 
+        /* closed control look */
+        .filter-container .filter-group select:hover,
+        .filter-container.convergence-filters .filter-group select:hover{
+            background: #f9d2b2;
+        }
+
+        /* keep opened dropdown options neutral */
+        .filter-container .filter-group select option,
+        .filter-container.convergence-filters .filter-group select option{
+            background: #fff;
+            color: #000;
+        }
+
         .filter-group select:focus{
             outline: none;
             border-color: #0077cc;
@@ -271,6 +284,13 @@
             align-items:center;
             font-size:14px;
             font-weight: 400;
+            border-radius: 6px;
+            padding: 2px 6px;
+            transition: background-color 120ms ease;
+        }
+
+        .checkbox-group label:hover{
+            background: #f9d2b2;
         }
 
         .checkbox-group input[type="checkbox"]{
@@ -491,7 +511,7 @@ function goToMainPageGet(selectedStation, selectedYearStr, selectedMonthStr) {
 
   const params = new URLSearchParams();
 
-  if (selectedStation) params.set("station_name", selectedStation);
+  if (selectedStation) params.set("station", selectedStation);
   if (selectedYearStr) params.set("year", selectedYearStr);
   if (selectedMonthStr) params.set("month", selectedMonthStr);
 
@@ -934,5 +954,3 @@ if (stationDropdown && yearDropdown && monthDropdown && busDirectionDropdown && 
 
 </body>
 </html>
-
-

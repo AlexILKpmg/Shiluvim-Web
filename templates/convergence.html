@@ -65,6 +65,27 @@
               color: #5A4630;
         }
 
+
+        /* header look (closed control only) */
+        .filter-select {
+          background: #fff;
+        }
+
+        .filter-select:hover {
+          background: #f9d2b2;
+        }
+
+        /* only for button press, not select dropdown values */
+        button.filter-select:active {
+            background: #f3ba8f;}
+
+
+        /* keep opened dropdown options neutral */
+        select.filter-select option {
+          background: #fff;
+          color: #000;
+        }
+
         .back-link-wrap {
             margin-top: 6px;
             margin-bottom: 4px;
@@ -370,16 +391,6 @@ function updateTitleFromState() {
         : ("סנכרון" + ymTxt);
 }
 
-document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-        exitLinkMode();
-        activeSignage = null;
-        activeBusRowKey = null;
-        updateBusHeaderSelectionVisuals();
-        applyBusFilter();
-        renderBusTable();
-    }
-});
 // endregion Helpers and General
 
 
@@ -684,25 +695,48 @@ operatorSelect.addEventListener("change", () => {
 
 
 // region reset button
+function clearMapAndTableFiltersOnly() {
+  exitLinkMode();
+  activeSignage = null;
+  activeBusRowKey = null;
+  setActiveTrain(null);
+  updateBusHeaderSelectionVisuals();
+  applyBusFilter();
+  renderBusTable();
+}
 
 const resetBtn = document.createElement("button");
-resetBtn.textContent = "איפוס סינון רכבות";
+resetBtn.textContent = "איפוס סינון";
 resetBtn.className = "filter-select";
-const h2 = document.querySelector("h2");
+
+
+resetBtn.addEventListener("click", () => {
+  clearMapAndTableFiltersOnly();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+      clearMapAndTableFiltersOnly();
+  }
+});
 const openStationTrendBtn = document.getElementById("openStationTrendBtn");
+const h2 = document.querySelector("h2");
 if (h2 && h2.parentNode) {
     const insertAfterNode = openStationTrendBtn || h2;
     h2.parentNode.insertBefore(resetBtn, insertAfterNode.nextSibling);
 }
-resetBtn.addEventListener("click", () => {
-    setActiveTrain(null);
-});
 
 resetBtn.parentNode.insertBefore(dirSelect, resetBtn.nextSibling);
 resetBtn.parentNode.insertBefore(yearSelect, dirSelect.nextSibling);
 resetBtn.parentNode.insertBefore(monthSelect, yearSelect.nextSibling);
 resetBtn.parentNode.insertBefore(weekSelect, monthSelect.nextSibling);
 resetBtn.parentNode.insertBefore(operatorSelect, weekSelect.nextSibling);
+
+
+
+
+
+
 
 // endregion reset button
 
@@ -1232,29 +1266,25 @@ function renderBusTable() {
   // Choose which rows to show
   const allRows = getFilteredTimes();
 
-  const trainFilteredRows = activeTrainUid
-    ? allRows.filter(r => {
-        const trainId = getTrainIdValue(r);
-        const normalizedTime = extractHHMM(r[KEY_TRAIN_ARRIVAL_RISHUI]);
-        if (!trainId || !normalizedTime) return false;
-        return (trainId + "||" + normalizedTime) === activeTrainUid;
-      })
-    : allRows;
+    // Read visible bus keys from map
+  const visibleBusKeys = new Set(
+    Array.from(svg.querySelectorAll(".bus-item"))
+      .filter(el => el.style.display !== "none")
+      .map(el => el.getAttribute("data-bus-key") || "")
+      .filter(Boolean)
+  );
 
-  const signageFilteredRows = activeSignage
-    ? trainFilteredRows.filter(r => getSignageValue(r) === activeSignage)
-    : trainFilteredRows;
+  // Table rows follow visible dots exactly
+  const rows = allRows.filter(r => visibleBusKeys.has(buildBusRowKey(r)));
 
-  const rows = activeBusRowKey
-    ? signageFilteredRows.filter(r => buildBusRowKey(r) === activeBusRowKey)
-    : signageFilteredRows;
 
   // Build body
   body.innerHTML = "";
 
   rows.forEach(r => {
     const tr = document.createElement("tr");
-
+    const rowBusKey = buildBusRowKey(r);
+    tr.setAttribute("data-bus-key", rowBusKey);
     tableFields.forEach(f => {
       const td = document.createElement("td");
 
@@ -1302,7 +1332,29 @@ function renderBusTable() {
       }
       tr.appendChild(td);
     });
+    tr.style.cursor = "pointer";
+    tr.addEventListener("click", (e) => {
+        e.stopPropagation();
 
+        const isSame = (activeBusRowKey === rowBusKey);
+
+        if (isSame) {
+          activeBusRowKey = null;
+          setActiveTrain(null); // clear train highlight/emoji
+        } else {
+          activeBusRowKey = rowBusKey;
+
+          // optional: row click should ignore signage filter
+          activeSignage = null;
+          updateBusHeaderSelectionVisuals();
+
+          const connectedTrainUid = getConnectedTrainUidForBusRow(r);
+          setActiveTrain(connectedTrainUid); // show related train
+        }
+
+        applyBusFilter();
+        renderBusTable();
+  });
     body.appendChild(tr);
   });
 
@@ -1338,15 +1390,25 @@ function getTrainIdValue(row) {
 }
 
 function applyBusFilter() {
-  const buses = svg.querySelectorAll(".bus-item");
-  buses.forEach(b => {
+    const buses = svg.querySelectorAll(".bus-item");
+
+    buses.forEach(b => {
       const uid = b.getAttribute("data-train-uid") || "";
       const signage = b.getAttribute("data-signage") || "";
-      const trainOk = (!activeTrainUid || uid === activeTrainUid);
-      const signageOk = (!activeSignage || signage === activeSignage);
-      b.style.display = (trainOk && signageOk) ? "" : "none";
-  });
-}
+      const busKey = b.getAttribute("data-bus-key") || "";
+
+      const visible =
+        activeTrainUid ? (uid === activeTrainUid) :
+        activeSignage ? (signage === activeSignage) :
+        true;
+
+      const busRowOk = (!activeBusRowKey || busKey === activeBusRowKey);
+
+      b.style.display = (visible && busRowOk) ? "" : "none";
+    });
+
+
+  }
 
 function applyPercFilter() {
   const percs = svg.querySelectorAll(".perc-item");
@@ -1365,6 +1427,9 @@ function clearTrainOutlines() {
 
 function setActiveTrain(trainUid = null) {
     activeTrainUid = trainUid ? String(trainUid) : null;
+
+    // train selection cancels signage selection
+    if (activeTrainUid) activeSignage = null;
 
     applyBusFilter();
     applyPercFilter();
@@ -1552,6 +1617,15 @@ function redrawTrains() {
         // single-click train only selects it
         tri.addEventListener("click", (e) => {
             e.stopPropagation();
+
+            // cancel previous bus-dot selection
+            activeBusRowKey = null;
+            linkModeSourceRow = null;
+            linkModeSourceBusKey = null;
+            linkModeSourceDot = null;
+            linkModeConnectedTrainUid = null;
+            isLinkDragging = false;
+
             setActiveTrain(trainUid);
             svg.querySelectorAll(".train-trend-emoji").forEach(el => {
             el.style.display = "none";
@@ -1756,6 +1830,15 @@ function redrawBuses() {
     const onHeaderClick = (e) => {
       e.stopPropagation();
       activeSignage = (activeSignage === signageValue) ? null : signageValue;
+      // signage selection cancels active train selection
+      if (activeSignage) {
+        activeTrainUid = null;
+        clearTrainOutlines();
+        applyPercFilter();
+        svg.querySelectorAll(".train-trend-emoji").forEach(el => {
+             el.style.display = "none";
+    });
+      }
       activeBusRowKey = null;
       updateBusHeaderSelectionVisuals();
       applyBusFilter();
@@ -1825,6 +1908,7 @@ function redrawBuses() {
     const busColor = (onTime === 1) ? "#13ba34" : "#ed0c0c";
     dot.setAttribute("fill", busColor);
 
+    // building the bus dots:
     dot.classList.add("bus-item");
     const connectedTrainUid = getConnectedTrainUidForBusRow(row);
     dot.setAttribute("data-train-uid", connectedTrainUid);
