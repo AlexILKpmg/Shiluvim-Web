@@ -3,7 +3,7 @@ from django.utils import timezone
 
 
 class ConvergenceBusToRail(models.Model):
-    year = models.IntegerField()
+    year = models.CharField(max_length=50)
     month = models.IntegerField()
     week_period = models.CharField(max_length=50)
     train_station_name = models.CharField(max_length=255)
@@ -13,6 +13,7 @@ class ConvergenceBusToRail(models.Model):
     signage = models.IntegerField()
     is_gold_train = models.CharField(max_length=10, blank=True)
     express_train = models.CharField(max_length=10, blank=True)
+    duration_from_current_station_to_hashalom = models.IntegerField(null=True, blank=True)
     is_bus_on_time = models.IntegerField(null=True, blank=True)
     rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
     train_ascending_amount = models.IntegerField(null=True, blank=True)
@@ -60,7 +61,7 @@ class ConvergenceBusToRail(models.Model):
 
 
 class ConvergenceRailToBus(models.Model):
-    year = models.IntegerField()
+    year = models.CharField(max_length=50)
     month = models.IntegerField()
     week_period = models.CharField(max_length=50)
     train_station_name = models.CharField(max_length=255)
@@ -69,6 +70,8 @@ class ConvergenceRailToBus(models.Model):
     train_number = models.IntegerField()
     signage = models.IntegerField()
     is_gold_train = models.CharField(max_length=10, blank=True)
+    express_train = models.CharField(max_length=10, blank=True)
+    duration_from_hashalom_to_current_station = models.IntegerField(null=True, blank=True)
     is_bus_on_time = models.IntegerField(null=True, blank=True)
     rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
     train_descending_amount = models.IntegerField(null=True, blank=True)
@@ -105,6 +108,19 @@ class ConvergenceRailToBus(models.Model):
             f"R2B {self.train_station_name} #{self.train_number} "
             f"({self.month}/{self.year}, {self.week_period})"
         )
+
+
+
+class RawBusData(models.Model):
+    year = models.CharField(max_length=50)
+    month = models.IntegerField()
+    week_period = models.CharField(max_length=50)
+    makat = models.IntegerField(null=True, blank=True)
+    direction = models.IntegerField(null=True, blank=True)
+    alternative = models.CharField(max_length=255, blank=True)
+    departure_time = models.CharField(max_length=32, blank=True)
+    bus_arrival_time_to_station = models.CharField(max_length=32, blank=True)
+    ride_counts = models.IntegerField(null=True, blank=True)
 
 
 

@@ -8,7 +8,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from convergence.models import ConvergenceBusToRail, ConvergenceRailToBus, OverrideConv
+from convergence.models import ConvergenceBusToRail, ConvergenceRailToBus, OverrideConv, RawBusData
 
 # region helpers
 def _format_percentage(value):
@@ -76,6 +76,7 @@ def _serialize_bus_to_rail(row):
         COL_FROM_TRAIN_NUMBER: row.train_number,
         COL_FROM_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         COL_LINK_DIRECTION: "bus_to_rail",
+        "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)": row.duration_from_current_station_to_hashalom,
         "מספר עולים": row.train_ascending_amount,
         "מפעיל": row.operator,
         'מק"ט': row.makat,
@@ -104,12 +105,14 @@ def _serialize_rail_to_bus(row):
         COL_TRAIN_ID: row.train_number,
         COL_SIGNAGE: row.signage,
         COL_GOLD_TRAIN: row.is_gold_train,
+        COL_EXPRESS_TRAIN: row.express_train,
         COL_BUS_ON_TIME: row.is_bus_on_time,
         COL_LICENSED_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         COL_TRAIN_STATION_CODE: row.train_station_code,
         COL_FROM_TRAIN_NUMBER: row.train_number,
         COL_FROM_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         COL_LINK_DIRECTION: "rail_to_bus",
+        "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)": row.duration_from_hashalom_to_current_station,
         "מספר יורדים": row.train_descending_amount,
         "מפעיל": row.operator,
         'מק"ט': row.makat,
@@ -294,6 +297,9 @@ def disable_override(request):
 
 # endregion override
 
+# region RawBusData
+
+# endregion RawBusData
 def convergence(request):
     station = (request.GET.get("station") or "").strip()
 

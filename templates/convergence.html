@@ -123,31 +123,38 @@
             direction: ltr;
         }
 
-        #busTableTopScrollInner {
+        #busTableTopScrollInner,
+        #simulationTableTopScrollInner {
             height: 1px;
         }
 
-        #busTable {
-            width: 100%;
+        #busTable,
+        #simulationTable {
+            width: max-content;
+            min-width: 100%;
+            table-layout: fixed;
             border-collapse: collapse;
             direction: rtl;
         }
 
-        #busTable th, #busTable td {
+        #busTable th, #busTable td,
+        #simulationTable th, #simulationTable td {
+            width: clamp(50px, 8vw, 100px);
+            min-width: clamp(50px, 8vw, 100px);
+            box-sizing: border-box;
             border: none;
             padding: 8px 12px;
             font-size: 12px;
             text-align: center;
+        }
+
+        #busTable td,
+        #simulationTable td {
             white-space: nowrap;
         }
 
-
-        #busTable th:first-child,
-        #busTable td:first-child {
-            padding-right: 22px;
-        }
-
-        #busTable th {
+        #busTable th,
+        #simulationTable th {
             position: sticky;
             top: 0;
             background: #0077cc;
@@ -155,24 +162,19 @@
             z-index: 2;
             font-weight: 700;
             font-size: 14px;
-            max-width: 10ch;
             white-space: normal;
-            overflow-wrap: normal;
-            word-break: normal;
-            hyphens: none;
+            overflow-wrap: anywhere;
+            word-break: break-word;
             line-height: 1.2;
+        }
+
+        #busTable th:first-child,
+        #busTable td:first-child {
+            padding-right: 22px;
         }
 
         #busTable tbody td {
             color: #0b3a66;
-        }
-
-        #busTable tbody tr:nth-child(even) {
-            background: #f7f7f7;
-        }
-
-        #busTable tbody tr:hover {
-            background: #dfefff;
         }
 
         #busTable a,
@@ -181,6 +183,44 @@
             text-decoration: underline;
             text-underline-offset: 2px;
             font-weight: 400;
+        }
+
+        #busTable th.train-highlight-col {
+            background: #0b5ea8;
+            color: #fff;
+        }
+
+        #busTable td.train-highlight-col {
+            background: #eaf4ff;
+            color: #0b3a66;
+        }
+
+        #simulationTable th.train-highlight-col {
+            background: #ffb36b;
+            color: #ffffff;
+        }
+
+        #simulationTable td.train-highlight-col {
+            background: #ffe8d1;
+            color: #0b3a66;
+        }
+
+        #simulationTable td.sim-warning-col {
+            background: #ffe1e1;
+            color: #7a1f1f;
+        }
+
+        #simulationTable th.sim-warning-col {
+            background: #f4a3a3;
+            color: #ffffff;
+        }
+
+        #busTable tbody tr:nth-child(even) {
+            background: #f7f7f7;
+        }
+
+        #busTable tbody tr:hover {
+            background: #dfefff;
         }
 
         #trainTrendModal {
@@ -310,6 +350,30 @@
           transform: translateY(0);
         }
 
+          /* third popup: simulation */
+        .manual-sync-popup.manual-sync-simulation {
+            left: 680px;              /* after history */
+            transform: translateY(-120%);
+            width: 220px;
+        }
+        /* keep same open animation behavior */
+        .manual-sync-simulation.open {
+              transform: translateY(0);
+              opacity: 1;
+        }
+
+        .manual-sync-popup.manual-sync-confirm {
+            left: 940px;
+            transform: translateY(-120%);
+            width: 220px;
+            border-color: #9ad7a1;
+            background: #f2fff4;
+        }
+
+        .manual-sync-confirm.open {
+            transform: translateY(0);
+            opacity: 1;
+        }
     </style>
 </head>
 <!-- endregion styling -->
@@ -365,6 +429,20 @@
                 <tbody id="busTableBody"></tbody>
             </table>
         </div>
+        <div id="simulationTableWrap" style="display:none; margin-top:14px;">
+            <h3>טבלת סימולציה</h3>
+            <div class="table-scroll-top" id="simulationTableTopScroll">
+                <div id="simulationTableTopScrollInner"></div>
+            </div>
+            <div id="simulationTableMainScroll" class="table-scroll">
+                <table id="simulationTable">
+                    <thead>
+                        <tr id="simulationTableHeaderRow"></tr>
+                    </thead>
+                    <tbody id="simulationTableBody"></tbody>
+                </table>
+            </div>
+        </div>
 
     </div>
 
@@ -377,6 +455,13 @@
 <div class="manual-sync-popup manual-sync-history">
     <p class="manual-sync-popup-text">היסטוריית הסנכרונים של הקו</p>
     <button class="manual-sync-popup-btn" type="button">הצג</button>
+</div>
+  <div class="manual-sync-popup manual-sync-simulation">
+      <p class="manual-sync-popup-text">להפעלת הסימולציה - לחץ כאן</p>
+      <button class="manual-sync-popup-btn manual-sync-simulation-btn" type="button">הפעל סימולציה</button>
+  </div>
+<div class="manual-sync-popup manual-sync-confirm">
+    <p class="manual-sync-popup-text">מצב סנכרון הופעל</p>
 </div>
 <div id="trainTrendModal" role="dialog" aria-modal="true" aria-labelledby="trainTrendTitle">
     <div class="modal-content">
@@ -469,13 +554,50 @@ function updateTitleFromState() {
 function closeManualSyncPopups() {
     const popup = document.querySelector(".manual-sync-popup");
     const historyPopup = document.querySelector(".manual-sync-history");
+    const simulationPopup = document.querySelector(".manual-sync-simulation");
     const confirmPopup = document.querySelector(".manual-sync-confirm");
     if (popup) popup.classList.remove("open");
     if (historyPopup) historyPopup.classList.remove("open");
+    if (simulationPopup) simulationPopup.classList.remove("open");
     if (confirmPopup) confirmPopup.classList.remove("open");
 }
 
+function hhmmToMinutes(v) {
+    const t = extractHHMM(v || "");
+    if (!t || !t.includes(":")) return null;
+    const [h, m] = t.split(":").map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+}
 
+// end - start in minutes, normalized across midnight
+function diffMinutes(startVal, endVal) {
+    const s = hhmmToMinutes(startVal);
+    const e = hhmmToMinutes(endVal);
+    if (s === null || e === null) return null;
+    let d = e - s;
+    if (d < -720) d += 1440;
+    if (d > 720) d -= 1440;
+    return d;
+}
+
+function getRecommendedMinutesFromGap(gapValue) {
+    const gap = Number(gapValue);
+    if (!Number.isFinite(gap)) return "";
+
+    // choose target in [+12, +8], quantized to 5
+    // nearest valid 5-step target is +10
+    const targetGap = 10;
+
+    // recommended delta to add to current gap to reach target
+    const rawDelta = targetGap - gap;
+
+    // round to nearest 5
+    const roundedDelta = Math.round(rawDelta / 5) * 5;
+
+    // return signed string (+5, -15, etc.)
+    return roundedDelta >= 0 ? `+${roundedDelta}` : `${roundedDelta}`;
+}
 // endregion Helpers and General
 
 
@@ -780,6 +902,7 @@ operatorSelect.addEventListener("change", () => {
 
 
 // region reset button
+//for ESC button:
 function clearMapAndTableFiltersOnly() {
     exitLinkMode();
     activeSignage = null;
@@ -790,6 +913,7 @@ function clearMapAndTableFiltersOnly() {
     updateBusHeaderSelectionVisuals();
     applyBusFilter();
     renderBusTable();
+    resetSimulationCapture();
 }
 
 const resetBtn = document.createElement("button");
@@ -1216,6 +1340,18 @@ function getMakatValue(row) {
     return String(raw).trim();
 }
 
+const KEY_TRAIN_ID = "מספר הרכבת";
+function getTrainIdValue(row) {
+    const raw = row[KEY_TRAIN_ID];
+    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
+    const n = Number(raw);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+    return String(raw).trim();
+}
+
+const KEY_TRAIN_ARRIVAL_RISHUI = "שעת הגעת הרכבת לתחנה (רישוי)";
+const KEY_ASCENDING_AMOUNT = "מספר עולים";
+const KEY_DESCENDING_AMOUNT = "מספר יורדים";
 const KEY_DIRECTION = "כיוון";
 const KEY_ALTERNATIVE = "חלופה";
 const KEY_BUS_DEPARTURE_TIME = "שעת יציאה מתחנת המוצא";
@@ -1230,41 +1366,84 @@ const KEY_MINUTES_GAP_B2R = "הפרש בדקות (מאוטובוס לרכבת)";
 const KEY_RECOMMENDED_MINUTES = "המלצה (דקות)";
 const KEY_ON_TIME_PERCENT = "אחוז הנסיעות שעמדו בזמנים";
 const KEY_IS_BUS_ON_TIME = "האם האוטובוס מגיע בזמן";
+const KEY_DURATION_FROM_HASHALOM = "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)";
 
 const TABLE_FIELDS_BUS_TO_RAIL = [
-  { key: KEY_OPERATOR, label: "מפעיל" },
-  { key: KEY_MAKAT, label: 'מק"ט' },
-  { key: KEY_DIRECTION, label: "כיוון" },
-  { key: KEY_ALTERNATIVE, label: "חלופה" },
-  { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
-  { key: KEY_AVG_PASSENGERS, label: "ממוצע נוסעים לנסיעה" },
-  { key: KEY_BUS_TIME_TO_STATION, label: "שעת הגעה לתחנה (בממוצע)" },
-  { key: KEY_ARRIVAL_TIME_WINDOW,label: "סטיית תקן משעת ההגעה לתחנה"},
-  { key: KEY_MINUTES_GAP_B2R, label: "הפרש בדקות (מאוטובוס לרכבת)" },
-  { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
-  { key: KEY_ON_TIME_PERCENT, label: "אחוז הנסיעות שעמדו בזמנים" },
+    { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
+    { key: KEY_TRAIN_ARRIVAL_RISHUI, label: "שעת הגעת הרכבת לתחנה (רישוי)" },
+    { key: KEY_DURATION_FROM_HASHALOM, label: "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)" },
+    { key: KEY_ASCENDING_AMOUNT, label: "מספר עולים לרכבת" },
+    { key: KEY_OPERATOR, label: "מפעיל" },
+    { key: KEY_MAKAT, label: 'מק"ט' },
+    { key: KEY_DIRECTION, label: "כיוון" },
+    { key: KEY_ALTERNATIVE, label: "חלופה" },
+    { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
+    { key: KEY_AVG_PASSENGERS, label: "ממוצע נוסעים לנסיעה" },
+    { key: KEY_BUS_TIME_TO_STATION, label: "שעת הגעה לתחנה (בממוצע)" },
+    { key: KEY_ARRIVAL_TIME_WINDOW,label: "סטיית תקן משעת ההגעה לתחנה"},
+    { key: KEY_MINUTES_GAP_B2R, label: "הפרש בדקות (מאוטובוס לרכבת)" },
+    { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
+    { key: KEY_ON_TIME_PERCENT, label: "אחוז הנסיעות שעמדו בזמנים" },
 ];
+
+const SIMULATION_TABLE_FIELDS_BUS_TO_RAIL = [
+    { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
+    { key: KEY_TRAIN_ARRIVAL_RISHUI, label: "שעת הגעת הרכבת לתחנה (רישוי)" },
+    { key: KEY_DURATION_FROM_HASHALOM, label: "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)" },
+    { key: KEY_ASCENDING_AMOUNT, label: "מספר עולים לרכבת" },
+    { key: KEY_MAKAT, label: 'מק"ט' },
+    { key: KEY_DIRECTION, label: "כיוון" },
+    { key: KEY_ALTERNATIVE, label: "חלופה" },
+    { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
+    { key: KEY_BUS_TIME_TO_STATION, label: "שעת הגעה לתחנה (בממוצע)" },
+    { key: KEY_MINUTES_GAP_B2R, label: "הפרש בדקות (מאוטובוס לרכבת)" },
+    { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
+];
+
 
 const KEY_MINUTES_GAP_R2B = "הפרש בדקות (מרכבת לאוטובוס)";
+const KEY_DURATION_TO_HASHALOM = "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)";
 
 const TABLE_FIELDS_RAIL_TO_BUS = [
-  { key: KEY_OPERATOR, label: "מפעיל" },
-  { key: KEY_MAKAT, label: 'מק"ט' },
-  { key: KEY_DIRECTION, label: "כיוון" },
-  { key: KEY_ALTERNATIVE, label: "חלופה" },
-  { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
-  { key: KEY_AVG_PASSENGERS, label: "ממוצע נוסעים לנסיעה" },
-  { key: KEY_MINUTES_GAP_R2B, label: "הפרש בדקות (מרכבת לאוטובוס)" },
-  { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
+    { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
+    { key: KEY_TRAIN_ARRIVAL_RISHUI, label: "שעת הגעת הרכבת לתחנה (רישוי)" },
+    { key: KEY_DURATION_TO_HASHALOM, label: "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)" },
+    { key: KEY_DESCENDING_AMOUNT, label: "מספר יורדים מהרכבת" },
+    { key: KEY_OPERATOR, label: "מפעיל" },
+    { key: KEY_MAKAT, label: 'מק"ט' },
+    { key: KEY_DIRECTION, label: "כיוון" },
+    { key: KEY_ALTERNATIVE, label: "חלופה" },
+    { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
+    { key: KEY_AVG_PASSENGERS, label: "ממוצע נוסעים לנסיעה" },
+    { key: KEY_MINUTES_GAP_R2B, label: "הפרש בדקות (מרכבת לאוטובוס)" },
+    { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
 ];
 
+const SIMULATION_TABLE_FIELDS_RAIL_TO_BUS = [
+    { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
+    { key: KEY_TRAIN_ARRIVAL_RISHUI, label: "שעת הגעת הרכבת לתחנה (רישוי)" },
+    { key: KEY_DURATION_TO_HASHALOM, label: "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)" },
+    { key: KEY_DESCENDING_AMOUNT, label: "מספר יורדים מהרכבת" },
+    { key: KEY_MAKAT, label: 'מק"ט' },
+    { key: KEY_DIRECTION, label: "כיוון" },
+    { key: KEY_ALTERNATIVE, label: "חלופה" },
+    { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
+    { key: KEY_MINUTES_GAP_R2B, label: "הפרש בדקות (מרכבת לאוטובוס)" },
+    { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
+];
 
 
 // Defines which fields appear in the table and in what order
 function getTableFields() {
-  return (activeDirection === BUS_TO_RAIL_DIRECTION)
-    ? TABLE_FIELDS_BUS_TO_RAIL
-    : TABLE_FIELDS_RAIL_TO_BUS;
+    return (activeDirection === BUS_TO_RAIL_DIRECTION)
+      ? {
+          main: TABLE_FIELDS_BUS_TO_RAIL,
+          simulation: SIMULATION_TABLE_FIELDS_BUS_TO_RAIL,
+        }
+      : {
+          main: TABLE_FIELDS_RAIL_TO_BUS,
+          simulation: SIMULATION_TABLE_FIELDS_RAIL_TO_BUS,
+        };
 }
 
 let activeBusRowKey = null;
@@ -1283,57 +1462,71 @@ function setActiveBusRow(rowOrNull) {
 }
 
 
-function updateTopTableScrollbar() {
-  const top = document.getElementById("busTableTopScroll");
-  const topInner = document.getElementById("busTableTopScrollInner");
-  const main = document.getElementById("busTableMainScroll");
-  const table = document.getElementById("busTable");
-  if (!top || !topInner || !main || !table) return;
+function updateTopTableScrollbar(ids = {
+    top: "busTableTopScroll",
+    topInner: "busTableTopScrollInner",
+    main: "busTableMainScroll",
+    table: "busTable",
+    }) {
+    const top = document.getElementById(ids.top);
+    const topInner = document.getElementById(ids.topInner);
+    const main = document.getElementById(ids.main);
+    const table = document.getElementById(ids.table);
+    if (!top || !topInner || !main || !table) return;
 
-  const width = table.scrollWidth;
-  topInner.style.width = width + "px";
-  top.style.display = width > main.clientWidth ? "block" : "none";
+    const width = table.scrollWidth;
+    topInner.style.width = width + "px";
+    top.style.display = width > main.clientWidth ? "block" : "none";
 }
 
-let tableScrollSyncBound = false;
+const tableScrollSyncBound = {};
 
-function bindTableScrollSync() {
-  if (tableScrollSyncBound) return;
+function bindTableScrollSync(ids = {
+    top: "busTableTopScroll",
+    main: "busTableMainScroll",
+    topInner: "busTableTopScrollInner",
+    table: "busTable",
+    }) {
+    const bindKey = ids.top + "|" + ids.main;
+    if (tableScrollSyncBound[bindKey]) return;
 
-  const top = document.getElementById("busTableTopScroll");
-  const main = document.getElementById("busTableMainScroll");
-  if (!top || !main) return;
+    const top = document.getElementById(ids.top);
+    const main = document.getElementById(ids.main);
+    if (!top || !main) return;
 
-  let syncingTop = false;
-  let syncingMain = false;
+    let syncingTop = false;
+    let syncingMain = false;
 
-  top.addEventListener("scroll", () => {
-    if (syncingMain) return;
-    syncingTop = true;
-    main.scrollLeft = top.scrollLeft;
-    syncingTop = false;
-  });
+    top.addEventListener("scroll", () => {
+      if (syncingMain) return;
+      syncingTop = true;
+      main.scrollLeft = top.scrollLeft;
+      syncingTop = false;
+    });
 
-  main.addEventListener("scroll", () => {
-    if (syncingTop) return;
-    syncingMain = true;
-    top.scrollLeft = main.scrollLeft;
-    syncingMain = false;
-  });
+    main.addEventListener("scroll", () => {
+      if (syncingTop) return;
+      syncingMain = true;
+      top.scrollLeft = main.scrollLeft;
+      syncingMain = false;
+    });
 
-  window.addEventListener("resize", updateTopTableScrollbar);
-  tableScrollSyncBound = true;
+    window.addEventListener("resize", () => updateTopTableScrollbar(ids));
+    tableScrollSyncBound[bindKey] = true;
 }
 
-function alignTableScrollToRight() {
-  const top = document.getElementById("busTableTopScroll");
-  const main = document.getElementById("busTableMainScroll");
-  if (!top || !main) return;
+function alignTableScrollToRight(ids = {
+    top: "busTableTopScroll",
+    main: "busTableMainScroll",
+  }) {
+    const top = document.getElementById(ids.top);
+    const main = document.getElementById(ids.main);
+    if (!top || !main) return;
 
-  const maxLeft = Math.max(0, main.scrollWidth - main.clientWidth);
-  main.scrollLeft = maxLeft;
-  top.scrollLeft = maxLeft;
-}
+    const maxLeft = Math.max(0, main.scrollWidth - main.clientWidth);
+    main.scrollLeft = maxLeft;
+    top.scrollLeft = maxLeft;
+  }
 
 function renderBusTable() {
   const headerRow = document.getElementById("busTableHeaderRow");
@@ -1341,13 +1534,15 @@ function renderBusTable() {
   if (!headerRow || !body) return;
 
 
-  const tableFields = getTableFields();
+  const tableFields = getTableFields().main;
 
   // Build header
   headerRow.innerHTML = "";
-  tableFields.forEach((f) => {
+  // header
+  tableFields.forEach((f, idx) => {
     const th = document.createElement("th");
     th.textContent = f.label;
+    if (idx < 4) th.classList.add("train-highlight-col");
     headerRow.appendChild(th);
   });
 
@@ -1373,8 +1568,9 @@ function renderBusTable() {
     const tr = document.createElement("tr");
     const rowBusKey = buildBusRowKey(r);
     tr.setAttribute("data-bus-key", rowBusKey);
-    tableFields.forEach(f => {
+    tableFields.forEach((f, idx) => {
       const td = document.createElement("td");
+      if (idx < 4) td.classList.add("train-highlight-col");
 
       let v = "";
 
@@ -1452,31 +1648,173 @@ function renderBusTable() {
   alignTableScrollToRight();
 }
 
+
+
+
 // endregion Bus Table
 
+
+// region simulation
+
+
+let simulationCaptureActive = false;
+const simulationRows = []; // rows shown in simulation table
+
+function renderSimulationBusTable() {
+    const headerRow = document.getElementById("simulationTableHeaderRow");
+    const body = document.getElementById("simulationTableBody");
+    const wrap = document.getElementById("simulationTableWrap");
+    if (!headerRow || !body || !wrap) return;
+
+    const tableFields = getTableFields().simulation;
+
+    // Header
+    headerRow.innerHTML = "";
+    tableFields.forEach((f, idx) => {
+        const th = document.createElement("th");
+        th.textContent = f.label;
+
+        if (idx < 4) {
+          th.classList.add("train-highlight-col");
+        }
+
+        if (
+          f.key === KEY_MINUTES_GAP_B2R ||
+          f.key === KEY_MINUTES_GAP_R2B ||
+          f.key === KEY_RECOMMENDED_MINUTES
+        ) {
+            th.classList.add("sim-warning-col");
+        }
+
+        headerRow.appendChild(th);
+    });
+
+    // Body from captured simulation rows only
+    const rows = simulationRows;
+    body.innerHTML = "";
+
+    rows.forEach((r) => {
+      const tr = document.createElement("tr");
+
+      tableFields.forEach((f, idx) => {
+        const td = document.createElement("td");
+        if (idx < 4) td.classList.add("train-highlight-col");
+        if (
+          f.key === KEY_MINUTES_GAP_B2R ||
+          f.key === KEY_MINUTES_GAP_R2B ||
+          f.key === KEY_RECOMMENDED_MINUTES
+        ) {
+            td.style.direction = "ltr";
+            td.style.unicodeBidi = "plaintext";
+        }
+
+        let v = r[f.key];
+
+        if (v === null || v === undefined || String(v).trim() === "") {
+          v = "—";
+        } else if (String(f.label).includes("שעת")) {
+          v = extractHHMM(v) || String(v).trim();
+        } else {
+          v = String(v).trim();
+        }
+
+        td.textContent = v;
+        tr.appendChild(td);
+      });
+
+      body.appendChild(tr);
+    });
+
+    wrap.style.display = "block";
+
+    const simIds = {
+      top: "simulationTableTopScroll",
+      topInner: "simulationTableTopScrollInner",
+      main: "simulationTableMainScroll",
+      table: "simulationTable",
+    };
+    bindTableScrollSync(simIds);
+    updateTopTableScrollbar(simIds);
+    alignTableScrollToRight(simIds);
+}
+
+const simulationCapturedTrainUids = new Set();
+
+function captureSimulationRowFromTrain(row, trainUid, triEl) {
+    if (!simulationCaptureActive) return false;
+    if (!simulationSourceBusRow) return false;
+
+    let simRow;
+    if (activeDirection === BUS_TO_RAIL_DIRECTION) {
+      const gap = diffMinutes(
+        simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
+        row[KEY_TRAIN_ARRIVAL_RISHUI]
+      );
+      simRow = {
+        [KEY_TRAIN_ID]: getTrainIdValue(row),
+        [KEY_TRAIN_ARRIVAL_RISHUI]: extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] || "") || String(row[KEY_TRAIN_ARRIVAL_RISHUI] || "").trim(),
+        [KEY_DURATION_FROM_HASHALOM]: row[KEY_DURATION_FROM_HASHALOM],
+        [KEY_ASCENDING_AMOUNT]: row[KEY_ASCENDING_AMOUNT],
+        [KEY_MAKAT]: getMakatValue(simulationSourceBusRow),
+        [KEY_DIRECTION]: simulationSourceBusRow[KEY_DIRECTION],
+        [KEY_ALTERNATIVE]: simulationSourceBusRow[KEY_ALTERNATIVE],
+        [KEY_BUS_DEPARTURE_TIME]: simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
+        [KEY_BUS_TIME_TO_STATION]: simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
+        [KEY_MINUTES_GAP_B2R]: gap,
+        [KEY_RECOMMENDED_MINUTES]: getRecommendedMinutesFromGap(gap),
+      };
+    } else {
+      const gap = diffMinutes(
+        row[KEY_TRAIN_ARRIVAL_RISHUI],
+        simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME]
+      );
+      simRow = {
+        [KEY_TRAIN_ID]: getTrainIdValue(row),
+        [KEY_TRAIN_ARRIVAL_RISHUI]: extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] || "") || String(row[KEY_TRAIN_ARRIVAL_RISHUI] || "").trim(),
+        [KEY_DURATION_TO_HASHALOM]: row[KEY_DURATION_TO_HASHALOM],
+        [KEY_DESCENDING_AMOUNT]: row[KEY_DESCENDING_AMOUNT],
+        [KEY_MAKAT]: getMakatValue(simulationSourceBusRow),
+        [KEY_DIRECTION]: simulationSourceBusRow[KEY_DIRECTION],
+        [KEY_ALTERNATIVE]: simulationSourceBusRow[KEY_ALTERNATIVE],
+        [KEY_BUS_DEPARTURE_TIME]: simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
+        [KEY_BUS_TIME_TO_STATION]: simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
+        [KEY_MINUTES_GAP_R2B]: gap,
+        [KEY_RECOMMENDED_MINUTES]: getRecommendedMinutesFromGap(gap),
+      };
+    }
+
+    simulationRows.push(simRow);
+    simulationCapturedTrainUids.add(trainUid);
+    triEl.setAttribute("fill", "#ff8c00");
+    triEl.setAttribute("opacity", "1");
+    renderSimulationBusTable();
+    return true;
+}
+
+
+function resetSimulationCapture() {
+    simulationCaptureActive = false;
+    simulationSourceBusRow = null;
+    simulationRows.length = 0;
+    simulationCapturedTrainUids.clear();
+    renderSimulationBusTable(); // empty table
+    redrawTrains(); // restores default train colors
+    const wrap = document.getElementById("simulationTableWrap");
+    if (wrap) wrap.style.display = "none";
+}
+
+// endregion simulation
 
 // region Map - Trains
 
 let activeTrainUid = null;
 
-const KEY_TRAIN_ID = "מספר הרכבת";
-const KEY_TRAIN_ARRIVAL_RISHUI = "שעת הגעת הרכבת לתחנה (רישוי)";
+
 const KEY_IS_GOLD_TRAIN = "רכבת זהב";
 const KEY_IS_EXPRESS_TRAIN = "סוג רכבת";
-const KEY_ASCENDING_AMOUNT = "מספר עולים";
-const KEY_DESCENDING_AMOUNT = "מספר יורדים";
-
 
 const svg = document.getElementById("arrowSVG");
 
-
-function getTrainIdValue(row) {
-    const raw = row[KEY_TRAIN_ID];
-    if (raw === null || raw === undefined || String(raw).trim() === "") return "";
-    const n = Number(raw);
-    if (Number.isFinite(n)) return String(Math.trunc(n));
-    return String(raw).trim();
-}
 
 function applyBusFilter() {
     const buses = svg.querySelectorAll(".bus-item");
@@ -1539,6 +1877,7 @@ function setActiveTrain(trainUid = null) {
     renderBusTable();
     updateBusHeaderSelectionVisuals();
 }
+
 
 function redrawTrains() {
     // deleting old traingles and percentages:
@@ -1709,6 +2048,15 @@ function redrawTrains() {
         tri.addEventListener("click", (e) => {
             e.stopPropagation();
 
+            if (simulationCaptureActive && e.ctrlKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                captureSimulationRowFromTrain(row, trainUid, tri);
+                return;
+            }
+
+            //cancek simulation effects:
+            resetSimulationCapture();
             // cancel previous bus-dot selection
             activeBusRowKey = null;
             linkModeSourceRow = null;
@@ -1762,7 +2110,6 @@ function getConnectedTrainUidForBusRow(row) {
     if (!trainId || !trainTime) return "";
     return trainId + "||" + trainTime;
 }
-
 
 function hasLargeArrivalWindow(row) {
     if (activeDirection === RAIL_TO_BUS_DIRECTION) return false;
@@ -1823,6 +2170,9 @@ function updateBusHeadersSticky() {
         }
     });
 }
+
+
+let simulationSourceBusRow = null;
 
 function redrawBuses() {
   //Removes previous bus dots, header text, and header backgrounds so you don’t duplicate them.
@@ -1968,6 +2318,7 @@ function redrawBuses() {
       applyBusFilter();
       renderBusTable();
       closeManualSyncPopups();
+      resetSimulationCapture();
     };
     header.addEventListener("click", onHeaderClick);
     bg.addEventListener("click", onHeaderClick);
@@ -2047,7 +2398,6 @@ function redrawBuses() {
     dot.setAttribute("data-origin-cy", String(y));
 
     // Click => show only this row in the right-side table + select the train + activate override + activate pop up
-
     dot.addEventListener("click", (e) => {
         e.stopPropagation();
 
@@ -2058,6 +2408,9 @@ function redrawBuses() {
         const trainUid = getConnectedTrainUidForBusRow(row);
         setActiveTrain(trainUid);
 
+        //simulation row activation
+        simulationSourceBusRow = row;
+
         // popup
         const popup = document.querySelector(".manual-sync-popup");
         const popupBtn = document.querySelector(".manual-sync-popup-btn");
@@ -2065,6 +2418,9 @@ function redrawBuses() {
 
         const historyPopup = document.querySelector(".manual-sync-history");
         if (historyPopup && !manualSyncPromptUsed) historyPopup.classList.add("open");
+
+        const simulationPopup = document.querySelector(".manual-sync-simulation");
+        if (simulationPopup && !manualSyncPromptUsed) simulationPopup.classList.add("open");
 
         if (popupBtn) {
             popupBtn.onclick = (ev) => {
@@ -2081,9 +2437,30 @@ function redrawBuses() {
             const confirmPopup = document.querySelector(".manual-sync-confirm");
             if (confirmPopup) {
                 confirmPopup.classList.add("open");
-                setTimeout(() => confirmPopup.classList.remove("open"), 1800);
+                setTimeout(() => confirmPopup.classList.remove("open"), 3000);
                 }
             };
+        }
+        const simulationBtn = document.querySelector(".manual-sync-simulation-btn");
+        if (simulationBtn) {
+          simulationBtn.onclick = (ev) => {
+            ev.stopPropagation();
+            simulationCaptureActive = true;
+            renderSimulationBusTable(); // builds header/body + shows wrap
+
+            const simIds = {
+              top: "simulationTableTopScroll",
+              topInner: "simulationTableTopScrollInner",
+              main: "simulationTableMainScroll",
+              table: "simulationTable",
+            };
+
+            bindTableScrollSync(simIds);
+            updateTopTableScrollbar(simIds);
+            alignTableScrollToRight(simIds);
+
+            closeManualSyncPopups();
+          };
         }
     });
 
@@ -2188,6 +2565,7 @@ function exitLinkMode() {
     isLinkDragging = false;
     linkModeConnectedTrainUid = null;
     applyLinkModeVisuals();
+    manualSyncPromptUsed = false;
 }
 
 async function saveDraggedOverride(sourceRow, targetRow) {
@@ -2220,7 +2598,10 @@ async function saveDraggedOverride(sourceRow, targetRow) {
     };
 
     const ok = window.confirm("מתבצעת התאמה לרכבת אחרת עבור אוטובוס זה , שינוי זה ישפיע על סנכרונים עתידיים, האם להמשיך?");
-    if (!ok) return;
+    if (!ok) {
+        exitLinkMode();
+        return;
+    }
 
     try {
         await postOverride("/convergence/override/save/", payload);

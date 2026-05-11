@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.utils import DatabaseError, ProgrammingError
 
-from convergence.models import ConvergenceBusToRail, ConvergenceRailToBus
+from convergence.models import ConvergenceBusToRail, ConvergenceRailToBus, RawBusData
 
 
 SHEET_BUS_TO_RAIL = "bus_to_rail"
@@ -34,6 +34,7 @@ COMMON_OPTIONAL = {
     "שילוט": "signage",
     "רכבת זהב": "is_gold_train",
     "האם האוטובוס מגיע בזמן": "is_bus_on_time",
+    "סוג רכבת": "express_train",
 }
 
 BUS_TO_RAIL_OPTIONAL = {
@@ -48,8 +49,7 @@ BUS_TO_RAIL_OPTIONAL = {
     "אחוז הנסיעות שעמדו בזמנים": "on_time_percentage",
     "אחוז הנסיעות שעמדו בזמנים ברמת נסיעת הרכבת": "on_time_percentage_by_train",
     "אחוז הנסיעות שעמדו בזמנים ברמת תחנת רכבת": "on_time_percentage_by_train_station",
-    "סוג רכבת": "express_train"
-
+    "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)": "duration_from_current_station_to_hashalom",
 }
 
 RAIL_TO_BUS_OPTIONAL = {
@@ -57,6 +57,7 @@ RAIL_TO_BUS_OPTIONAL = {
     "מספר יורדים": "train_descending_amount",
     "הפרש בדקות (מרכבת לאוטובוס)": "minutes_gap_rail_to_bus",
     "המלצה (דקות)": "recommended_minutes",
+    "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)": "duration_from_hashalom_to_current_station",
 }
 
 BUS_LOOKUP_FIELDS = (
@@ -85,7 +86,8 @@ RAIL_LOOKUP_FIELDS = (
 class Command(BaseCommand):
     help = (
         "Import convergence rows from XLSX files into convergence_convergencebustorail "
-        "and convergence_convergencerailtobus using upsert semantics."
+        "and convergence_convergencerailtobus using upsert semantics, and optionally "
+        "import RawBusData rows from CSV files."
     )
 
     def add_arguments(self, parser):
@@ -99,6 +101,17 @@ class Command(BaseCommand):
             "--dir",
             default="tables",
             help="Directory to scan for rail_bus_convergence_YYYY-MM.xlsx files.",
+        )
+        parser.add_argument(
+            "--raw-bus-file",
+            action="append",
+            default=[],
+            help="Path to a RawBusData CSV file. Can be passed multiple times.",
+        )
+        parser.add_argument(
+            "--raw-bus-dir",
+            default="tables",
+            help="Directory to scan for raw_bus_data_*.csv files.",
         )
         parser.add_argument(
             "--dry-run",
@@ -121,34 +134,56 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
         strict = options["strict"]
         batch_size = options["batch_size"]
+        explicit_xlsx_files = bool(options["file"])
+        explicit_raw_bus_files = bool(options["raw_bus_file"])
 
         if batch_size <= 0:
             raise CommandError("--batch-size must be a positive integer.")
 
-        files = self._resolve_files(options["file"], options["dir"])
-        if not files:
-            raise CommandError("No source files found. Use --file or provide a --dir with matching files.")
+        files = self._resolve_files(
+            options["file"],
+            options["dir"],
+            auto_scan=(not explicit_raw_bus_files or explicit_xlsx_files),
+        )
+        raw_bus_files = self._resolve_raw_bus_files(
+            options["raw_bus_file"],
+            options["raw_bus_dir"],
+            auto_scan=(not explicit_xlsx_files or explicit_raw_bus_files),
+        )
+        if not files and not raw_bus_files:
+            raise CommandError(
+                "No source files found. Use --file/--dir for XLSX and/or --raw-bus-file/--raw-bus-dir for CSV."
+            )
         self._ensure_tables_available()
 
         if strict and not dry_run:
             with transaction.atomic():
                 totals = self._process_files(files, dry_run=dry_run, strict=strict, batch_size=batch_size)
+                raw_totals = self._process_raw_bus_files(
+                    raw_bus_files, dry_run=dry_run, strict=strict, batch_size=batch_size
+                )
         else:
             totals = self._process_files(files, dry_run=dry_run, strict=strict, batch_size=batch_size)
+            raw_totals = self._process_raw_bus_files(
+                raw_bus_files, dry_run=dry_run, strict=strict, batch_size=batch_size
+            )
 
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS("Import completed."))
-        self.stdout.write(f"Files processed: {totals['files']}")
-        self.stdout.write(f"Rows processed: {totals['total_rows']}")
+        self.stdout.write(f"Convergence XLSX files processed: {totals['files']}")
+        self.stdout.write(f"Convergence rows processed: {totals['total_rows']}")
         self.stdout.write(f"Inserted: {totals['inserted']}")
         self.stdout.write(f"Updated: {totals['updated']}")
-        self.stdout.write(f"Invalid: {totals['invalid']}")
+        self.stdout.write(f"Invalid: {totals['invalid'] + raw_totals['invalid']}")
+        self.stdout.write(f"RawBusData CSV files processed: {raw_totals['files']}")
+        self.stdout.write(f"RawBusData rows processed: {raw_totals['total_rows']}")
+        self.stdout.write(f"RawBusData inserted: {raw_totals['inserted']}")
         self.stdout.write(f"Dry run: {'yes' if dry_run else 'no'}")
 
-        if strict and totals["invalid"] > 0:
+        if strict and (totals["invalid"] > 0 or raw_totals["invalid"] > 0):
             raise CommandError("Import failed in --strict mode due to invalid rows.")
 
-    def _resolve_files(self, file_args, scan_dir):
+    def _resolve_files(self, file_args, scan_dir, auto_scan=True):
         files = []
 
         for raw in file_args:
@@ -157,11 +192,28 @@ class Command(BaseCommand):
                 raise CommandError(f"Invalid --file path (must exist and be .xlsx): {p}")
             files.append(p)
 
-        if not file_args:
+        if not file_args and auto_scan:
             root = Path(scan_dir).expanduser()
             if not root.exists():
                 raise CommandError(f"Directory not found: {root}")
             files.extend(sorted(root.glob("rail_bus_convergence_*.xlsx")))
+
+        return sorted(set(files))
+
+    def _resolve_raw_bus_files(self, file_args, scan_dir, auto_scan=True):
+        files = []
+
+        for raw in file_args:
+            p = Path(raw).expanduser()
+            if not p.exists() or p.suffix.lower() != ".csv":
+                raise CommandError(f"Invalid --raw-bus-file path (must exist and be .csv): {p}")
+            files.append(p)
+
+        if not file_args and auto_scan:
+            root = Path(scan_dir).expanduser()
+            if not root.exists():
+                raise CommandError(f"Directory not found: {root}")
+            files.extend(sorted(root.glob("raw_bus_data_*.csv")))
 
         return sorted(set(files))
 
@@ -207,14 +259,81 @@ class Command(BaseCommand):
 
         return totals
 
+    def _process_raw_bus_files(self, files, dry_run, strict, batch_size):
+        totals = {"files": 0, "total_rows": 0, "inserted": 0, "invalid": 0}
+        if not files:
+            return totals
+
+        for source_path in files:
+            totals["files"] += 1
+            try:
+                df = pd.read_csv(source_path)
+            except Exception as exc:
+                msg = f"{source_path.name}: failed to read csv: {exc}"
+                if strict:
+                    raise CommandError(msg) from exc
+                self.stderr.write(self.style.WARNING(msg))
+                continue
+
+            rows = df.to_dict(orient="records")
+            for idx, row in enumerate(rows, start=2):
+                if self._is_empty_row(row):
+                    continue
+                totals["total_rows"] += 1
+                try:
+                    payload = self._normalize_raw_bus_row(row, source_path.name, idx)
+                    if not dry_run:
+                        RawBusData.objects.create(**payload)
+                    totals["inserted"] += 1
+                except CommandError as exc:
+                    totals["invalid"] += 1
+                    if strict:
+                        raise
+                    self.stderr.write(self.style.WARNING(str(exc)))
+
+                if totals["total_rows"] % batch_size == 0:
+                    self.stdout.write(
+                        f"Processed {totals['total_rows']} RawBusData rows "
+                        f"(inserted={totals['inserted']}, invalid={totals['invalid']})"
+                    )
+
+        return totals
+
     def _ensure_tables_available(self):
         try:
             ConvergenceBusToRail.objects.exists()
             ConvergenceRailToBus.objects.exists()
+            RawBusData.objects.exists()
         except (ProgrammingError, DatabaseError) as exc:
             raise CommandError(
                 "Convergence tables are not ready. Run: python manage.py migrate convergence"
             ) from exc
+
+    def _normalize_raw_bus_row(self, row, file_name, row_number):
+        def pick(*keys):
+            for key in keys:
+                if key in row:
+                    return row.get(key)
+            return None
+
+        payload = {
+            "year": self._to_int(pick("year", "Year", "שנה"), "year", file_name, "raw_bus_data", row_number),
+            "month": self._to_int(pick("month", "Month", "חודש"), "month", file_name, "raw_bus_data", row_number),
+            "week_period": self._require_text(
+                pick("week_period", "WeekPeriod", "תקופת שבוע"), "week_period", file_name, "raw_bus_data", row_number
+            ),
+            "makat": self._to_int_or_none(pick("makat", "OfficeLineID", 'מק"ט')),
+            "direction": self._to_int_or_none(pick("direction", "Direction", "כיוון")),
+            "alternative": self._clean_text(pick("alternative", "Alternative", "חלופה")),
+            "departure_time": self._clean_text(
+                pick("departure_time", "TripStartTime", "שעת יציאה מתחנת המוצא")
+            ),
+            "bus_arrival_time_to_station": self._clean_text(
+                pick("bus_arrival_time_to_station", "ArrivalTime", "שעת הגעה לתחנה (בממוצע)")
+            ),
+            "ride_counts": self._to_int_or_none(pick("ride_counts", "מספר נסיעות")),
+        }
+        return payload
 
     def _is_empty_row(self, row):
         for value in row.values():
@@ -276,6 +395,8 @@ class Command(BaseCommand):
             payload["on_time_percentage_by_train"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_train"))
             payload["on_time_percentage_by_train_station"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_train_station"))
             payload["express_train"] = self._clean_text(normalized.get("express_train"))
+            payload["duration_from_current_station_to_hashalom"] = self._to_int_or_none(normalized.get("duration_from_current_station_to_hashalom"))
+
 
 
         if "minutes_gap_rail_to_bus" in normalized:
@@ -283,6 +404,8 @@ class Command(BaseCommand):
             payload["train_descending_amount"] = self._to_int_or_none(normalized.get("train_descending_amount"))
             payload["minutes_gap_rail_to_bus"] = self._to_float_or_none(normalized.get("minutes_gap_rail_to_bus"))
             payload["recommended_minutes"] = self._to_int_or_none(normalized.get("recommended_minutes"))
+            payload["duration_from_hashalom_to_current_station"] = self._to_int_or_none( normalized.get("duration_from_hashalom_to_current_station"))
+            payload["express_train"] = self._clean_text(normalized.get("express_train"))
 
         return payload
 
