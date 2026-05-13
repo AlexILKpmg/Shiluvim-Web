@@ -33,13 +33,18 @@
         }
 
          /* rating information */
+        #rating_table {
+          position: relative;
+          top: -280px;;
+        }
+
         #rating_table .rating-row {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
           column-gap: 28px; /* space between items in same row */
           row-gap: 12px;
-          margin-top: 70px;
+          margin-top: 0;
         }
 
         #rating_table .rating-item {
@@ -47,7 +52,7 @@
           align-items: center;
           gap: 8px;
           white-space: nowrap;
-          margin-top: 70px;
+          margin-top: 0;
         }
 
         #rating_table .rating-dot {
@@ -131,7 +136,7 @@
         }
         /* Convergence table should sit close to the filters */
         #convergence_data_container table{
-          margin-top: 5px;   /* overrides the global 80px */
+          margin-top: 0x;   /* overrides the global 80px */
         }
 
         .filter-container.convergence-filters{
@@ -326,6 +331,101 @@
             font-weight: 600 !important;
             font-family: Arial, sans-serif !important;
         }
+
+
+        /* station horizontal perc graph */
+        #stationSyncChart {
+          width: 90%;
+          margin-top: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .sync-bar-row {
+          display: grid;
+          grid-template-columns: 180px 1fr 70px;
+          align-items: center;
+          gap: 10px;
+          padding: 3px 6px;
+        }
+        .sync-bar-row.sync-bar-row--active {
+          background: rgba(249, 210, 178, 0.70);
+          border-radius: 8px;
+        }
+        .sync-bar-row:hover {
+          background: rgba(249, 210, 178, 0.70);
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        .sync-bar-label {
+          font-size: 12px;
+          color: #0b3a66;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .sync-bar-track {
+          height: 20px;
+          background: #eef5ff;
+          border-radius: 6px;
+          overflow: hidden;
+        }
+
+        .sync-bar-fill {
+          height: 100%;
+          background: #0077cc;
+          border-radius: 6px 0 0 6px;
+          min-width: 4px;
+        }
+
+        .sync-bar-value {
+          font-size: 12px;
+          color: #0b3a66;
+          text-align: left;
+        }
+
+        .top-row-layout {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 24px;
+          margin-top: 24px;
+        }
+
+        .top-row-left {
+          width: 42%;
+          min-width: 340px;
+        }
+
+        .top-row-right {
+          width: 56%;
+        }
+
+        .main-filters-and-sync {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 24px;
+          margin-top: 24px;
+          direction: ltr;
+        }
+
+        .main-filters-and-sync .top-row-left {
+          #stationSyncHeadline {
+            text-align: center;
+            margin: 0 0 5px 0;
+          }
+          width: 42%;
+          min-width: 340px;
+        }
+
+        .main-filters-and-sync .filters-right {
+          width: 56%;
+          direction: rtl;
+        }
+
     </style>
   </head>
 <!-- endregion styling -->
@@ -346,27 +446,35 @@
   לוז רכבות
 </a>
 
-<div class="filter-container">
-
-  <div class="filter-group">
-    <label for="stationFilter">סינון לפי שם תחנת הרכבת:</label>
-    <select id="stationFilter"></select>
+<div class="main-filters-and-sync">
+  <div class="top-row-left">
+    <h3 id="stationSyncHeadline" style="margin:0 0 5px 0;"></h3>
+    <div id="stationSyncChart"></div>
   </div>
 
-  <div class="filter-group">
-    <label for="yearFilter">שנה:</label>
-    <select id="yearFilter"></select>
-  </div>
+  <div class="filters-right">
+    <div class="filter-container">
 
-  <div class="filter-group">
-    <label for="monthFilter">חודש:</label>
-    <select id="monthFilter"></select>
-  </div>
+      <div class="filter-group">
+        <label for="stationFilter">סינון לפי שם תחנת הרכבת:</label>
+        <select id="stationFilter"></select>
+      </div>
 
+      <div class="filter-group">
+        <label for="yearFilter">שנה:</label>
+        <select id="yearFilter"></select>
+      </div>
+
+      <div class="filter-group">
+        <label for="monthFilter">חודש:</label>
+        <select id="monthFilter"></select>
+      </div>
+
+    </div>
+  </div>
 </div>
 
 <div id="contentAfterMainFilters" style="display:none;">
-
   <div id="rating_table">
     <div class="rating-row">
       {% for row in df_ranking %}
@@ -388,9 +496,8 @@
       {% endfor %}
     </div>
   </div>
-
 <!-- Passenger transfers headline -->
-<h3 id="matrixHeadline" style="margin:80px 0 5px 0;">יעדי הנוסעים העולים מתחנה זו:</h3>
+<h3 id="matrixHeadline" style="margin:-200px 0 5px 0;">יעדי הנוסעים העולים מתחנה זו:</h3>
 
 <div id="matrix_table_container">
   <!-- Keep table as data source only -->
@@ -426,7 +533,7 @@
 
 <h3 id="convergenceHeadline" style="margin:80px 0 25px 0;">פירוט הקווים שעוברים בתחנה:</h3>
 
-<div class="filter-container convergence-filters" style="margin-top:5px; margin-bottom:10px;">
+<div class="filter-container convergence-filters" style="margin-top:5px; margin-bottom:0px;">
   <div class="filter-group">
     <label for="WeekDayFilter">סינון לפי תקופת שבוע:</label>
     <div id="WeekDayCheckboxes" class="checkbox-group"></div>
@@ -438,7 +545,7 @@
   </div>
 </div>
 
-<div id="convergence_data_container">
+<div id="convergence_data_container" style="margin-top:-50px;">
   <table>
     <thead>
       <tr>
@@ -493,10 +600,16 @@
 {{ station_options|json_script:"station-options-data" }}
 {{ bus_direction_options|json_script:"bus-direction-options-data" }}
 {{ week_period_options|json_script:"week-period-options-data" }}
+{{ convergence_station_data|json_script:"convergence-station-data" }}
 <script>
 
 // region helpers
 const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
+
+function toNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 // endregion helpers
 
 
@@ -504,7 +617,7 @@ const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
 const stationTitleSuffix = document.getElementById("stationTitleSuffix");
 
 function goToMainPageGet(selectedStation, selectedYearStr, selectedMonthStr) {
-  if (!selectedStation) {
+  if (!selectedStation && !selectedYearStr && !selectedMonthStr) {
     window.location.href = "/main_page/";
     return;
   }
@@ -644,6 +757,134 @@ monthDropdown.addEventListener("change", () => {
 });
 // endregion year/month filter
 
+//  region station sync's perc
+const convergenceStationData = JSON.parse(
+  document.getElementById("convergence-station-data").textContent
+);
+
+const stationSyncChart = document.getElementById("stationSyncChart");
+if (stationSyncChart) {
+  stationSyncChart.addEventListener("click", (e) => {
+    const row = e.target.closest(".sync-bar-row");
+    if (!row) return;
+
+    const station = norm(row.getAttribute("data-station"));
+    if (!station) return;
+
+    const ym = pickSelectedOrLatestYearMonth(convergenceStationData) || {};
+    goToMainPageGet(
+      station,
+      String(ym.year || yearDropdown?.value || ""),
+      String(ym.month || monthDropdown?.value || "")
+    );
+  });
+}
+
+function pickLatestYearMonthFromPairs(pairs) {
+  let best = null;
+  (pairs || []).forEach(({ year, month }) => {
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    if (!Number.isFinite(y) || !Number.isFinite(m)) return;
+    if (!best || y > best.year || (y === best.year && m > best.month)) {
+      best = { year: y, month: m };
+    }
+  });
+  return best;
+}
+
+
+function pickLatestYearMonth(rows) {
+  let best = null;
+  rows.forEach(r => {
+    const y = parseInt(r.year, 10);
+    const m = parseInt(r.month, 10);
+    if (!Number.isFinite(y) || !Number.isFinite(m)) return;
+    if (!best || y > best.year || (y === best.year && m > best.month)) {
+      best = { year: y, month: m };
+    }
+  });
+  return best;
+}
+
+function pickSelectedOrLatestYearMonth(rows) {
+    const y = parseInt(yearDropdown?.value, 10);
+    const m = parseInt(monthDropdown?.value, 10);
+
+    if (Number.isFinite(y) && Number.isFinite(m)) {
+      return { year: y, month: m };
+    }
+
+    const latestFromPairs = pickLatestYearMonthFromPairs(yearMonthPairs);
+    if (latestFromPairs) return latestFromPairs;
+
+    return pickLatestYearMonth(rows || []);
+  }
+
+function buildLatestStationSyncRows(rows) {
+  const latest = pickSelectedOrLatestYearMonth(rows || []);
+  if (!latest) return [];
+
+  const filtered = (rows || []).filter(r =>
+    parseInt(r.year, 10) === latest.year &&
+    parseInt(r.month, 10) === latest.month
+  );
+
+  const byStation = new Map();
+  filtered.forEach(r => {
+    const station = norm(r.train_station_name);
+    const pct = toNum(r.on_time_percentage_by_train_station);
+    if (!station || pct === null) return;
+
+    if (!byStation.has(station)) byStation.set(station, []);
+    byStation.get(station).push(pct);
+  });
+
+  const result = Array.from(byStation.entries()).map(([station, vals]) => {
+    return { station, value: vals[0] };
+  });
+
+  result.sort((a, b) => a.value - b.value); // lowest at top, highest at bottom
+  return result;
+}
+
+function renderStationSyncChart(rows) {
+  if (!stationSyncChart) return;
+
+  const stationSyncHeadline = document.getElementById("stationSyncHeadline");
+
+  const items = buildLatestStationSyncRows(rows);
+  const latest = pickSelectedOrLatestYearMonth(rows || []);
+  if (stationSyncHeadline && latest) {
+    const mm = String(latest.month).padStart(2, "0");
+    stationSyncHeadline.textContent = `אחוז סנכרון לפי תחנה (${latest.year}/${mm})`;
+  }
+  if (!items.length) {
+    stationSyncChart.innerHTML = "";
+    return;
+  }
+
+  const maxVal = 100;
+  const selectedStation = norm(stationDropdown?.value);
+  const html = items.map(item => {
+    const widthPct = Math.max(2, Math.round((item.value / maxVal) * 100));
+    const isActive = selectedStation && norm(item.station) === selectedStation;
+    return `
+      <div class="sync-bar-row${isActive ? " sync-bar-row--active" : ""}" data-station="${escapeHtml(item.station)}">
+        <div class="sync-bar-label" title="${escapeHtml(item.station)}">${escapeHtml(item.station)}</div>
+        <div class="sync-bar-track">
+          <div class="sync-bar-fill" style="width:${widthPct}%"></div>
+        </div>
+        <div class="sync-bar-value">${Math.round(item.value)}%</div>
+      </div>
+    `;
+  }).join("");
+
+  stationSyncChart.innerHTML = html;
+}
+
+
+//  endregion station sync's perc
 
 // region week period filter
 const WEEK_OPTIONS = ["יום חול", "שישי", "שבת"];
@@ -892,6 +1133,8 @@ if (stationDropdown && yearDropdown && monthDropdown && busDirectionDropdown && 
 
   monthDropdown.value = "{{ month|escapejs }}";
 
+  renderStationSyncChart(convergenceStationData); // related to the chart sync (i need to run it here..)
+
   // Matrix: sort columns by value (desc) + show only top 10 until expanded
   if (hasMainFiltersSelection()) {
    initMatrixBarChart(10, matrixToggleBtn);
@@ -939,12 +1182,21 @@ if (stationDropdown && yearDropdown && monthDropdown && busDirectionDropdown && 
 
   busDirectionDropdown.addEventListener("change", filterConvergenceTable);
   weekDayCheckboxContainer.addEventListener("change", filterConvergenceTable);
-  stationDropdown.addEventListener("change", updateMatrixVisibility);
-  yearDropdown.addEventListener("change", updateMatrixVisibility);
-  monthDropdown.addEventListener("change", updateMatrixVisibility);
-  stationDropdown.addEventListener("change", updateMainContentVisibility);
-  yearDropdown.addEventListener("change", updateMainContentVisibility);
-  monthDropdown.addEventListener("change", updateMainContentVisibility);
+  yearDropdown.addEventListener("change", () => {
+    updateMatrixVisibility();
+    renderStationSyncChart(convergenceStationData);
+    updateMainContentVisibility();
+  });
+  monthDropdown.addEventListener("change", () => {
+    updateMatrixVisibility();
+    renderStationSyncChart(convergenceStationData);
+    updateMainContentVisibility();
+  });
+  stationDropdown.addEventListener("change", () => {
+    updateMainContentVisibility();
+    renderStationSyncChart(convergenceStationData);
+  });
+
 
 }
 

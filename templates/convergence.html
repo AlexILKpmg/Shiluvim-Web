@@ -478,6 +478,7 @@
 {{ bus_to_rail_trend_df|json_script:"bus-to-rail-trend-data" }}
 {{ rail_to_bus_df|json_script:"rail-to-bus-data" }}
 {{ year_month_pairs|json_script:"year-month-pairs-data" }}
+{{ raw_bus_data_df|json_script:"raw-bus-data" }}
 
 <script>
 // region Helpers and General
@@ -561,43 +562,6 @@ function closeManualSyncPopups() {
     if (simulationPopup) simulationPopup.classList.remove("open");
     if (confirmPopup) confirmPopup.classList.remove("open");
 }
-
-function hhmmToMinutes(v) {
-    const t = extractHHMM(v || "");
-    if (!t || !t.includes(":")) return null;
-    const [h, m] = t.split(":").map(Number);
-    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-    return h * 60 + m;
-}
-
-// end - start in minutes, normalized across midnight
-function diffMinutes(startVal, endVal) {
-    const s = hhmmToMinutes(startVal);
-    const e = hhmmToMinutes(endVal);
-    if (s === null || e === null) return null;
-    let d = e - s;
-    if (d < -720) d += 1440;
-    if (d > 720) d -= 1440;
-    return d;
-}
-
-function getRecommendedMinutesFromGap(gapValue) {
-    const gap = Number(gapValue);
-    if (!Number.isFinite(gap)) return "";
-
-    // choose target in [+12, +8], quantized to 5
-    // nearest valid 5-step target is +10
-    const targetGap = 10;
-
-    // recommended delta to add to current gap to reach target
-    const rawDelta = targetGap - gap;
-
-    // round to nearest 5
-    const roundedDelta = Math.round(rawDelta / 5) * 5;
-
-    // return signed string (+5, -15, etc.)
-    return roundedDelta >= 0 ? `+${roundedDelta}` : `${roundedDelta}`;
-}
 // endregion Helpers and General
 
 
@@ -613,6 +577,7 @@ const RAIL_TO_BUS_JSON = JSON.parse(
 const BUS_TO_RAIL_TREND_JSON = JSON.parse(
     document.getElementById("bus-to-rail-trend-data").textContent
   );
+
 
 let stationTimes = [];
 
@@ -780,6 +745,7 @@ function refreshAllAfterFilterChange() {
     rebuildStationTimes();
     populateWeekDropdown();
     populateOperatorDropdown();
+    rebuildFilteredRawBusData();
 
     setActiveTrain(null);
     redrawTrains();
@@ -836,6 +802,7 @@ function populateWeekDropdown() {
 weekSelect.addEventListener("change", () => {
     exitLinkMode();
     activeWeek = weekSelect.value;
+    rebuildFilteredRawBusData();
     populateOperatorDropdown();
 
     activeBusRowKey = null;
@@ -1367,7 +1334,7 @@ const KEY_RECOMMENDED_MINUTES = "המלצה (דקות)";
 const KEY_ON_TIME_PERCENT = "אחוז הנסיעות שעמדו בזמנים";
 const KEY_IS_BUS_ON_TIME = "האם האוטובוס מגיע בזמן";
 const KEY_DURATION_FROM_HASHALOM = "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)";
-
+const PERC_ON_TIME = "אחוז הנסיעות שעמדו בזמנים (סימולציה)"; //from the Raw Bus Data json
 const TABLE_FIELDS_BUS_TO_RAIL = [
     { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
     { key: KEY_TRAIN_ARRIVAL_RISHUI, label: "שעת הגעת הרכבת לתחנה (רישוי)" },
@@ -1398,6 +1365,7 @@ const SIMULATION_TABLE_FIELDS_BUS_TO_RAIL = [
     { key: KEY_BUS_TIME_TO_STATION, label: "שעת הגעה לתחנה (בממוצע)" },
     { key: KEY_MINUTES_GAP_B2R, label: "הפרש בדקות (מאוטובוס לרכבת)" },
     { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
+    { key: PERC_ON_TIME, label: PERC_ON_TIME },
 ];
 
 
@@ -1647,14 +1615,166 @@ function renderBusTable() {
   updateTopTableScrollbar();
   alignTableScrollToRight();
 }
-
-
-
-
 // endregion Bus Table
 
 
 // region simulation
+
+// data for perc simulation columns:
+const RAW_BUS_DATA_JSON = JSON.parse(
+    document.getElementById("raw-bus-data").textContent
+  );
+
+const RAW_KEY_MAKAT = "makat";
+const RAW_KEY_DIRECTION = "direction";
+const RAW_KEY_ALTERNATIVE = "alternative";
+const RAW_KEY_DEPARTURE = "departure_time";
+const RAW_KEY_ARRIVAL_TIME = "bus_arrival_time_to_station";
+const RAW_KEY_RIDE_COUNTS = "ride_counts";
+
+
+let filteredRawBusData = [];
+
+function rebuildFilteredRawBusData() {
+    const week = String(activeWeek ?? "").trim();
+    const railDir = String(activeDirection ?? "").trim();
+
+    filteredRawBusData = RAW_BUS_DATA_JSON.filter((r) => {
+      const rowWeek = String(r.week_period ?? "").trim();
+      const rowRailDir = String(r.rail_direction ?? "").trim();
+
+      if (week && rowWeek !== week) return false;
+      if (railDir && rowRailDir && rowRailDir !== railDir) return false;
+
+      return true;
+    });
+}
+
+function hhmmssToMinutes(v) {
+  const raw = String(v ?? "").trim();
+
+  // Accepts:
+  // "08:37"
+  // "08:37:33"
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  const s = Number(match[3] ?? 0);
+
+  if (
+    !Number.isFinite(h) ||
+    !Number.isFinite(m) ||
+    !Number.isFinite(s)
+  ) {
+    return null;
+  }
+
+  return h * 60 + m + s / 60;
+}
+
+// end - start in minutes, normalized across midnight
+function diffMinutes(startVal, endVal) {
+    const s = hhmmssToMinutes(startVal);
+    const e = hhmmssToMinutes(endVal);
+    if (s === null || e === null) return null;
+    let d = e - s;
+    if (d < -720) d += 1440;
+    if (d > 720) d -= 1440;
+    return Math.round(d * 100) / 100;
+}
+
+function getRecommendedMinutesFromGap(gapValue) {
+    const gap = Number(gapValue);
+    if (!Number.isFinite(gap)) return "";
+
+    // If the gap is already between 8 and 15, do nothing
+    if (gap >= 8 && gap <= 15) {
+        return "—";
+    }
+
+    const targetGap = 15;
+
+    const rawDelta = targetGap - gap;
+
+    const roundedDelta = Math.round(rawDelta / 5) * 5;
+
+    const flippedDelta = -roundedDelta;
+
+    return flippedDelta >= 0 ? `+${flippedDelta}` : `${flippedDelta}`;
+}
+
+function getMatchedRawRowsForSimulationSource() {
+    if (!simulationSourceBusRow) return [];
+
+    const makat = String(getMakatValue(simulationSourceBusRow) ?? "").trim();
+    const dir = String(simulationSourceBusRow[KEY_DIRECTION] ?? "").trim();
+    const alt = String(simulationSourceBusRow[KEY_ALTERNATIVE] ?? "").trim();
+    const dep = extractHHMM(simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME] ?? "") ||
+      String(simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME] ?? "").trim();
+
+    return filteredRawBusData.filter((r) => {
+      const rMakat = String(r[RAW_KEY_MAKAT] ?? "").trim();
+      const rDir = String(r[RAW_KEY_DIRECTION] ?? "").trim();
+      const rAlt = String(r[RAW_KEY_ALTERNATIVE] ?? "").trim();
+      const rDep = extractHHMM(r[RAW_KEY_DEPARTURE] ?? "") || String(r[RAW_KEY_DEPARTURE] ?? "").trim();
+
+      const ok = (rMakat === makat && rDir === dir && rAlt === alt && rDep === dep);
+      return ok;
+    });
+}
+
+
+function calcSimulationOnTimePercent(trainArrivalRishui, rawRows) {
+    const groups = new Map();
+
+    rawRows.forEach((r) => {
+      const makat = String(r[RAW_KEY_MAKAT] ?? "").trim();
+      const direction = String(r[RAW_KEY_DIRECTION] ?? "").trim();
+      const alternative = String(r[RAW_KEY_ALTERNATIVE] ?? "").trim();
+      const departure = extractHHMM(r[RAW_KEY_DEPARTURE] ?? "") || String(r[RAW_KEY_DEPARTURE] ?? "").trim();
+
+      const groupKey = [makat, direction, alternative, departure].join("|");
+
+      const arr = String(r[RAW_KEY_ARRIVAL_TIME] ?? "").trim();
+      const rides = Number(r[RAW_KEY_RIDE_COUNTS]);
+      if (!Number.isFinite(rides) || rides <= 0) return;
+
+      const arrMin = hhmmssToMinutes(arr);
+      const trainMin = hhmmssToMinutes(trainArrivalRishui);
+      if (!Number.isFinite(arrMin) || !Number.isFinite(trainMin)) return;
+
+      const gap = trainMin - arrMin;
+      const isTrue = gap >= 8 && gap <= 15;
+
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          rides,      // counted once per group
+          goodCases: 0
+        });
+      }
+
+      if (isTrue) {
+        groups.get(groupKey).goodCases += 1;
+      }
+    });
+
+    let trueCount = 0;
+    let denominator = 0;
+
+    groups.forEach((group) => {
+      trueCount += group.goodCases;
+      denominator += group.rides;
+    });
+
+    if (denominator <= 0) return "";
+
+    const pct = (trueCount / denominator) * 100;
+    return `${pct.toFixed(1)}%`;
+}
+
+rebuildFilteredRawBusData(); //initial load
 
 
 let simulationCaptureActive = false;
@@ -1747,7 +1867,7 @@ function captureSimulationRowFromTrain(row, trainUid, triEl) {
     let simRow;
     if (activeDirection === BUS_TO_RAIL_DIRECTION) {
       const gap = diffMinutes(
-        simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
+        simulationSourceBusRow[KEY_BUS_TIME_TO_STATION], // train_arrival_rishui - bus_time_to_station
         row[KEY_TRAIN_ARRIVAL_RISHUI]
       );
       simRow = {
@@ -1763,6 +1883,11 @@ function captureSimulationRowFromTrain(row, trainUid, triEl) {
         [KEY_MINUTES_GAP_B2R]: gap,
         [KEY_RECOMMENDED_MINUTES]: getRecommendedMinutesFromGap(gap),
       };
+      const matchedRawRows = getMatchedRawRowsForSimulationSource();
+      simRow[PERC_ON_TIME] = calcSimulationOnTimePercent(
+        row[KEY_TRAIN_ARRIVAL_RISHUI],
+        matchedRawRows
+      );
     } else {
       const gap = diffMinutes(
         row[KEY_TRAIN_ARRIVAL_RISHUI],
@@ -1804,6 +1929,7 @@ function resetSimulationCapture() {
 }
 
 // endregion simulation
+
 
 // region Map - Trains
 
@@ -2055,7 +2181,7 @@ function redrawTrains() {
                 return;
             }
 
-            //cancek simulation effects:
+            //cancel simulation effects:
             resetSimulationCapture();
             // cancel previous bus-dot selection
             activeBusRowKey = null;
@@ -2066,10 +2192,8 @@ function redrawTrains() {
             isLinkDragging = false;
 
             setActiveTrain(trainUid);
-            svg.querySelectorAll(".train-trend-emoji").forEach(el => {
-            el.style.display = "none";
             closeManualSyncPopups();
-        });
+
             trendEmoji.style.display = "";
         });
         // train express

@@ -267,7 +267,13 @@ class Command(BaseCommand):
         for source_path in files:
             totals["files"] += 1
             try:
-                df = pd.read_csv(source_path)
+                try:
+                    df = pd.read_csv(source_path, encoding="utf-8-sig")
+                except UnicodeDecodeError:
+                    try:
+                        df = pd.read_csv(source_path, encoding="cp1255")
+                    except UnicodeDecodeError:
+                        df = pd.read_csv(source_path, encoding="iso-8859-8")
             except Exception as exc:
                 msg = f"{source_path.name}: failed to read csv: {exc}"
                 if strict:
@@ -321,6 +327,13 @@ class Command(BaseCommand):
             "month": self._to_int(pick("month", "Month", "חודש"), "month", file_name, "raw_bus_data", row_number),
             "week_period": self._require_text(
                 pick("week_period", "WeekPeriod", "תקופת שבוע"), "week_period", file_name, "raw_bus_data", row_number
+            ),
+            "train_station_name": self._require_text(
+                pick("train_station_name", "Train_Station_Name", "שם תחנת הרכבת"),
+                "train_station_name",
+                file_name,
+                "raw_bus_data",
+                row_number,
             ),
             "makat": self._to_int_or_none(pick("makat", "OfficeLineID", 'מק"ט')),
             "direction": self._to_int_or_none(pick("direction", "Direction", "כיוון")),

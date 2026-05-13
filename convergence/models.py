@@ -115,12 +115,14 @@ class RawBusData(models.Model):
     year = models.CharField(max_length=50)
     month = models.IntegerField()
     week_period = models.CharField(max_length=50)
+    train_station_name = models.CharField(max_length=255)
     makat = models.IntegerField(null=True, blank=True)
     direction = models.IntegerField(null=True, blank=True)
     alternative = models.CharField(max_length=255, blank=True)
     departure_time = models.CharField(max_length=32, blank=True)
     bus_arrival_time_to_station = models.CharField(max_length=32, blank=True)
     ride_counts = models.IntegerField(null=True, blank=True)
+    rail_direction = models.CharField(max_length=255)
 
 
 

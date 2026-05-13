@@ -298,8 +298,23 @@ def disable_override(request):
 # endregion override
 
 # region RawBusData
+def _serialize_raw_bus_data(row):
+    return {
+        "year": row.year,
+        "month": row.month,
+        "week_period": row.week_period,
+        "train_station_name": row.train_station_name,
+        "makat": row.makat,
+        "direction": row.direction,
+        "alternative": row.alternative,
+        "departure_time": row.departure_time,
+        "bus_arrival_time_to_station": row.bus_arrival_time_to_station,
+        "ride_counts": row.ride_counts,
+        "rail_direction": row.rail_direction,
+    }
 
 # endregion RawBusData
+
 def convergence(request):
     station = (request.GET.get("station") or "").strip()
 
@@ -321,16 +336,19 @@ def convergence(request):
                 "bus_to_rail_df": [],
                 "bus_to_rail_trend_df": [],
                 "rail_to_bus_df": [],
+                "raw_bus_data_df": [],
                 "year_month_pairs": [],
             },
         )
 
     bus_qs = ConvergenceBusToRail.objects.annotate(_station_trim=Trim("train_station_name")).filter(_station_trim=station)
     rail_qs = ConvergenceRailToBus.objects.annotate(_station_trim=Trim("train_station_name")).filter(_station_trim=station)
+    raw_qs = RawBusData.objects.annotate(_station_trim=Trim("train_station_name")).filter(_station_trim=station)
 
-    if not bus_qs.exists() and not rail_qs.exists():
+    if not bus_qs.exists() and not rail_qs.exists() and not raw_qs.exists():
         bus_qs = ConvergenceBusToRail.objects.filter(train_station_name__icontains=station)
         rail_qs = ConvergenceRailToBus.objects.filter(train_station_name__icontains=station)
+        raw_qs = RawBusData.objects.filter(train_station_name__icontains=station)
 
     bus_qs_for_trend = bus_qs
 
@@ -341,6 +359,12 @@ def convergence(request):
     for yv, mv in rail_qs.values_list("year", "month"):
         if yv is not None and mv is not None:
             year_month_pairs_set.add((int(yv), int(mv)))
+    for yv, mv in raw_qs.values_list("year", "month"):
+        if yv is not None and mv is not None:
+            try:
+                year_month_pairs_set.add((int(yv), int(mv)))
+            except (TypeError, ValueError):
+                pass
 
     year_month_pairs = [
         {"year": yv, "month": mv}
@@ -356,13 +380,16 @@ def convergence(request):
     if year is not None:
         bus_qs = bus_qs.filter(year=year)
         rail_qs = rail_qs.filter(year=year)
+        raw_qs = raw_qs.filter(year=str(year))
     if month is not None:
         bus_qs = bus_qs.filter(month=month)
         rail_qs = rail_qs.filter(month=month)
+        raw_qs = raw_qs.filter(month=month)
 
     bus_to_rail_trend_rows = [_serialize_bus_to_rail_trend(row) for row in bus_qs_for_trend]
     bus_to_rail_rows = [_serialize_bus_to_rail(row) for row in bus_qs]
     rail_to_bus_rows = [_serialize_rail_to_bus(row) for row in rail_qs]
+    raw_bus_data_rows = [_serialize_raw_bus_data(row) for row in raw_qs]
 
     effective_month = ""
     if year is not None and month is not None:
@@ -374,7 +401,7 @@ def convergence(request):
 
 
     debug_message = ""
-    if not bus_to_rail_rows and not rail_to_bus_rows:
+    if not bus_to_rail_rows and not rail_to_bus_rows and not raw_bus_data_rows:
         debug_message = f"no convergence rows found for station='{station}', year='{year}', month='{month}'"
 
     context = {
@@ -385,6 +412,7 @@ def convergence(request):
         "bus_to_rail_df": bus_to_rail_rows,
         "bus_to_rail_trend_df": bus_to_rail_trend_rows,
         "rail_to_bus_df": rail_to_bus_rows,
+        "raw_bus_data_df": raw_bus_data_rows,
         "year_month_pairs": year_month_pairs,
     }
     return render(request, "convergence.html", context)

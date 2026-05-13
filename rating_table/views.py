@@ -5,7 +5,7 @@ from django.shortcuts import render
 from bus_info_per_train_station_table.models import BusInfo
 from matrix_pass_table.models import PassengerMatrix
 from rating_table.models import Ranking
-
+from convergence.models import ConvergenceBusToRail
 
 def main_page(request):
     station_name = request.GET.get("station", "").strip()
@@ -15,6 +15,15 @@ def main_page(request):
 
     m = request.GET.get("month", "").strip()
     month = int(m) if m else None
+
+    convergence_station_data = list(
+        ConvergenceBusToRail.objects.values(
+            "year",
+            "month",
+            "train_station_name",
+            "on_time_percentage_by_train_station",
+        )
+    )
 
     has_full_filters = bool(station_name) and (year is not None) and (month is not None)
     if has_full_filters:
@@ -150,6 +159,7 @@ def main_page(request):
         "station_options": station_options,
         "bus_direction_options": bus_direction_options,
         "week_period_options": week_period_options,
+        "convergence_station_data": convergence_station_data,
     }
 
     return render(request, "main_page.html", context)
