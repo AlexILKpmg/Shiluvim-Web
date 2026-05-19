@@ -33,6 +33,7 @@ class ConvergenceBusToRail(models.Model):
     observations_count = models.IntegerField(null=True, blank=True)
     on_time_count = models.IntegerField(null=True, blank=True)
     on_time_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    on_time_percentage_by_makat = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     on_time_percentage_by_train = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     on_time_percentage_by_train_station = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 

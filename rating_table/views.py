@@ -7,6 +7,8 @@ from matrix_pass_table.models import PassengerMatrix
 from rating_table.models import Ranking
 from convergence.models import ConvergenceBusToRail
 
+
+
 def main_page(request):
     station_name = request.GET.get("station", "").strip()
 

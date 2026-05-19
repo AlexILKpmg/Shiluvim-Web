@@ -47,6 +47,7 @@ BUS_TO_RAIL_OPTIONAL = {
     "מספר תצפיות": "observations_count",
     "מספר הנסיעות שעמדו בזמנים": "on_time_count",
     "אחוז הנסיעות שעמדו בזמנים": "on_time_percentage",
+    "אחוז הנסיעות שעמדו בזמנים ברמת מקט": "on_time_percentage_by_makat",
     "אחוז הנסיעות שעמדו בזמנים ברמת נסיעת הרכבת": "on_time_percentage_by_train",
     "אחוז הנסיעות שעמדו בזמנים ברמת תחנת רכבת": "on_time_percentage_by_train_station",
     "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)": "duration_from_current_station_to_hashalom",
@@ -405,6 +406,7 @@ class Command(BaseCommand):
             payload["observations_count"] = self._to_int_or_none(normalized.get("observations_count"))
             payload["on_time_count"] = self._to_int_or_none(normalized.get("on_time_count"))
             payload["on_time_percentage"] = self._to_decimal_or_none(normalized.get("on_time_percentage"))
+            payload["on_time_percentage_by_makat"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_makat"))
             payload["on_time_percentage_by_train"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_train"))
             payload["on_time_percentage_by_train_station"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_train_station"))
             payload["express_train"] = self._clean_text(normalized.get("express_train"))

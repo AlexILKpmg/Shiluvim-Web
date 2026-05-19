@@ -1,0 +1,2 @@
+id,week_period,link_direction,makat,direction,alternative,departure_time,train_station_code,from_train_number,from_train_rishui_train_arrival_time,to_train_number,to_train_rishui_train_arrival_time,effective_month,change_reason,changed_by,changed_at,is_enabled,disabled_at,disabled_by,disable_reason
+1,"יום חול",bus_to_rail,20021,1,#,07:20,5800,232,07:39:00,234,08:08:00,2026-02,סזב,ailyaev,"2026-05-12 11:56:32.000000",1,NULL,ailyaev,
