@@ -1582,8 +1582,8 @@ function redrawTrains() {
 
                 percText.setAttribute("x", String(110 + xOffset));
                 percText.setAttribute("y", String(y));
-                percText.setAttribute("font-size", "12");
-                percText.setAttribute("fill", "#333");
+                percText.setAttribute("font-size", "10");
+                percText.setAttribute("fill", "#ffffff");
                 percText.setAttribute("text-anchor", "end");
                 percText.setAttribute("dominant-baseline", "middle");
 
@@ -1603,6 +1603,20 @@ function redrawTrains() {
                 percText.style.display = "none";
 
                 svg.appendChild(percText);
+                const bb = percText.getBBox();
+                const padX = 3;
+                const padY = 1;
+                const box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                box.setAttribute("x", String(bb.x - padX));
+                box.setAttribute("y", String(bb.y - padY));
+                box.setAttribute("width", String(bb.width + padX * 2));
+                box.setAttribute("height", String(bb.height + padY * 2));
+                box.setAttribute("rx", "2");
+                box.setAttribute("fill", "#0077cc");
+                box.classList.add("perc-item");
+                box.setAttribute("data-train-uid", trainUid);
+                box.style.display = "none";
+                svg.insertBefore(box, percText);
             }
         }
         //

@@ -3,14 +3,14 @@ from django.utils import timezone
 
 
 class ConvergenceBusToRail(models.Model):
-    year = models.CharField(max_length=50)
+    year = models.CharField(max_length=50, blank=True)
     month = models.IntegerField()
     week_period = models.CharField(max_length=50)
-    train_station_name = models.CharField(max_length=255)
+    train_station_name = models.CharField(max_length=255, blank=True)
     train_station_code = models.IntegerField(null=True, blank=True)
-    rail_direction = models.CharField(max_length=255)
-    train_number = models.IntegerField()
-    signage = models.IntegerField()
+    rail_direction = models.CharField(max_length=255, blank=True)
+    train_number = models.IntegerField(null=True, blank=True)
+    signage = models.IntegerField(null=True, blank=True)
     is_gold_train = models.CharField(max_length=10, blank=True)
     express_train = models.CharField(max_length=10, blank=True)
     duration_from_current_station_to_hashalom = models.IntegerField(null=True, blank=True)
@@ -18,7 +18,7 @@ class ConvergenceBusToRail(models.Model):
     rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
     train_ascending_amount = models.IntegerField(null=True, blank=True)
 
-    operator = models.CharField(max_length=255)
+    operator = models.CharField(max_length=255, blank=True)
     makat = models.IntegerField(null=True, blank=True)
     direction = models.IntegerField(null=True, blank=True)
     alternative = models.CharField(max_length=255, blank=True)
@@ -33,6 +33,7 @@ class ConvergenceBusToRail(models.Model):
     observations_count = models.IntegerField(null=True, blank=True)
     on_time_count = models.IntegerField(null=True, blank=True)
     on_time_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    on_time_percentage_by_makat = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     on_time_percentage_by_train = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     on_time_percentage_by_train_station = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
@@ -61,14 +62,14 @@ class ConvergenceBusToRail(models.Model):
 
 
 class ConvergenceRailToBus(models.Model):
-    year = models.CharField(max_length=50)
+    year = models.CharField(max_length=50, blank=True)
     month = models.IntegerField()
     week_period = models.CharField(max_length=50)
-    train_station_name = models.CharField(max_length=255)
+    train_station_name = models.CharField(max_length=255, blank=True)
     train_station_code = models.IntegerField(null=True, blank=True)
-    rail_direction = models.CharField(max_length=255)
-    train_number = models.IntegerField()
-    signage = models.IntegerField()
+    rail_direction = models.CharField(max_length=255, blank=True)
+    train_number = models.IntegerField(null=True, blank=True)
+    signage = models.IntegerField(null=True, blank=True)
     is_gold_train = models.CharField(max_length=10, blank=True)
     express_train = models.CharField(max_length=10, blank=True)
     duration_from_hashalom_to_current_station = models.IntegerField(null=True, blank=True)
@@ -76,7 +77,7 @@ class ConvergenceRailToBus(models.Model):
     rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
     train_descending_amount = models.IntegerField(null=True, blank=True)
 
-    operator = models.CharField(max_length=255)
+    operator = models.CharField(max_length=255, blank=True)
     makat = models.IntegerField(null=True, blank=True)
     direction = models.IntegerField(null=True, blank=True)
     alternative = models.CharField(max_length=255, blank=True)
@@ -112,7 +113,7 @@ class ConvergenceRailToBus(models.Model):
 
 
 class RawBusData(models.Model):
-    year = models.CharField(max_length=50)
+    year = models.CharField(max_length=50, blank=True)
     month = models.IntegerField()
     week_period = models.CharField(max_length=50)
     train_station_name = models.CharField(max_length=255)

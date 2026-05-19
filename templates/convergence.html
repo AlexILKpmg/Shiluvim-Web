@@ -34,7 +34,7 @@
             gap: 28px;
             align-items: flex-start;
             width: 100%;
-            margin-top: 16px;
+            margin-top: 50px;
         }
 
         .viz-wrap {
@@ -44,7 +44,7 @@
         .table-wrap {
             flex: 1 1 auto;
             min-width: 520px;
-            max-width: 980px;
+            max-width: 1200px;
             position: sticky;
             top: 8px;
             align-self: flex-start;
@@ -58,18 +58,13 @@
 
         .filter-select {
               margin: 10px 10px;
+              margin-top: 50px;
               padding: 4px;
               border-radius: 6px;
               cursor: pointer;
               background: #fff;
               border: 1px solid #999;
               color: #5A4630;
-        }
-
-
-        /* header look (closed control only) */
-        .filter-select {
-          background: #fff;
         }
 
         .filter-select:hover {
@@ -132,15 +127,15 @@
         #simulationTable {
             width: max-content;
             min-width: 100%;
-            table-layout: fixed;
+            table-layout: auto;;
             border-collapse: collapse;
             direction: rtl;
         }
 
         #busTable th, #busTable td,
         #simulationTable th, #simulationTable td {
-            width: clamp(50px, 8vw, 100px);
-            min-width: clamp(50px, 8vw, 100px);
+            width: auto;
+            min-width: 0;
             box-sizing: border-box;
             border: none;
             padding: 8px 12px;
@@ -163,8 +158,10 @@
             font-weight: 700;
             font-size: 14px;
             white-space: normal;
-            overflow-wrap: anywhere;
-            word-break: break-word;
+            min-width: max-content;
+            max-width: 110px;
+            overflow-wrap: normal;
+            word-break: normal;
             line-height: 1.2;
         }
 
@@ -396,18 +393,30 @@
           <line x1="112" y1="30" x2="112" y2="1920" stroke="#3f3f3f" stroke-width="3"/>
           <line x1="128" y1="30" x2="128" y2="1920" stroke="#3f3f3f" stroke-width="3"/>
 
-          <text x="100" y="40"  font-size="12"  font-weight="700">05:00</text>
-          <text x="100" y="197" font-size="12"  font-weight="700">07:00</text>
-          <text x="100" y="354" font-size="12"  font-weight="700">09:00</text>
-          <text x="100" y="511" font-size="12"  font-weight="700">11:00</text>
-          <text x="100" y="668" font-size="12"  font-weight="700">13:00</text>
-          <text x="100" y="825" font-size="12"  font-weight="700">15:00</text>
-          <text x="100" y="982" font-size="12"  font-weight="700">17:00</text>
+          <text x="100" y="40" font-size="12" font-weight="700">05:00</text>
+          <text x="100" y="118.5" font-size="12" font-weight="700">06:00</text>
+          <text x="100" y="197" font-size="12" font-weight="700">07:00</text>
+          <text x="100" y="275.5" font-size="12" font-weight="700">08:00</text>
+          <text x="100" y="354" font-size="12" font-weight="700">09:00</text>
+          <text x="100" y="432.5" font-size="12" font-weight="700">10:00</text>
+          <text x="100" y="511" font-size="12" font-weight="700">11:00</text>
+          <text x="100" y="589.5" font-size="12" font-weight="700">12:00</text>
+          <text x="100" y="668" font-size="12" font-weight="700">13:00</text>
+          <text x="100" y="746.5" font-size="12" font-weight="700">14:00</text>
+          <text x="100" y="825" font-size="12" font-weight="700">15:00</text>
+          <text x="100" y="903.5" font-size="12" font-weight="700">16:00</text>
+          <text x="100" y="982" font-size="12" font-weight="700">17:00</text>
+          <text x="100" y="1060.5" font-size="12" font-weight="700">18:00</text>
           <text x="100" y="1139" font-size="12" font-weight="700">19:00</text>
+          <text x="100" y="1217.5" font-size="12" font-weight="700">20:00</text>
           <text x="100" y="1296" font-size="12" font-weight="700">21:00</text>
+          <text x="100" y="1374.5" font-size="12" font-weight="700">22:00</text>
           <text x="100" y="1453" font-size="12" font-weight="700">23:00</text>
+          <text x="100" y="1531.5" font-size="12" font-weight="700">00:00</text>
           <text x="100" y="1610" font-size="12" font-weight="700">01:00</text>
+          <text x="100" y="1688.5" font-size="12" font-weight="700">02:00</text>
           <text x="100" y="1767" font-size="12" font-weight="700">03:00</text>
+          <text x="100" y="1845.5" font-size="12" font-weight="700">04:00</text>
           <text x="100" y="1924" font-size="12" font-weight="700">05:00</text>
 
         </svg>
@@ -447,6 +456,7 @@
     </div>
 
 </div>
+
 <div class="manual-sync-popup">
     <p class="manual-sync-popup-text">להפעלת הסנכרון הידני - לחץ כאן</p>
     <button class="manual-sync-popup-btn" type="button">הפעל</button>
@@ -875,7 +885,9 @@ function clearMapAndTableFiltersOnly() {
     activeSignage = null;
     activeBusRowKey = null;
     setActiveTrain(null);
-
+    svg.querySelectorAll(".makat-trend-emoji, .makat-header-perc-item").forEach(el => {
+        el.style.display = "none";
+    });
     closeManualSyncPopups();
     updateBusHeaderSelectionVisuals();
     applyBusFilter();
@@ -1281,8 +1293,188 @@ if (openStationTrendBtn) {
     });
 }
 
-
 // endregion percentage graph STATION LEVEL
+
+
+// region percentage graph MAKAT LEVEL
+const COL_PERC_BY_MAKAT = "אחוז הנסיעות שעמדו בזמנים ברמת מקט";
+const COL_PERC_BY_MAKAT_FOR_TREND = "אחוז הנסיעות שעמדו בזמנים ברמת מקט (עבור הטרנד דאטה)";
+
+function getMakatPercentFromFilteredTimes(signageValue) {
+    const target = String(signageValue ?? "").trim();
+    if (!target) return null;
+
+    for (const r of getFilteredTimes()) {
+        if (String(r[KEY_SIGNAGE] ?? "").trim() !== target) continue;
+        const p = toPercentNumber(r[COL_PERC_BY_MAKAT]);
+        if (p === null) continue;
+        return Math.max(0, Math.min(100, p)); // first valid value
+    }
+    return null;
+}
+
+function getMakatPercentTextFromFilteredTimes(signageValue) {
+    const p = getMakatPercentFromFilteredTimes(signageValue);
+    return (p === null) ? "—" : `${Math.trunc(p)}%`;
+}
+
+
+function renderMakatTrendChart(rows) {
+    if (!trendHost) return;
+    trendHost.innerHTML = "";
+
+    if (!Array.isArray(rows) || !rows.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "אין נתונים ברמת קו.";
+        trendHost.appendChild(empty);
+        return;
+    }
+
+    const byYm = new Map();
+    for (const r of rows) {
+        const y = parseInt(r[KEY_YEAR], 10);
+        const m = parseInt(r[KEY_MONTH], 10);
+        if (!Number.isFinite(y) || !Number.isFinite(m)) continue;
+        const p = toPercentNumber(r[COL_PERC_BY_MAKAT_FOR_TREND]);
+        if (p === null) continue;
+        const ymKey = `${y}-${String(m).padStart(2, "0")}`;
+        if (!byYm.has(ymKey)) {
+            byYm.set(ymKey, { year: y, month: m, perc: Math.max(0, Math.min(100, p)) });
+        }
+    }
+
+    const points = Array.from(byYm.values()).sort(
+        (a, b) => (a.year - b.year) || (a.month - b.month)
+    );
+
+    if (!points.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "אין נתונים";
+        trendHost.appendChild(empty);
+        return;
+    }
+
+    const ns = "http://www.w3.org/2000/svg";
+    const width = 780;
+    const height = 320;
+    const margin = { top: 20, right: 20, bottom: 58, left: 52 };
+    const plotW = width - margin.left - margin.right;
+    const plotH = height - margin.top - margin.bottom;
+
+    const svgEl = document.createElementNS(ns, "svg");
+    svgEl.setAttribute("width", "100%");
+    svgEl.setAttribute("viewBox", "0 0 " + width + " " + height);
+
+    const yMin = 0;
+    const yMax = 100;
+
+    function toY(v) {
+        const n = Number(v);
+        const clamped = Number.isFinite(n) ? Math.max(yMin, Math.min(yMax, n)) : yMin;
+        const t = (clamped - yMin) / (yMax - yMin);
+        return margin.top + (1 - t) * plotH;
+    }
+
+    const axisX = document.createElementNS(ns, "line");
+    axisX.setAttribute("x1", String(margin.left));
+    axisX.setAttribute("y1", String(margin.top + plotH));
+    axisX.setAttribute("x2", String(margin.left + plotW));
+    axisX.setAttribute("y2", String(margin.top + plotH));
+    axisX.setAttribute("stroke", "#444");
+    svgEl.appendChild(axisX);
+
+    const axisY = document.createElementNS(ns, "line");
+    axisY.setAttribute("x1", String(margin.left));
+    axisY.setAttribute("y1", String(margin.top));
+    axisY.setAttribute("x2", String(margin.left));
+    axisY.setAttribute("y2", String(margin.top + plotH));
+    axisY.setAttribute("stroke", "#444");
+    svgEl.appendChild(axisY);
+
+    [0, 25, 50, 75, 100].forEach(tick => {
+        const y = toY(tick);
+        const grid = document.createElementNS(ns, "line");
+        grid.setAttribute("x1", String(margin.left));
+        grid.setAttribute("y1", String(y));
+        grid.setAttribute("x2", String(margin.left + plotW));
+        grid.setAttribute("y2", String(y));
+        grid.setAttribute("stroke", "#e8e8e8");
+        svgEl.appendChild(grid);
+
+        const label = document.createElementNS(ns, "text");
+        label.textContent = tick + "%";
+        label.setAttribute("x", String(margin.left - 35));
+        label.setAttribute("y", String(y + 4));
+        label.setAttribute("text-anchor", "end");
+        label.setAttribute("font-size", "11");
+        label.setAttribute("fill", "#444");
+        svgEl.appendChild(label);
+    });
+
+    const xStep = points.length > 1 ? (plotW / (points.length - 1)) : 0;
+    function toX(i) {
+        return margin.left + (i * xStep);
+    }
+
+    let pathData = "";
+    points.forEach((p, i) => {
+        const x = toX(i);
+        const y = toY(p.perc);
+        pathData += (i === 0 ? "M" : " L") + x + " " + y;
+    });
+
+    const line = document.createElementNS(ns, "path");
+    line.setAttribute("d", pathData);
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", "#0b5fff");
+    line.setAttribute("stroke-width", "2");
+    svgEl.appendChild(line);
+
+    points.forEach((p, i) => {
+        const x = toX(i);
+        const y = toY(p.perc);
+        const monthNum = parseInt(p.month, 10);
+        const ymLabel = String(p.year) + "-" + String(monthNum).padStart(2, "0");
+
+        const dot = document.createElementNS(ns, "circle");
+        dot.setAttribute("cx", String(x));
+        dot.setAttribute("cy", String(y));
+        dot.setAttribute("r", "3.5");
+        dot.setAttribute("fill", "#0b5fff");
+        const title = document.createElementNS(ns, "title");
+        title.textContent = ymLabel + ": " + String(p.perc) + "%";
+        dot.appendChild(title);
+        svgEl.appendChild(dot);
+
+        const xLabel = document.createElementNS(ns, "text");
+        xLabel.textContent = ymLabel;
+        xLabel.setAttribute("x", String(x));
+        xLabel.setAttribute("y", String(margin.top + plotH + 20));
+        xLabel.setAttribute("text-anchor", "middle");
+        xLabel.setAttribute("font-size", "11");
+        xLabel.setAttribute("fill", "#333");
+        svgEl.appendChild(xLabel);
+    });
+
+    trendHost.appendChild(svgEl);
+}
+
+function openMakatTrendModal() {
+    if (!trendModal || !trendHost || !trendTitle) return;
+    if (!activeSignage) return; // no selected signage -> don't open
+
+    const signageValue = String(activeSignage).trim();
+    const rows = BUS_TO_RAIL_TREND_JSON.filter(
+      r => String(r[KEY_SIGNAGE] ?? "").trim() === signageValue
+    );
+
+    trendTitle.textContent = "אחוזי סנכרון עבור קו " + signageValue + " (כולל את כל תקופות השבוע)";
+    renderMakatTrendChart(rows);
+    trendModal.classList.add("open");
+}
+
+
+// endregion percentage graph MAKAT LEVEL
 
 
 // region Bus Table
@@ -1317,12 +1509,11 @@ function getTrainIdValue(row) {
 }
 
 const KEY_TRAIN_ARRIVAL_RISHUI = "שעת הגעת הרכבת לתחנה (רישוי)";
-const KEY_ASCENDING_AMOUNT = "מספר עולים";
-const KEY_DESCENDING_AMOUNT = "מספר יורדים";
+
 const KEY_DIRECTION = "כיוון";
 const KEY_ALTERNATIVE = "חלופה";
 const KEY_BUS_DEPARTURE_TIME = "שעת יציאה מתחנת המוצא";
-const KEY_AVG_PASSENGERS = "ממוצע נוסעים לנסיעה";
+
 const KEY_BUS_TIME_TO_STATION = "שעת הגעה לתחנה (בממוצע)";
 const KEY_ARRIVAL_TIME_WINDOW = "סטיית תקן משעת ההגעה לתחנה";
 function getArrivalWindowInt(row) {
@@ -1333,19 +1524,15 @@ const KEY_MINUTES_GAP_B2R = "הפרש בדקות (מאוטובוס לרכבת)";
 const KEY_RECOMMENDED_MINUTES = "המלצה (דקות)";
 const KEY_ON_TIME_PERCENT = "אחוז הנסיעות שעמדו בזמנים";
 const KEY_IS_BUS_ON_TIME = "האם האוטובוס מגיע בזמן";
-const KEY_DURATION_FROM_HASHALOM = "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)";
 const PERC_ON_TIME = "אחוז הנסיעות שעמדו בזמנים (סימולציה)"; //from the Raw Bus Data json
+
 const TABLE_FIELDS_BUS_TO_RAIL = [
     { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
     { key: KEY_TRAIN_ARRIVAL_RISHUI, label: "שעת הגעת הרכבת לתחנה (רישוי)" },
-    { key: KEY_DURATION_FROM_HASHALOM, label: "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)" },
-    { key: KEY_ASCENDING_AMOUNT, label: "מספר עולים לרכבת" },
-    { key: KEY_OPERATOR, label: "מפעיל" },
     { key: KEY_MAKAT, label: 'מק"ט' },
     { key: KEY_DIRECTION, label: "כיוון" },
     { key: KEY_ALTERNATIVE, label: "חלופה" },
     { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
-    { key: KEY_AVG_PASSENGERS, label: "ממוצע נוסעים לנסיעה" },
     { key: KEY_BUS_TIME_TO_STATION, label: "שעת הגעה לתחנה (בממוצע)" },
     { key: KEY_ARRIVAL_TIME_WINDOW,label: "סטיית תקן משעת ההגעה לתחנה"},
     { key: KEY_MINUTES_GAP_B2R, label: "הפרש בדקות (מאוטובוס לרכבת)" },
@@ -1356,8 +1543,6 @@ const TABLE_FIELDS_BUS_TO_RAIL = [
 const SIMULATION_TABLE_FIELDS_BUS_TO_RAIL = [
     { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
     { key: KEY_TRAIN_ARRIVAL_RISHUI, label: "שעת הגעת הרכבת לתחנה (רישוי)" },
-    { key: KEY_DURATION_FROM_HASHALOM, label: "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)" },
-    { key: KEY_ASCENDING_AMOUNT, label: "מספר עולים לרכבת" },
     { key: KEY_MAKAT, label: 'מק"ט' },
     { key: KEY_DIRECTION, label: "כיוון" },
     { key: KEY_ALTERNATIVE, label: "חלופה" },
@@ -1370,19 +1555,14 @@ const SIMULATION_TABLE_FIELDS_BUS_TO_RAIL = [
 
 
 const KEY_MINUTES_GAP_R2B = "הפרש בדקות (מרכבת לאוטובוס)";
-const KEY_DURATION_TO_HASHALOM = "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)";
 
 const TABLE_FIELDS_RAIL_TO_BUS = [
     { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
     { key: KEY_TRAIN_ARRIVAL_RISHUI, label: "שעת הגעת הרכבת לתחנה (רישוי)" },
-    { key: KEY_DURATION_TO_HASHALOM, label: "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)" },
-    { key: KEY_DESCENDING_AMOUNT, label: "מספר יורדים מהרכבת" },
-    { key: KEY_OPERATOR, label: "מפעיל" },
     { key: KEY_MAKAT, label: 'מק"ט' },
     { key: KEY_DIRECTION, label: "כיוון" },
     { key: KEY_ALTERNATIVE, label: "חלופה" },
     { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
-    { key: KEY_AVG_PASSENGERS, label: "ממוצע נוסעים לנסיעה" },
     { key: KEY_MINUTES_GAP_R2B, label: "הפרש בדקות (מרכבת לאוטובוס)" },
     { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
 ];
@@ -1390,8 +1570,6 @@ const TABLE_FIELDS_RAIL_TO_BUS = [
 const SIMULATION_TABLE_FIELDS_RAIL_TO_BUS = [
     { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
     { key: KEY_TRAIN_ARRIVAL_RISHUI, label: "שעת הגעת הרכבת לתחנה (רישוי)" },
-    { key: KEY_DURATION_TO_HASHALOM, label: "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)" },
-    { key: KEY_DESCENDING_AMOUNT, label: "מספר יורדים מהרכבת" },
     { key: KEY_MAKAT, label: 'מק"ט' },
     { key: KEY_DIRECTION, label: "כיוון" },
     { key: KEY_ALTERNATIVE, label: "חלופה" },
@@ -1510,7 +1688,7 @@ function renderBusTable() {
   tableFields.forEach((f, idx) => {
     const th = document.createElement("th");
     th.textContent = f.label;
-    if (idx < 4) th.classList.add("train-highlight-col");
+    if (idx < 2) th.classList.add("train-highlight-col");
     headerRow.appendChild(th);
   });
 
@@ -1538,7 +1716,7 @@ function renderBusTable() {
     tr.setAttribute("data-bus-key", rowBusKey);
     tableFields.forEach((f, idx) => {
       const td = document.createElement("td");
-      if (idx < 4) td.classList.add("train-highlight-col");
+      if (idx < 2) td.classList.add("train-highlight-col");
 
       let v = "";
 
@@ -1607,6 +1785,10 @@ function renderBusTable() {
         applyBusFilter();
         renderBusTable();
         closeManualSyncPopups();
+        //closing the imoji and perc above the header:
+        svg.querySelectorAll(".makat-trend-emoji").forEach(el => {
+            el.style.display = "none";
+        });
   });
     body.appendChild(tr);
   });
@@ -1689,20 +1871,24 @@ function getRecommendedMinutesFromGap(gapValue) {
     const gap = Number(gapValue);
     if (!Number.isFinite(gap)) return "";
 
-    // If the gap is already between 8 and 15, do nothing
-    if (gap >= 8 && gap <= 15) {
-        return "—";
+    const LowerLimit = 8;
+    const UpperLimit = 15;
+    const Step = 5;
+
+    // If gap is too small: recommend negative movement
+    if (gap < LowerLimit) {
+        const delta = Math.ceil((LowerLimit - gap) / Step) * Step * -1;
+        return `${delta}`;
     }
 
-    const targetGap = 15;
+    // If gap is too large: recommend positive movement
+    if (gap > UpperLimit) {
+        const delta = Math.ceil((gap - UpperLimit) / Step) * Step;
+        return `+${delta}`;
+    }
 
-    const rawDelta = targetGap - gap;
-
-    const roundedDelta = Math.round(rawDelta / 5) * 5;
-
-    const flippedDelta = -roundedDelta;
-
-    return flippedDelta >= 0 ? `+${flippedDelta}` : `${flippedDelta}`;
+    // If gap is between 8 and 15: no recommendation
+    return "—";
 }
 
 function getMatchedRawRowsForSimulationSource() {
@@ -1794,7 +1980,7 @@ function renderSimulationBusTable() {
         const th = document.createElement("th");
         th.textContent = f.label;
 
-        if (idx < 4) {
+        if (idx < 2) {
           th.classList.add("train-highlight-col");
         }
 
@@ -1818,7 +2004,7 @@ function renderSimulationBusTable() {
 
       tableFields.forEach((f, idx) => {
         const td = document.createElement("td");
-        if (idx < 4) td.classList.add("train-highlight-col");
+        if (idx < 2) td.classList.add("train-highlight-col");
         if (
           f.key === KEY_MINUTES_GAP_B2R ||
           f.key === KEY_MINUTES_GAP_R2B ||
@@ -1861,60 +2047,74 @@ function renderSimulationBusTable() {
 const simulationCapturedTrainUids = new Set();
 
 function captureSimulationRowFromTrain(row, trainUid, triEl) {
-    if (!simulationCaptureActive) return false;
-    if (!simulationSourceBusRow) return false;
+      if (!simulationCaptureActive) return false;
+      if (!simulationSourceBusRow) return false;
 
-    let simRow;
-    if (activeDirection === BUS_TO_RAIL_DIRECTION) {
-      const gap = diffMinutes(
-        simulationSourceBusRow[KEY_BUS_TIME_TO_STATION], // train_arrival_rishui - bus_time_to_station
-        row[KEY_TRAIN_ARRIVAL_RISHUI]
-      );
-      simRow = {
-        [KEY_TRAIN_ID]: getTrainIdValue(row),
-        [KEY_TRAIN_ARRIVAL_RISHUI]: extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] || "") || String(row[KEY_TRAIN_ARRIVAL_RISHUI] || "").trim(),
-        [KEY_DURATION_FROM_HASHALOM]: row[KEY_DURATION_FROM_HASHALOM],
-        [KEY_ASCENDING_AMOUNT]: row[KEY_ASCENDING_AMOUNT],
-        [KEY_MAKAT]: getMakatValue(simulationSourceBusRow),
-        [KEY_DIRECTION]: simulationSourceBusRow[KEY_DIRECTION],
-        [KEY_ALTERNATIVE]: simulationSourceBusRow[KEY_ALTERNATIVE],
-        [KEY_BUS_DEPARTURE_TIME]: simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
-        [KEY_BUS_TIME_TO_STATION]: simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
-        [KEY_MINUTES_GAP_B2R]: gap,
-        [KEY_RECOMMENDED_MINUTES]: getRecommendedMinutesFromGap(gap),
-      };
-      const matchedRawRows = getMatchedRawRowsForSimulationSource();
-      simRow[PERC_ON_TIME] = calcSimulationOnTimePercent(
-        row[KEY_TRAIN_ARRIVAL_RISHUI],
-        matchedRawRows
-      );
-    } else {
-      const gap = diffMinutes(
-        row[KEY_TRAIN_ARRIVAL_RISHUI],
-        simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME]
-      );
-      simRow = {
-        [KEY_TRAIN_ID]: getTrainIdValue(row),
-        [KEY_TRAIN_ARRIVAL_RISHUI]: extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] || "") || String(row[KEY_TRAIN_ARRIVAL_RISHUI] || "").trim(),
-        [KEY_DURATION_TO_HASHALOM]: row[KEY_DURATION_TO_HASHALOM],
-        [KEY_DESCENDING_AMOUNT]: row[KEY_DESCENDING_AMOUNT],
-        [KEY_MAKAT]: getMakatValue(simulationSourceBusRow),
-        [KEY_DIRECTION]: simulationSourceBusRow[KEY_DIRECTION],
-        [KEY_ALTERNATIVE]: simulationSourceBusRow[KEY_ALTERNATIVE],
-        [KEY_BUS_DEPARTURE_TIME]: simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
-        [KEY_BUS_TIME_TO_STATION]: simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
-        [KEY_MINUTES_GAP_R2B]: gap,
-        [KEY_RECOMMENDED_MINUTES]: getRecommendedMinutesFromGap(gap),
-      };
-    }
+      const uid = String(trainUid || "");
 
-    simulationRows.push(simRow);
-    simulationCapturedTrainUids.add(trainUid);
-    triEl.setAttribute("fill", "#ff8c00");
-    triEl.setAttribute("opacity", "1");
-    renderSimulationBusTable();
-    return true;
-}
+      // Ctrl+click on same train toggles it off (remove from table + unpaint)
+      if (simulationCapturedTrainUids.has(uid)) {
+        const idx = simulationRows.findIndex(r => String(r.__trainUid || "") === uid);
+        if (idx !== -1) simulationRows.splice(idx, 1);
+
+        simulationCapturedTrainUids.delete(uid);
+
+        const isGold = String(row[KEY_IS_GOLD_TRAIN] ?? "").trim() === "כן";
+        triEl.setAttribute("fill", isGold ? "gold" : "black");
+        triEl.setAttribute("opacity", (activeTrainUid && String(activeTrainUid) === uid) ? "1" : "0.5");
+
+        renderSimulationBusTable();
+        return true;
+      }
+
+      let simRow;
+      if (activeDirection === BUS_TO_RAIL_DIRECTION) {
+        const gap = diffMinutes(
+          simulationSourceBusRow[KEY_BUS_TIME_TO_STATION], // train_arrival_rishui - bus_time_to_station
+          row[KEY_TRAIN_ARRIVAL_RISHUI]
+        );
+        simRow = {
+          [KEY_TRAIN_ID]: getTrainIdValue(row),
+          [KEY_TRAIN_ARRIVAL_RISHUI]: extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] || "") || String(row[KEY_TRAIN_ARRIVAL_RISHUI] || "").trim(),
+          [KEY_MAKAT]: getMakatValue(simulationSourceBusRow),
+          [KEY_DIRECTION]: simulationSourceBusRow[KEY_DIRECTION],
+          [KEY_ALTERNATIVE]: simulationSourceBusRow[KEY_ALTERNATIVE],
+          [KEY_BUS_DEPARTURE_TIME]: simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
+          [KEY_BUS_TIME_TO_STATION]: simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
+          [KEY_MINUTES_GAP_B2R]: gap,
+          [KEY_RECOMMENDED_MINUTES]: getRecommendedMinutesFromGap(gap),
+        };
+        const matchedRawRows = getMatchedRawRowsForSimulationSource();
+        simRow[PERC_ON_TIME] = calcSimulationOnTimePercent(
+          row[KEY_TRAIN_ARRIVAL_RISHUI],
+          matchedRawRows
+        );
+      } else {
+        const gap = diffMinutes(
+          row[KEY_TRAIN_ARRIVAL_RISHUI],
+          simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME]
+        );
+        simRow = {
+          [KEY_TRAIN_ID]: getTrainIdValue(row),
+          [KEY_TRAIN_ARRIVAL_RISHUI]: extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] || "") || String(row[KEY_TRAIN_ARRIVAL_RISHUI] || "").trim(),
+          [KEY_MAKAT]: getMakatValue(simulationSourceBusRow),
+          [KEY_DIRECTION]: simulationSourceBusRow[KEY_DIRECTION],
+          [KEY_ALTERNATIVE]: simulationSourceBusRow[KEY_ALTERNATIVE],
+          [KEY_BUS_DEPARTURE_TIME]: simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
+          [KEY_BUS_TIME_TO_STATION]: simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
+          [KEY_MINUTES_GAP_R2B]: gap,
+          [KEY_RECOMMENDED_MINUTES]: getRecommendedMinutesFromGap(gap),
+        };
+      }
+
+      simRow.__trainUid = uid;
+      simulationRows.push(simRow);
+      simulationCapturedTrainUids.add(uid);
+      triEl.setAttribute("fill", "#ff8c00");
+      triEl.setAttribute("opacity", "1");
+      renderSimulationBusTable();
+      return true;
+  }
 
 
 function resetSimulationCapture() {
@@ -1938,6 +2138,10 @@ let activeTrainUid = null;
 
 const KEY_IS_GOLD_TRAIN = "רכבת זהב";
 const KEY_IS_EXPRESS_TRAIN = "סוג רכבת";
+const KEY_DURATION_FROM_HASHALOM = "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)";
+const KEY_DURATION_TO_HASHALOM = "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)";
+const KEY_ASCENDING_AMOUNT = "מספר עולים";
+const KEY_DESCENDING_AMOUNT = "מספר יורדים";
 
 const svg = document.getElementById("arrowSVG");
 
@@ -1983,6 +2187,11 @@ function setActiveTrain(trainUid = null) {
 
     // train selection cancels signage selection
     if (activeTrainUid) activeSignage = null;
+    if (activeTrainUid) {
+      svg.querySelectorAll(".makat-trend-emoji, .makat-header-perc-item").forEach(el => {
+          el.style.display = "none";
+      });
+    }
 
     applyBusFilter();
     applyPercFilter();
@@ -2003,7 +2212,6 @@ function setActiveTrain(trainUid = null) {
     renderBusTable();
     updateBusHeaderSelectionVisuals();
 }
-
 
 function redrawTrains() {
     // deleting old traingles and percentages:
@@ -2071,31 +2279,50 @@ function redrawTrains() {
         if (activeDirection === BUS_TO_RAIL_DIRECTION) {
             const percStr = row[KEY_ON_TIME_PERCENT_BY_TRAIN];
             if (percStr !== undefined && percStr !== null && String(percStr).trim() !== "") {
-                const percText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-
-                percText.setAttribute("x", String(110 + xOffset));
-                percText.setAttribute("y", String(y));
-                percText.setAttribute("font-size", "12");
-                percText.setAttribute("fill", "#333");
-                percText.setAttribute("text-anchor", "end");
-                percText.setAttribute("dominant-baseline", "middle");
-
-                percText.setAttribute("direction", "ltr");
-                percText.setAttribute("unicode-bidi", "plaintext");
-
                 const rawPerc = String(percStr).trim();
                 const normalizedPerc = rawPerc.replace("%", "").replace(",", ".");
                 const percNum = Number(normalizedPerc);
-                percText.textContent = Number.isFinite(percNum) ? `${Math.trunc(percNum)}%` : "";
+                const percValueText = Number.isFinite(percNum) ? `${Math.trunc(percNum)}%` : "";
 
-                const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-                pTitle.textContent = "אחוז הנסיעות המסונכרנות";
-                percText.appendChild(pTitle);
-                percText.classList.add("perc-item");
-                percText.setAttribute("data-train-uid", trainUid);
-                percText.style.display = "none";
+                if (percValueText) {
+                    const percText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    percText.setAttribute("x", String(102 + xOffset));
+                    percText.setAttribute("y", String(y));
+                    percText.setAttribute("font-size", "10");
+                    percText.setAttribute("fill", "#ffffff");
+                    percText.setAttribute("text-anchor", "end");
+                    percText.setAttribute("dominant-baseline", "middle");
+                    percText.setAttribute("direction", "ltr");
+                    percText.setAttribute("unicode-bidi", "plaintext");
+                    percText.textContent = percValueText;
 
-                svg.appendChild(percText);
+                    const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+                    pTitle.textContent = "אחוז הנסיעות המסונכרנות";
+                    percText.appendChild(pTitle);
+
+                    svg.appendChild(percText);
+                    const bb = percText.getBBox();
+
+                    const padX = 3;
+                    const padY = 1;
+                    const box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    box.setAttribute("x", String(bb.x - padX));
+                    box.setAttribute("y", String(bb.y - padY));
+                    box.setAttribute("width", String(bb.width + padX * 2));
+                    box.setAttribute("height", String(bb.height + padY * 2));
+                    box.setAttribute("rx", "2");
+                    box.setAttribute("fill", "#0077cc");
+
+                    box.classList.add("perc-item");
+                    box.setAttribute("data-train-uid", trainUid);
+                    box.style.display = "none";
+
+                    percText.classList.add("perc-item");
+                    percText.setAttribute("data-train-uid", trainUid);
+                    percText.style.display = "none";
+
+                    svg.insertBefore(box, percText);
+                }
             }
         }
         //
@@ -2106,7 +2333,7 @@ function redrawTrains() {
         const color = isGold ? "gold" : "black";
         //
 
-                //creating the sqaures:
+         //creating the trains:
         const tri = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         const size = 12;
 
@@ -2130,24 +2357,35 @@ function redrawTrains() {
         const trainTimeStr = normalizedTime;
         let paxLabel = "";
         let paxValue = null;
+        let trainRideDurationLabel = "";
+        let trainRideDurationValue = null;
         if (activeDirection === BUS_TO_RAIL_DIRECTION) {
-            paxLabel = KEY_ASCENDING_AMOUNT;
-            paxValue = row[KEY_ASCENDING_AMOUNT];
+          paxLabel = KEY_ASCENDING_AMOUNT;
+          paxValue = row[KEY_ASCENDING_AMOUNT];
+          trainRideDurationLabel = "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)";
+          trainRideDurationValue = row[KEY_DURATION_TO_HASHALOM];
         } else if (activeDirection === RAIL_TO_BUS_DIRECTION) {
-            paxLabel = KEY_DESCENDING_AMOUNT;
-            paxValue = row[KEY_DESCENDING_AMOUNT];
+          paxLabel = KEY_DESCENDING_AMOUNT;
+          paxValue = row[KEY_DESCENDING_AMOUNT];
+          trainRideDurationLabel = "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)";
+          trainRideDurationValue = row[KEY_DURATION_FROM_HASHALOM];
         }
         const paxText = (paxValue === null || paxValue === undefined || String(paxValue).trim() === "")
           ? "—"
           : String(paxValue).trim();
+        const trainRideDurationText = (trainRideDurationValue === null || trainRideDurationValue === undefined || String(trainRideDurationValue).trim()
+        === "")
+            ? "—"
+            : String(trainRideDurationValue).trim();
 
         const tTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-        tTitle.textContent = "זמן: " + trainTimeStr + " | רכבת: " + trainId + " | " + paxLabel + ": " + paxText;
+        tTitle.textContent = "זמן: " + trainTimeStr + " | רכבת: " + trainId + " | " + paxLabel + ": " + paxText +
+            " | " + trainRideDurationLabel + ": " + trainRideDurationText;
         tri.appendChild(tTitle);
         //
 
         svg.appendChild(tri);
-        // create trend emoji (same logic/text you already use in renderStationTrendChart)
+        // create trend emoji
         const trendEmoji = document.createElementNS("http://www.w3.org/2000/svg", "text");
         trendEmoji.textContent = "📈";
         const trendTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
@@ -2168,12 +2406,15 @@ function redrawTrains() {
             openTrainTrendModal(trainId, row);
         });
 
+        trendEmoji.style.display = "none";
         svg.appendChild(trendEmoji);
+
 
         // single-click train only selects it
         tri.addEventListener("click", (e) => {
             e.stopPropagation();
 
+            //adding row to simulation table by control + click:
             if (simulationCaptureActive && e.ctrlKey) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -2192,6 +2433,10 @@ function redrawTrains() {
             isLinkDragging = false;
 
             setActiveTrain(trainUid);
+            //closing the imohi and perc above the header:
+            svg.querySelectorAll(".makat-trend-emoji").forEach(el => {
+                el.style.display = "none";
+            });
             closeManualSyncPopups();
 
             trendEmoji.style.display = "";
@@ -2216,11 +2461,12 @@ function redrawTrains() {
 
 }
 
-
 // endregion Map - Trains
 
 
 // region Map - Bus
+
+const KEY_AVG_PASSENGERS = "ממוצע נוסעים לנסיעה";
 
 function getBusTimeByDirection(row) {
     return (activeDirection === BUS_TO_RAIL_DIRECTION)
@@ -2295,12 +2541,11 @@ function updateBusHeadersSticky() {
     });
 }
 
-
 let simulationSourceBusRow = null;
 
 function redrawBuses() {
   //Removes previous bus dots, header text, and header backgrounds so you don’t duplicate them.
-  svg.querySelectorAll(".bus-item, .bus-header, .bus-header-bg, .bus-header-title").forEach(el => el.remove());
+  svg.querySelectorAll(".bus-item, .bus-header, .bus-header-bg, .bus-header-title,  .makat-trend-emoji").forEach(el => el.remove());
   //
 
   // when resizing the page the stickey bus headers should resize accordingly
@@ -2349,19 +2594,19 @@ function redrawBuses() {
   const shilotToX = new Map();
   shilotValues.forEach((val, idx) => {
     shilotToX.set(val, baseX + idx * colW);
-
-    // title above bus signage headers
-    const busHeadersTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    busHeadersTitle.classList.add("bus-header-title");
-    busHeadersTitle.textContent = "קווי אוטובוס";
-    busHeadersTitle.setAttribute("x", "200");
-    busHeadersTitle.setAttribute("y", "10");
-    busHeadersTitle.setAttribute("font-size", "12");
-    busHeadersTitle.setAttribute("font-weight", "700");
-    busHeadersTitle.setAttribute("fill", "#0b3a66");
-    busHeadersTitle.setAttribute("text-anchor", "end");
-    svg.appendChild(busHeadersTitle);
   });
+
+  // title above bus signage headers
+  const busHeadersTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  busHeadersTitle.classList.add("bus-header-title");
+  busHeadersTitle.textContent = "קווי אוטובוס";
+  busHeadersTitle.setAttribute("x", "200");
+  busHeadersTitle.setAttribute("y", "10");
+  busHeadersTitle.setAttribute("font-size", "12");
+  busHeadersTitle.setAttribute("font-weight", "700");
+  busHeadersTitle.setAttribute("fill", "#0b3a66");
+  busHeadersTitle.setAttribute("text-anchor", "end");
+  svg.appendChild(busHeadersTitle);
 
   // Draw column headers at the top of SVG
   shilotValues.forEach(val => {
@@ -2406,6 +2651,46 @@ function redrawBuses() {
 
     const signageValue = String(val);
 
+    // graph emoji per header (hidden until this header is selected)
+    const trendEmoji = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    trendEmoji.textContent = "📈";
+    const emojiTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    emojiTitle.textContent = "גרף אחוזי סנכרון עבור קו " + signageValue;
+    trendEmoji.appendChild(emojiTitle);
+    trendEmoji.setAttribute("x", String(hx + 10));
+    trendEmoji.setAttribute("y", "10");
+    trendEmoji.setAttribute("font-size", "11");
+    trendEmoji.style.cursor = "pointer";
+    trendEmoji.style.display = "none";
+    trendEmoji.classList.add("makat-trend-emoji");
+    trendEmoji.setAttribute("data-signage", signageValue);
+    trendEmoji.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!activeSignage || activeSignage !== signageValue) return;
+      closeManualSyncPopups();
+      openMakatTrendModal();
+    });
+    svg.appendChild(trendEmoji);
+
+     // perc per header (hidden until this header is selected)
+    const makatPercText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    makatPercText.textContent = getMakatPercentTextFromFilteredTimes(signageValue);
+    makatPercText.setAttribute("x", String(hx+3.5));
+    makatPercText.setAttribute("y", "50");
+    makatPercText.setAttribute("font-size", "12");
+    makatPercText.setAttribute("fill", "#333");
+    makatPercText.setAttribute("text-anchor", "middle");
+    makatPercText.setAttribute("direction", "ltr");
+    makatPercText.setAttribute("unicode-bidi", "plaintext");
+    makatPercText.style.display = "none";
+    makatPercText.classList.add("makat-header-perc-item");
+    makatPercText.setAttribute("data-signage", signageValue);
+    // hover tooltip text
+    const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    pTitle.textContent = "אחוז הנסיעות המסונכרנות ברמת תקופת שבוע";
+    makatPercText.appendChild(pTitle);
+    svg.appendChild(makatPercText);
+
     // hovering over signates:
     const onHeaderMouseEnter = () => {
     if (activeSignage && activeSignage === signageValue) return;
@@ -2436,6 +2721,13 @@ function redrawBuses() {
              el.style.display = "none";
     });
       }
+      svg.querySelectorAll(".makat-trend-emoji, .makat-header-perc-item").forEach(el => {
+        el.style.display = "none";
+      });
+      if (activeSignage === signageValue) {
+        trendEmoji.style.display = "";
+        makatPercText.style.display = "";
+      }
       activeBusRowKey = null;
 
       updateBusHeaderSelectionVisuals();
@@ -2444,6 +2736,7 @@ function redrawBuses() {
       closeManualSyncPopups();
       resetSimulationCapture();
     };
+
     header.addEventListener("click", onHeaderClick);
     bg.addEventListener("click", onHeaderClick);
     header.addEventListener("mouseenter", onHeaderMouseEnter);
@@ -2531,7 +2824,10 @@ function redrawBuses() {
         // train visuals only (opacity, perc, emoji)
         const trainUid = getConnectedTrainUidForBusRow(row);
         setActiveTrain(trainUid);
-
+        //closing the imoji and perc above the header:
+        svg.querySelectorAll(".makat-trend-emoji").forEach(el => {
+            el.style.display = "none";
+        });
         //simulation row activation
         simulationSourceBusRow = row;
 
@@ -2603,13 +2899,20 @@ function redrawBuses() {
 
     // hoovering for bus label
     const bTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-    const avgPassengersText = (row[KEY_AVG_PASSENGERS] === null || row[KEY_AVG_PASSENGERS] === undefined || String(row[KEY_AVG_PASSENGERS]).trim() === "")
-      ? "—"
-      : String(row[KEY_AVG_PASSENGERS]).trim();
+    const avgPassengersText = (row[KEY_AVG_PASSENGERS] === null || row[KEY_AVG_PASSENGERS] === undefined || String(row[KEY_AVG_PASSENGERS]).trim() ===
+    "")
+        ? "—"
+        : String(row[KEY_AVG_PASSENGERS]).trim();
+
+    const operatorText = (row[KEY_OPERATOR] === null || row[KEY_OPERATOR] === undefined || String(row[KEY_OPERATOR]).trim() === "")
+        ? "—"
+        : String(row[KEY_OPERATOR]).trim();
+
     bTitle.textContent =
-      "זמן: " + timeStr +
-      " | מק\"ט: " + (makat || "—") +
-      " | ממוצע נוסעים לנסיעה: " + avgPassengersText;
+        "זמן: " + timeStr +
+        " | מק\"ט: " + (makat || "—") +
+        " | מפעיל: " + operatorText +
+        " | ממוצע נוסעים לנסיעה: " + avgPassengersText;
 
     dot.appendChild(bTitle);
     svg.appendChild(dot);
@@ -2827,7 +3130,6 @@ setBackLinkWithCurrentFilters();
 
 
 </script>
-
 </body>
 </html>
 

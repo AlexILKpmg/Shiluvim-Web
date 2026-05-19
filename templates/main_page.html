@@ -344,7 +344,7 @@
 
         .sync-bar-row {
           display: grid;
-          grid-template-columns: 180px 1fr 70px;
+          grid-template-columns: 180px 1fr 70px 30px;
           align-items: center;
           gap: 10px;
           padding: 3px 6px;
@@ -384,6 +384,82 @@
           font-size: 12px;
           color: #0b3a66;
           text-align: left;
+        }
+
+        .sync-bar-trend {
+          text-align: right;
+        }
+
+        .sync-trend-emoji {
+          border: 0;
+          background: transparent;
+          padding: 0;
+          font-size: 15px;
+          line-height: 1;
+          cursor: pointer;
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transition: opacity 120ms ease;
+        }
+
+        .sync-bar-row:hover .sync-trend-emoji,
+        .sync-bar-row.sync-bar-row--active .sync-trend-emoji {
+          opacity: 1;
+          visibility: visible;
+          pointer-events: auto;
+        }
+
+        .station-trend-modal {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.35);
+          display: none;
+          align-items: center;
+          justify-content: center;
+          z-index: 1200;
+          padding: 20px;
+        }
+
+        .station-trend-modal.open {
+          display: flex;
+        }
+
+        .station-trend-modal-card {
+          width: min(920px, 96vw);
+          max-height: 90vh;
+          overflow: auto;
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+          padding: 14px 16px 18px;
+        }
+
+        .station-trend-modal-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          margin-bottom: 8px;
+        }
+
+        #stationTrendTitle {
+          margin: 0;
+          color: #0b3a66;
+          font-size: 18px;
+        }
+
+        #closeStationTrendBtn {
+          border: 1px solid #d6e8ff;
+          background: #f6faff;
+          color: #0b3a66;
+          border-radius: 8px;
+          padding: 6px 10px;
+          cursor: pointer;
+        }
+
+        #stationTrendChartHost {
+          min-height: 140px;
         }
 
         .top-row-layout {
@@ -594,6 +670,16 @@
 
 </div>
 
+<div id="stationTrendModal" class="station-trend-modal" aria-hidden="true">
+  <div class="station-trend-modal-card" role="dialog" aria-modal="true" aria-labelledby="stationTrendTitle">
+    <div class="station-trend-modal-head">
+      <h3 id="stationTrendTitle">אחוזי סנכרון</h3>
+      <button id="closeStationTrendBtn" type="button">סגירה</button>
+    </div>
+    <div id="stationTrendChartHost"></div>
+  </div>
+</div>
+
 <!-- endregion defining DOM elements -->
 
 {{ year_month_pairs|json_script:"year-month-pairs-data" }}
@@ -757,26 +843,211 @@ monthDropdown.addEventListener("change", () => {
 });
 // endregion year/month filter
 
+
 //  region station sync's perc
 const convergenceStationData = JSON.parse(
   document.getElementById("convergence-station-data").textContent
 );
 
 const stationSyncChart = document.getElementById("stationSyncChart");
+const stationTrendModal = document.getElementById("stationTrendModal");
+const stationTrendTitle = document.getElementById("stationTrendTitle");
+const stationTrendChartHost = document.getElementById("stationTrendChartHost");
+const closeStationTrendBtn = document.getElementById("closeStationTrendBtn");
+
+function closeStationTrendModal() {
+  if (!stationTrendModal) return;
+  stationTrendModal.classList.remove("open");
+  stationTrendModal.setAttribute("aria-hidden", "true");
+  if (stationTrendChartHost) stationTrendChartHost.innerHTML = "";
+}
+
+if (closeStationTrendBtn) {
+  closeStationTrendBtn.addEventListener("click", closeStationTrendModal);
+}
+
+if (stationTrendModal) {
+  stationTrendModal.addEventListener("click", (e) => {
+    if (e.target === stationTrendModal) closeStationTrendModal();
+  });
+}
+
+function buildStationTrendPoints(rows, stationName) {
+  const target = norm(stationName);
+  if (!target) return [];
+
+  const byYm = new Map();
+  (rows || []).forEach(r => {
+    if (norm(r.train_station_name) !== target) return;
+    const y = parseInt(r.year, 10);
+    const m = parseInt(r.month, 10);
+    const p = toNum(r.on_time_percentage_by_train_station);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || p === null) return;
+    const ymKey = `${y}-${String(m).padStart(2, "0")}`;
+    if (!byYm.has(ymKey)) {
+      byYm.set(ymKey, {
+        year: y,
+        month: m,
+        perc: Math.max(0, Math.min(100, p)),
+      });
+    }
+  });
+
+  return Array.from(byYm.values()).sort((a, b) => (a.year - b.year) || (a.month - b.month));
+}
+
+function renderStationTrendChart(points) {
+  if (!stationTrendChartHost) return;
+  stationTrendChartHost.innerHTML = "";
+
+  if (!Array.isArray(points) || !points.length) {
+    const empty = document.createElement("div");
+    empty.textContent = "אין נתונים ברמת תחנה.";
+    stationTrendChartHost.appendChild(empty);
+    return;
+  }
+
+  const ns = "http://www.w3.org/2000/svg";
+  const width = 780;
+  const height = 320;
+  const margin = { top: 20, right: 20, bottom: 58, left: 52 };
+  const plotW = width - margin.left - margin.right;
+  const plotH = height - margin.top - margin.bottom;
+
+  const svgEl = document.createElementNS(ns, "svg");
+  svgEl.setAttribute("width", "100%");
+  svgEl.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+  const yMin = 0;
+  const yMax = 100;
+  function toY(v) {
+    const n = Number(v);
+    const clamped = Number.isFinite(n) ? Math.max(yMin, Math.min(yMax, n)) : yMin;
+    const t = (clamped - yMin) / (yMax - yMin);
+    return margin.top + (1 - t) * plotH;
+  }
+
+  const axisX = document.createElementNS(ns, "line");
+  axisX.setAttribute("x1", String(margin.left));
+  axisX.setAttribute("y1", String(margin.top + plotH));
+  axisX.setAttribute("x2", String(margin.left + plotW));
+  axisX.setAttribute("y2", String(margin.top + plotH));
+  axisX.setAttribute("stroke", "#444");
+  svgEl.appendChild(axisX);
+
+  const axisY = document.createElementNS(ns, "line");
+  axisY.setAttribute("x1", String(margin.left));
+  axisY.setAttribute("y1", String(margin.top));
+  axisY.setAttribute("x2", String(margin.left));
+  axisY.setAttribute("y2", String(margin.top + plotH));
+  axisY.setAttribute("stroke", "#444");
+  svgEl.appendChild(axisY);
+
+  [0, 25, 50, 75, 100].forEach(tick => {
+    const y = toY(tick);
+    const grid = document.createElementNS(ns, "line");
+    grid.setAttribute("x1", String(margin.left));
+    grid.setAttribute("y1", String(y));
+    grid.setAttribute("x2", String(margin.left + plotW));
+    grid.setAttribute("y2", String(y));
+    grid.setAttribute("stroke", "#e8e8e8");
+    svgEl.appendChild(grid);
+
+    const label = document.createElementNS(ns, "text");
+    label.textContent = tick + "%";
+    label.setAttribute("x", String(margin.left - 35));
+    label.setAttribute("y", String(y + 4));
+    label.setAttribute("text-anchor", "end");
+    label.setAttribute("font-size", "11");
+    label.setAttribute("fill", "#444");
+    svgEl.appendChild(label);
+  });
+
+  const xStep = points.length > 1 ? (plotW / (points.length - 1)) : 0;
+  const toX = (i) => margin.left + (i * xStep);
+
+  let pathData = "";
+  points.forEach((p, i) => {
+    const x = toX(i);
+    const y = toY(p.perc);
+    pathData += (i === 0 ? "M" : " L") + x + " " + y;
+  });
+
+  const line = document.createElementNS(ns, "path");
+  line.setAttribute("d", pathData);
+  line.setAttribute("fill", "none");
+  line.setAttribute("stroke", "#0b5fff");
+  line.setAttribute("stroke-width", "2");
+  svgEl.appendChild(line);
+
+  points.forEach((p, i) => {
+    const x = toX(i);
+    const y = toY(p.perc);
+    const monthNum = parseInt(p.month, 10);
+    const ymLabel = String(p.year) + "-" + String(monthNum).padStart(2, "0");
+
+    const dot = document.createElementNS(ns, "circle");
+    dot.setAttribute("cx", String(x));
+    dot.setAttribute("cy", String(y));
+    dot.setAttribute("r", "3.5");
+    dot.setAttribute("fill", "#0b5fff");
+    const title = document.createElementNS(ns, "title");
+    title.textContent = ymLabel + ": " + String(p.perc) + "%";
+    dot.appendChild(title);
+    svgEl.appendChild(dot);
+
+    const xLabel = document.createElementNS(ns, "text");
+    xLabel.textContent = ymLabel;
+    xLabel.setAttribute("x", String(x));
+    xLabel.setAttribute("y", String(margin.top + plotH + 20));
+    xLabel.setAttribute("text-anchor", "middle");
+    xLabel.setAttribute("font-size", "11");
+    xLabel.setAttribute("fill", "#333");
+    svgEl.appendChild(xLabel);
+  });
+
+  stationTrendChartHost.appendChild(svgEl);
+}
+
+function openStationTrendModal(stationName) {
+  if (!stationTrendModal || !stationTrendTitle || !stationTrendChartHost) return;
+  const station = norm(stationName);
+  if (!station) return;
+
+  const points = buildStationTrendPoints(convergenceStationData, station);
+  stationTrendTitle.textContent = "אחוזי סנכרון עבור תחנת " + station;
+  renderStationTrendChart(points);
+  stationTrendModal.classList.add("open");
+  stationTrendModal.setAttribute("aria-hidden", "false");
+}
+
+function goToStationFromSyncRow(station) {
+  const ym = pickSelectedOrLatestYearMonth(convergenceStationData) || {};
+  goToMainPageGet(
+    station,
+    String(ym.year || yearDropdown?.value || ""),
+    String(ym.month || monthDropdown?.value || "")
+  );
+}
+
 if (stationSyncChart) {
   stationSyncChart.addEventListener("click", (e) => {
+    const emojiBtn = e.target.closest(".sync-trend-emoji");
+    if (emojiBtn) {
+      e.stopPropagation();
+      const stationFromEmoji = norm(emojiBtn.getAttribute("data-station"));
+      if (!stationFromEmoji) return;
+      openStationTrendModal(stationFromEmoji);
+      return;
+    }
+
     const row = e.target.closest(".sync-bar-row");
     if (!row) return;
 
     const station = norm(row.getAttribute("data-station"));
     if (!station) return;
 
-    const ym = pickSelectedOrLatestYearMonth(convergenceStationData) || {};
-    goToMainPageGet(
-      station,
-      String(ym.year || yearDropdown?.value || ""),
-      String(ym.month || monthDropdown?.value || "")
-    );
+    goToStationFromSyncRow(station);
   });
 }
 
@@ -792,7 +1063,6 @@ function pickLatestYearMonthFromPairs(pairs) {
   });
   return best;
 }
-
 
 function pickLatestYearMonth(rows) {
   let best = null;
@@ -834,7 +1104,8 @@ function buildLatestStationSyncRows(rows) {
   filtered.forEach(r => {
     const station = norm(r.train_station_name);
     const pct = toNum(r.on_time_percentage_by_train_station);
-    if (!station || pct === null) return;
+    // exclude null and 0%
+    if (!station || pct === null || pct <= 0) return;
 
     if (!byStation.has(station)) byStation.set(station, []);
     byStation.get(station).push(pct);
@@ -876,6 +1147,15 @@ function renderStationSyncChart(rows) {
           <div class="sync-bar-fill" style="width:${widthPct}%"></div>
         </div>
         <div class="sync-bar-value">${Math.round(item.value)}%</div>
+        <div class="sync-bar-trend">
+          <button
+            type="button"
+            class="sync-trend-emoji"
+            data-station="${escapeHtml(item.station)}"
+            title="גרף אחוזי סנכרון ברמת התחנה"
+            aria-label="גרף אחוזי סנכרון ברמת התחנה"
+          >📈</button>
+        </div>
       </div>
     `;
   }).join("");
@@ -885,6 +1165,7 @@ function renderStationSyncChart(rows) {
 
 
 //  endregion station sync's perc
+
 
 // region week period filter
 const WEEK_OPTIONS = ["יום חול", "שישי", "שבת"];
@@ -958,6 +1239,7 @@ function formatRatingNumbersInText() {
     });
 }
 // endregion rating table
+
 
 // region matrix table
 const matrixSection = document.getElementById("matrixSection");
@@ -1206,3 +1488,4 @@ if (stationDropdown && yearDropdown && monthDropdown && busDirectionDropdown && 
 
 </body>
 </html>
+

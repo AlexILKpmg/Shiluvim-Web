@@ -16,13 +16,13 @@ COMMON_REQUIRED = {
     "שנה": "year",
     "חודש": "month",
     "תקופת שבוע": "week_period",
-    "שם תחנת הרכבת": "train_station_name",
-    "כיוון נסיעת הרכבת": "rail_direction",
-    "מספר הרכבת": "train_number",
-    "מפעיל": "operator",
 }
 
 COMMON_OPTIONAL = {
+    "מפעיל": "operator",
+    "מספר הרכבת": "train_number",
+    "שם תחנת הרכבת": "train_station_name",
+    "כיוון נסיעת הרכבת": "rail_direction",
     "train_station_code": "train_station_code",
     "קוד תחנת הרכבת": "train_station_code",
     "קוד תחנת רכבת": "train_station_code",
@@ -47,9 +47,10 @@ BUS_TO_RAIL_OPTIONAL = {
     "מספר תצפיות": "observations_count",
     "מספר הנסיעות שעמדו בזמנים": "on_time_count",
     "אחוז הנסיעות שעמדו בזמנים": "on_time_percentage",
+    "אחוז הנסיעות שעמדו בזמנים ברמת מקט": "on_time_percentage_by_makat",
     "אחוז הנסיעות שעמדו בזמנים ברמת נסיעת הרכבת": "on_time_percentage_by_train",
     "אחוז הנסיעות שעמדו בזמנים ברמת תחנת רכבת": "on_time_percentage_by_train_station",
-    "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)": "duration_from_current_station_to_hashalom",
+    "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)": "duration_from_current_station_to_hashalom",
 }
 
 RAIL_TO_BUS_OPTIONAL = {
@@ -57,7 +58,7 @@ RAIL_TO_BUS_OPTIONAL = {
     "מספר יורדים": "train_descending_amount",
     "הפרש בדקות (מרכבת לאוטובוס)": "minutes_gap_rail_to_bus",
     "המלצה (דקות)": "recommended_minutes",
-    "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)": "duration_from_hashalom_to_current_station",
+    "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)": "duration_from_hashalom_to_current_station",
 }
 
 BUS_LOOKUP_FIELDS = (
@@ -377,14 +378,14 @@ class Command(BaseCommand):
 
 
         payload = {
-            "year": self._to_int(normalized["year"], "year", file_name, sheet_name, row_number),
-            "month": self._to_int(normalized["month"], "month", file_name, sheet_name, row_number),
             "week_period": self._require_text(normalized["week_period"], "week_period", file_name, sheet_name, row_number),
-            "train_station_name": self._require_text(normalized["train_station_name"], "train_station_name", file_name, sheet_name, row_number),
+            "train_station_name": self._require_text(normalized.get("train_station_name"), "train_station_name", file_name, sheet_name, row_number),
+            "rail_direction": self._require_text(normalized.get("rail_direction"), "rail_direction", file_name, sheet_name, row_number),
+            "year": self._to_int_or_none(normalized.get("year")),
+            "month": self._to_int_or_none(normalized.get("month")),
+            "train_number": self._to_int_or_none(normalized.get("train_number")),
+            "operator": self._clean_text(normalized.get("operator")),
             "train_station_code": self._to_int_or_none(normalized.get("train_station_code")),
-            "rail_direction": self._require_text(normalized["rail_direction"], "rail_direction", file_name, sheet_name, row_number),
-            "train_number": self._to_int(normalized["train_number"], "train_number", file_name, sheet_name, row_number),
-            "operator": self._require_text(normalized["operator"], "operator", file_name, sheet_name, row_number),
             "makat": self._to_int_or_none(normalized.get("makat")),
             "direction": self._to_int_or_none(normalized.get("direction")),
             "alternative": self._clean_text(normalized.get("alternative")),
@@ -405,6 +406,7 @@ class Command(BaseCommand):
             payload["observations_count"] = self._to_int_or_none(normalized.get("observations_count"))
             payload["on_time_count"] = self._to_int_or_none(normalized.get("on_time_count"))
             payload["on_time_percentage"] = self._to_decimal_or_none(normalized.get("on_time_percentage"))
+            payload["on_time_percentage_by_makat"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_makat"))
             payload["on_time_percentage_by_train"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_train"))
             payload["on_time_percentage_by_train_station"] = self._to_decimal_or_none(normalized.get("on_time_percentage_by_train_station"))
             payload["express_train"] = self._clean_text(normalized.get("express_train"))

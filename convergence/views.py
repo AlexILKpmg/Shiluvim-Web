@@ -44,6 +44,8 @@ COL_WEEK = "תקופת שבוע"
 COL_RAIL_DIR = "כיוון נסיעת הרכבת"
 COL_TRAIN_ID = "מספר הרכבת"
 COL_PERC = "אחוז הנסיעות שעמדו בזמנים"
+COL_PERC_BY_MAKAT_FOR_TREND = "אחוז הנסיעות שעמדו בזמנים ברמת מקט (עבור הטרנד דאטה)"
+COL_PERC_BY_MAKAT = "אחוז הנסיעות שעמדו בזמנים ברמת מקט"
 COL_PERC_BY_TRAIN = "אחוז הנסיעות שעמדו בזמנים ברמת נסיעת הרכבת"
 COL_PERC_BY_TRAIN_STATION = "אחוז הנסיעות שעמדו בזמנים ברמת תחנת רכבת"
 COL_N = "מספר תצפיות"
@@ -76,7 +78,7 @@ def _serialize_bus_to_rail(row):
         COL_FROM_TRAIN_NUMBER: row.train_number,
         COL_FROM_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         COL_LINK_DIRECTION: "bus_to_rail",
-        "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)": row.duration_from_current_station_to_hashalom,
+        "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)": row.duration_from_current_station_to_hashalom,
         "מספר עולים": row.train_ascending_amount,
         "מפעיל": row.operator,
         'מק"ט': row.makat,
@@ -92,6 +94,7 @@ def _serialize_bus_to_rail(row):
         COL_N_POSITIVE_FLAGGED: row.on_time_count,
         COL_PERC: _format_percentage(row.on_time_percentage),
         COL_PERC_BY_TRAIN: _format_percentage(row.on_time_percentage_by_train),
+        COL_PERC_BY_MAKAT: _format_percentage(row.on_time_percentage_by_makat),
     }
 
 
@@ -112,7 +115,7 @@ def _serialize_rail_to_bus(row):
         COL_FROM_TRAIN_NUMBER: row.train_number,
         COL_FROM_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         COL_LINK_DIRECTION: "rail_to_bus",
-        "זמן נסיעת הרכבת לתחנת רכבת השלום (דקות)": row.duration_from_hashalom_to_current_station,
+        "זמן נסיעת הרכבת מתחנת רכבת השלום (דקות)": row.duration_from_hashalom_to_current_station,
         "מספר יורדים": row.train_descending_amount,
         "מפעיל": row.operator,
         'מק"ט': row.makat,
@@ -133,6 +136,8 @@ def _serialize_bus_to_rail_trend(row): #NOTE - for trend by station level i will
         COL_WEEK: row.week_period,
         COL_TRAIN_ID: row.train_number,
         COL_LICENSED_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
+        COL_SIGNAGE: row.signage,
+        COL_PERC_BY_MAKAT_FOR_TREND: _format_percentage(row.on_time_percentage_by_makat),
         COL_PERC_BY_TRAIN: _format_percentage(row.on_time_percentage_by_train),
         COL_PERC_BY_TRAIN_STATION: _format_percentage(row.on_time_percentage_by_train_station),
     }
