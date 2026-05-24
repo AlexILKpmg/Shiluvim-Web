@@ -1525,6 +1525,7 @@ const KEY_RECOMMENDED_MINUTES = "המלצה (דקות)";
 const KEY_ON_TIME_PERCENT = "אחוז הנסיעות שעמדו בזמנים";
 const KEY_IS_BUS_ON_TIME = "האם האוטובוס מגיע בזמן";
 const PERC_ON_TIME = "אחוז הנסיעות שעמדו בזמנים (סימולציה)"; //from the Raw Bus Data json
+const KEY_PROPOSED_BUS_DEPARTURE_TIME = "שעת יציאה מתחנת המוצא - מוצעת"; // new empty column
 
 const TABLE_FIELDS_BUS_TO_RAIL = [
     { key: KEY_TRAIN_ID, label: "מספר הרכבת" },
@@ -1550,6 +1551,7 @@ const SIMULATION_TABLE_FIELDS_BUS_TO_RAIL = [
     { key: KEY_BUS_TIME_TO_STATION, label: "שעת הגעה לתחנה (בממוצע)" },
     { key: KEY_MINUTES_GAP_B2R, label: "הפרש בדקות (מאוטובוס לרכבת)" },
     { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
+    { key: KEY_PROPOSED_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא - מוצעת" },
     { key: PERC_ON_TIME, label: PERC_ON_TIME },
 ];
 
@@ -1576,6 +1578,7 @@ const SIMULATION_TABLE_FIELDS_RAIL_TO_BUS = [
     { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
     { key: KEY_MINUTES_GAP_R2B, label: "הפרש בדקות (מרכבת לאוטובוס)" },
     { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
+    { key: KEY_PROPOSED_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא - מוצעת" },
 ];
 
 
@@ -1891,6 +1894,37 @@ function getRecommendedMinutesFromGap(gapValue) {
     return "—";
 }
 
+function getProposedBusDepartureTime(departureTimeValue, recommendedMinutesValue) {
+    const hhmm = extractHHMM(departureTimeValue || "") || String(departureTimeValue || "").trim();
+    if (!hhmm) return "";
+
+    const timeMatch = hhmm.match(/^(\d{1,2}):(\d{2})$/);
+    if (!timeMatch) return "";
+
+    const baseH = Number(timeMatch[1]);
+    const baseM = Number(timeMatch[2]);
+    if (!Number.isFinite(baseH) || !Number.isFinite(baseM)) return "";
+    if (baseH < 0 || baseH > 23 || baseM < 0 || baseM > 59) return "";
+
+    const recRaw = String(recommendedMinutesValue ?? "").trim();
+    if (!recRaw || recRaw === "—") return "";
+
+    const rec = Number(recRaw);
+    if (!Number.isFinite(rec)) return "";
+
+    const totalBase = baseH * 60 + baseM;
+    const shifted = totalBase + rec;
+
+    // Normalize to 0..1439 (supports crossing midnight)
+    const normalized = ((shifted % 1440) + 1440) % 1440;
+
+    const outH = Math.floor(normalized / 60);
+    const outM = normalized % 60;
+
+    return String(outH).padStart(2, "0") + ":" + String(outM).padStart(2, "0");
+}
+
+
 function getMatchedRawRowsForSimulationSource() {
     if (!simulationSourceBusRow) return [];
 
@@ -1980,14 +2014,15 @@ function renderSimulationBusTable() {
         const th = document.createElement("th");
         th.textContent = f.label;
 
-        if (idx < 2) {
+        if (idx < 3) {
           th.classList.add("train-highlight-col");
         }
 
         if (
           f.key === KEY_MINUTES_GAP_B2R ||
           f.key === KEY_MINUTES_GAP_R2B ||
-          f.key === KEY_RECOMMENDED_MINUTES
+          f.key === KEY_RECOMMENDED_MINUTES ||
+          f.key === KEY_PROPOSED_BUS_DEPARTURE_TIME
         ) {
             th.classList.add("sim-warning-col");
         }
@@ -2004,11 +2039,12 @@ function renderSimulationBusTable() {
 
       tableFields.forEach((f, idx) => {
         const td = document.createElement("td");
-        if (idx < 2) td.classList.add("train-highlight-col");
+        if (idx < 3) td.classList.add("train-highlight-col");
         if (
           f.key === KEY_MINUTES_GAP_B2R ||
           f.key === KEY_MINUTES_GAP_R2B ||
-          f.key === KEY_RECOMMENDED_MINUTES
+          f.key === KEY_RECOMMENDED_MINUTES ||
+          f.key === KEY_PROPOSED_BUS_DEPARTURE_TIME
         ) {
             td.style.direction = "ltr";
             td.style.unicodeBidi = "plaintext";
