@@ -224,6 +224,7 @@ def save_override(request):
         return JsonResponse({"ok": False, "error": "invalid_link_direction"}, status=400)
 
     defaults = {
+        "to_departure_time": str(payload.get("to_departure_time") or "").strip(),
         "to_train_number": _to_int_or_none(payload.get("to_train_number")),
         "to_train_rishui_train_arrival_time": str(payload.get("to_train_rishui_train_arrival_time") or "").strip(),
         "effective_month": str(payload.get("effective_month") or "").strip(),

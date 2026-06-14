@@ -126,7 +126,6 @@ class RawBusData(models.Model):
     rail_direction = models.CharField(max_length=255)
 
 
-
 class OverrideConv(models.Model):
     week_period = models.CharField(max_length=50)
     link_direction = models.CharField(max_length=32)
@@ -137,6 +136,7 @@ class OverrideConv(models.Model):
     train_station_code = models.IntegerField()
     from_train_number = models.IntegerField()
     from_train_rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
+    to_departure_time = models.CharField(max_length=32, blank=True)
     to_train_number = models.IntegerField(null=True, blank=True)
     to_train_rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
     effective_month = models.CharField(max_length=7, blank=True)

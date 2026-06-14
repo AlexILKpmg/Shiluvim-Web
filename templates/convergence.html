@@ -165,6 +165,33 @@
             line-height: 1.2;
         }
 
+        #simulationTableArea {
+          display: flex;
+          flex-direction: row;
+          align-items: flex-start;
+          gap: 8px;
+        }
+
+        #simulationActionButtons {
+          width: 34px;
+          flex: 0 0 34px;
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+        }
+
+        .simulation-action-btn {
+          width: 28px;
+          height: 28px;
+          padding: 0;
+          border: 1px solid #111827;
+          background: #ffffff;
+          cursor: pointer;
+        }
+
+        .simulation-action-btn:hover {
+          background: #f9d2b2;
+        }
         #busTable th:first-child,
         #busTable td:first-child {
             padding-right: 22px;
@@ -182,14 +209,27 @@
             font-weight: 400;
         }
 
+        /* busTable currently uses two color types: highlighted train columns and regular zebra/hover row colors */
         #busTable th.train-highlight-col {
             background: #0b5ea8;
             color: #fff;
         }
 
         #busTable td.train-highlight-col {
-            background: #eaf4ff;
             color: #0b3a66;
+        }
+
+        #busTable th.bus-hierarchy-col-last {
+            background: #3a92cc;
+            color: #ffffff;
+        }
+
+        #busTable td.bus-hierarchy-col-1 {
+            color: #6b4f1d;
+        }
+
+        #busTable td.bus-hierarchy-col-last {
+            color: #6b4f1d;
         }
 
         #simulationTable th.train-highlight-col {
@@ -217,7 +257,7 @@
         }
 
         #busTable tbody tr:hover {
-            background: #dfefff;
+            background: #fce9dc;
         }
 
         #trainTrendModal {
@@ -443,13 +483,18 @@
             <div class="table-scroll-top" id="simulationTableTopScroll">
                 <div id="simulationTableTopScrollInner"></div>
             </div>
-            <div id="simulationTableMainScroll" class="table-scroll">
-                <table id="simulationTable">
-                    <thead>
-                        <tr id="simulationTableHeaderRow"></tr>
-                    </thead>
-                    <tbody id="simulationTableBody"></tbody>
-                </table>
+
+            <div id="simulationTableArea">
+                <div id="simulationActionButtons"></div>
+
+                <div id="simulationTableMainScroll" class="table-scroll">
+                    <table id="simulationTable">
+                        <thead>
+                            <tr id="simulationTableHeaderRow"></tr>
+                        </thead>
+                        <tbody id="simulationTableBody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -1525,6 +1570,7 @@ const KEY_RECOMMENDED_MINUTES = "המלצה (דקות)";
 const KEY_ON_TIME_PERCENT = "אחוז הנסיעות שעמדו בזמנים";
 const KEY_IS_BUS_ON_TIME = "האם האוטובוס מגיע בזמן";
 const PERC_ON_TIME = "אחוז הנסיעות שעמדו בזמנים (סימולציה)"; //from the Raw Bus Data json
+const PERC_ON_TIME_AFTER_RECOMMENDATION = "אחוז הנסיעות שיעמדו בזמנים לאחר קבלת ההמלצה (סימולציה)";
 const KEY_PROPOSED_BUS_DEPARTURE_TIME = "שעת יציאה מתחנת המוצא - מוצעת"; // new empty column
 
 const TABLE_FIELDS_BUS_TO_RAIL = [
@@ -1553,6 +1599,7 @@ const SIMULATION_TABLE_FIELDS_BUS_TO_RAIL = [
     { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
     { key: KEY_PROPOSED_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא - מוצעת" },
     { key: PERC_ON_TIME, label: PERC_ON_TIME },
+    { key: PERC_ON_TIME_AFTER_RECOMMENDATION, label: "אחוז הנסיעות שיעמדו בזמנים לאחר קבלת ההמלצה (סימולציה)" },
 ];
 
 
@@ -1692,6 +1739,8 @@ function renderBusTable() {
     const th = document.createElement("th");
     th.textContent = f.label;
     if (idx < 2) th.classList.add("train-highlight-col");
+    const lastThreeStart = Math.max(0, tableFields.length - 3);
+    if (idx >= lastThreeStart) th.classList.add("bus-hierarchy-col-last");
     headerRow.appendChild(th);
   });
 
@@ -1707,8 +1756,17 @@ function renderBusTable() {
   );
 
   // Table rows follow visible dots exactly
-  const rows = allRows.filter(r => visibleBusKeys.has(buildBusRowKey(r)));
+  let rows = allRows.filter(r => visibleBusKeys.has(buildBusRowKey(r)));
+  rows.sort((a, b) => {
+    const aTime = extractHHMM(a[KEY_BUS_DEPARTURE_TIME] ?? "");
+    const bTime = extractHHMM(b[KEY_BUS_DEPARTURE_TIME] ?? "");
 
+    if (!aTime && !bTime) return 0;
+    if (!aTime) return 1;
+    if (!bTime) return -1;
+
+    return aTime.localeCompare(bTime);
+  });
 
   // Build body
   body.innerHTML = "";
@@ -1720,6 +1778,8 @@ function renderBusTable() {
     tableFields.forEach((f, idx) => {
       const td = document.createElement("td");
       if (idx < 2) td.classList.add("train-highlight-col");
+      const lastThreeStart = Math.max(0, tableFields.length - 3);
+      if (idx >= lastThreeStart) td.classList.add("bus-hierarchy-col-last");
 
       let v = "";
 
@@ -1894,6 +1954,7 @@ function getRecommendedMinutesFromGap(gapValue) {
     return "—";
 }
 
+
 function getProposedBusDepartureTime(departureTimeValue, recommendedMinutesValue) {
     const hhmm = extractHHMM(departureTimeValue || "") || String(departureTimeValue || "").trim();
     if (!hhmm) return "";
@@ -1994,13 +2055,72 @@ function calcSimulationOnTimePercent(trainArrivalRishui, rawRows) {
     return `${pct.toFixed(1)}%`;
 }
 
+
+function calcSimulationOnTimePercentAfterRecommendation(trainArrivalRishui, rawRows, recommendedMinutesValue) {
+      const rec = Number(String(recommendedMinutesValue ?? "").trim());
+      if (!Number.isFinite(rec)) return "";
+
+      const groups = new Map();
+
+      rawRows.forEach((r) => {
+        const makat = String(r[RAW_KEY_MAKAT] ?? "").trim();
+        const direction = String(r[RAW_KEY_DIRECTION] ?? "").trim();
+        const alternative = String(r[RAW_KEY_ALTERNATIVE] ?? "").trim();
+        const departure = extractHHMM(r[RAW_KEY_DEPARTURE] ?? "") || String(r[RAW_KEY_DEPARTURE] ?? "").trim();
+
+        const groupKey = [makat, direction, alternative, departure].join("|");
+
+        const arr = String(r[RAW_KEY_ARRIVAL_TIME] ?? "").trim();
+        const rides = Number(r[RAW_KEY_RIDE_COUNTS]);
+        if (!Number.isFinite(rides) || rides <= 0) return;
+
+        const arrMin = hhmmssToMinutes(arr);
+        const trainMin = hhmmssToMinutes(trainArrivalRishui);
+        if (!Number.isFinite(arrMin) || !Number.isFinite(trainMin)) return;
+
+        // Apply recommendation to bus arrival time
+        const adjustedArrMin = arrMin + rec;
+
+        const gap = trainMin - adjustedArrMin;
+        const isTrue = gap >= 8 && gap <= 15;
+
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, {
+            rides,
+            goodCases: 0
+          });
+        }
+
+        if (isTrue) {
+          groups.get(groupKey).goodCases += 1;
+        }
+      });
+
+      let trueCount = 0;
+      let denominator = 0;
+
+      groups.forEach((group) => {
+        trueCount += group.goodCases;
+        denominator += group.rides;
+      });
+
+      if (denominator <= 0) return "";
+
+      const pct = (trueCount / denominator) * 100;
+      return `${pct.toFixed(1)}%`;
+  }
+
+
 rebuildFilteredRawBusData(); //initial load
 
 
 let simulationCaptureActive = false;
 const simulationRows = []; // rows shown in simulation table
 
+let manualSyncActionButtonsActive = false;
+
 function renderSimulationBusTable() {
+    const actionButtons = document.getElementById("simulationActionButtons");
     const headerRow = document.getElementById("simulationTableHeaderRow");
     const body = document.getElementById("simulationTableBody");
     const wrap = document.getElementById("simulationTableWrap");
@@ -2010,11 +2130,14 @@ function renderSimulationBusTable() {
 
     // Header
     headerRow.innerHTML = "";
+    if (actionButtons) {
+      actionButtons.innerHTML = "";
+    }
     tableFields.forEach((f, idx) => {
         const th = document.createElement("th");
         th.textContent = f.label;
 
-        if (idx < 3) {
+        if (idx < 2) {
           th.classList.add("train-highlight-col");
         }
 
@@ -2030,16 +2153,20 @@ function renderSimulationBusTable() {
         headerRow.appendChild(th);
     });
 
+    if (actionButtons) {
+        actionButtons.style.paddingTop = headerRow.getBoundingClientRect().height + "px";
+    }
+
     // Body from captured simulation rows only
     const rows = simulationRows;
     body.innerHTML = "";
 
-    rows.forEach((r) => {
+    rows.forEach((r, rowIndex) => {
       const tr = document.createElement("tr");
 
       tableFields.forEach((f, idx) => {
         const td = document.createElement("td");
-        if (idx < 3) td.classList.add("train-highlight-col");
+        if (idx < 2) td.classList.add("train-highlight-col");
         if (
           f.key === KEY_MINUTES_GAP_B2R ||
           f.key === KEY_MINUTES_GAP_R2B ||
@@ -2048,6 +2175,9 @@ function renderSimulationBusTable() {
         ) {
             td.style.direction = "ltr";
             td.style.unicodeBidi = "plaintext";
+        }
+        if (f.key === KEY_PROPOSED_BUS_DEPARTURE_TIME) {
+            td.style.color = "red";
         }
 
         let v = r[f.key];
@@ -2065,6 +2195,23 @@ function renderSimulationBusTable() {
       });
 
       body.appendChild(tr);
+      if (actionButtons && manualSyncActionButtonsActive) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "simulation-action-btn";
+          btn.textContent = "✓";
+          btn.title = "בלחיצה זו הינך מקבל את שעת היציאה המוצעת";
+          btn.onclick = async (ev) => {
+              ev.stopPropagation();
+
+              await saveDraggedOverride(
+                  simulationSourceBusRow,
+                  r.__targetRow
+              );
+          };
+
+          actionButtons.appendChild(btn);
+      }
     });
 
     wrap.style.display = "block";
@@ -2109,6 +2256,7 @@ function captureSimulationRowFromTrain(row, trainUid, triEl) {
           simulationSourceBusRow[KEY_BUS_TIME_TO_STATION], // train_arrival_rishui - bus_time_to_station
           row[KEY_TRAIN_ARRIVAL_RISHUI]
         );
+        const recommendedMinutes = getRecommendedMinutesFromGap(gap);
         simRow = {
           [KEY_TRAIN_ID]: getTrainIdValue(row),
           [KEY_TRAIN_ARRIVAL_RISHUI]: extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] || "") || String(row[KEY_TRAIN_ARRIVAL_RISHUI] || "").trim(),
@@ -2118,18 +2266,28 @@ function captureSimulationRowFromTrain(row, trainUid, triEl) {
           [KEY_BUS_DEPARTURE_TIME]: simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
           [KEY_BUS_TIME_TO_STATION]: simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
           [KEY_MINUTES_GAP_B2R]: gap,
-          [KEY_RECOMMENDED_MINUTES]: getRecommendedMinutesFromGap(gap),
-        };
+          [KEY_RECOMMENDED_MINUTES]: recommendedMinutes,
+          [KEY_PROPOSED_BUS_DEPARTURE_TIME]: getProposedBusDepartureTime(
+          simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
+          recommendedMinutes
+         ),
+       };
         const matchedRawRows = getMatchedRawRowsForSimulationSource();
         simRow[PERC_ON_TIME] = calcSimulationOnTimePercent(
           row[KEY_TRAIN_ARRIVAL_RISHUI],
           matchedRawRows
+        );
+        simRow[PERC_ON_TIME_AFTER_RECOMMENDATION] = calcSimulationOnTimePercentAfterRecommendation(
+            row[KEY_TRAIN_ARRIVAL_RISHUI],
+            matchedRawRows,
+            recommendedMinutes
         );
       } else {
         const gap = diffMinutes(
           row[KEY_TRAIN_ARRIVAL_RISHUI],
           simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME]
         );
+        const recommendedMinutes = getRecommendedMinutesFromGap(gap);
         simRow = {
           [KEY_TRAIN_ID]: getTrainIdValue(row),
           [KEY_TRAIN_ARRIVAL_RISHUI]: extractHHMM(row[KEY_TRAIN_ARRIVAL_RISHUI] || "") || String(row[KEY_TRAIN_ARRIVAL_RISHUI] || "").trim(),
@@ -2139,11 +2297,17 @@ function captureSimulationRowFromTrain(row, trainUid, triEl) {
           [KEY_BUS_DEPARTURE_TIME]: simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
           [KEY_BUS_TIME_TO_STATION]: simulationSourceBusRow[KEY_BUS_TIME_TO_STATION],
           [KEY_MINUTES_GAP_R2B]: gap,
-          [KEY_RECOMMENDED_MINUTES]: getRecommendedMinutesFromGap(gap),
-        };
+          [KEY_RECOMMENDED_MINUTES]: recommendedMinutes,
+          [KEY_PROPOSED_BUS_DEPARTURE_TIME]: getProposedBusDepartureTime(
+          simulationSourceBusRow[KEY_BUS_DEPARTURE_TIME],
+          recommendedMinutes
+         ),
+       };
       }
 
       simRow.__trainUid = uid;
+      simRow.__targetRow = row;
+
       simulationRows.push(simRow);
       simulationCapturedTrainUids.add(uid);
       triEl.setAttribute("fill", "#ff8c00");
@@ -2154,6 +2318,7 @@ function captureSimulationRowFromTrain(row, trainUid, triEl) {
 
 
 function resetSimulationCapture() {
+    manualSyncActionButtonsActive = false;
     simulationCaptureActive = false;
     simulationSourceBusRow = null;
     simulationRows.length = 0;
@@ -2256,34 +2421,63 @@ function redrawTrains() {
 
     // building a unique trainId||time (for later traingles creation)
     const filteredTimes = getFilteredTimes();
-    const seenTrainTime = new Set();
     const uniqueTrainRows = [];
+    const trainUidToItem = new Map();
+
+    function addUniqueTrainRow(row, trainIdValue, arrivalValue, isDisconnectedOriginal = false) {
+      const normalizedTime = extractHHMM(arrivalValue);
+      if (!normalizedTime) return;
+
+      const y = timeToY(normalizedTime);
+      if (y === null) return;
+
+      const trainId = String(trainIdValue ?? "").trim();
+      if (!trainId) return;
+
+      const trainUid = trainId + "||" + normalizedTime;
+      const displayRow = { ...row };
+      displayRow[KEY_TRAIN_ID] = trainId;
+      displayRow[KEY_TRAIN_ARRIVAL_RISHUI] = normalizedTime;
+      displayRow.__is_disconnected_train = isDisconnectedOriginal;
+
+      const existing = trainUidToItem.get(trainUid);
+      if (existing) {
+          const existingDisconnected =
+              existing.row.__is_disconnected_train === true ||
+              String(getMakatValue(existing.row) || "").trim() === "";
+          const newConnected =
+              !isDisconnectedOriginal &&
+              String(getMakatValue(displayRow) || "").trim() !== "";
+          if (existingDisconnected && newConnected) {
+              existing.row = displayRow;
+          }
+          return;
+      }
+
+      const item = {
+          row: displayRow,
+          normalizedTime,
+          y,
+          trainId,
+          trainUid,
+          xOffset: 0
+      };
+      trainUidToItem.set(trainUid, item);
+      uniqueTrainRows.push(item);
+    }
 
     filteredTimes.forEach(row => {
-        const rawTime = row[KEY_TRAIN_ARRIVAL_RISHUI];
-        const normalizedTime = extractHHMM(rawTime);
-        if (!normalizedTime) return;
+      addUniqueTrainRow(row, getTrainIdValue(row), row[KEY_TRAIN_ARRIVAL_RISHUI]);
 
-        const y = timeToY(normalizedTime);
-        if (y === null) return;
-
-        const trainId = getTrainIdValue(row);
-        if (!trainId) return;
-
-        const trainUid = trainId + "||" + normalizedTime;
-        if (seenTrainTime.has(trainUid)) return;
-        seenTrainTime.add(trainUid);
-
-        uniqueTrainRows.push({
-            row,
-            normalizedTime,
-            y,
-            trainId,
-            trainUid,
-            xOffset: 0
-        });
+      if (row.__is_overridden) {
+          addUniqueTrainRow(
+              row,
+              row[KEY_ORIGINAL_TRAIN_NUMBER],
+              row[KEY_ORIGINAL_TRAIN_ARRIVAL],
+              true
+          );
+      }
     });
-
     //
 
     // Jitter only unique train-time items that are closer than 4 minutes.
@@ -2364,10 +2558,12 @@ function redrawTrains() {
         //
 
 
-        // train color and gold train creation
+        // train color and gold train creation, and empty trains (no cuses conncted to them)
         const isGold = String(row[KEY_IS_GOLD_TRAIN] ?? "").trim() === "כן";
-        const color = isGold ? "gold" : "black";
-        //
+        const isDisconnectedTrain = row.__is_disconnected_train === true;
+        const hasMakat = String(getMakatValue(row) || "").trim() !== "";
+        const color = (isDisconnectedTrain || !hasMakat) ? "#ed0c0c" : (isGold ? "gold" : "black");
+        // NOTE RED TRAIN OVERRUNS GOLD TRAIN
 
          //creating the trains:
         const tri = document.createElementNS("http://www.w3.org/2000/svg", "rect");
@@ -2714,18 +2910,22 @@ function redrawBuses() {
     makatPercText.setAttribute("x", String(hx+3.5));
     makatPercText.setAttribute("y", "50");
     makatPercText.setAttribute("font-size", "12");
-    makatPercText.setAttribute("fill", "#333");
+    makatPercText.setAttribute("fill", "#000");
     makatPercText.setAttribute("text-anchor", "middle");
     makatPercText.setAttribute("direction", "ltr");
     makatPercText.setAttribute("unicode-bidi", "plaintext");
     makatPercText.style.display = "none";
     makatPercText.classList.add("makat-header-perc-item");
     makatPercText.setAttribute("data-signage", signageValue);
+
     // hover tooltip text
     const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
     pTitle.textContent = "אחוז הנסיעות המסונכרנות ברמת תקופת שבוע";
     makatPercText.appendChild(pTitle);
+
+    // add to DOM first, then measure and size the wrapper
     svg.appendChild(makatPercText);
+
 
     // hovering over signates:
     const onHeaderMouseEnter = () => {
@@ -2741,7 +2941,6 @@ function redrawBuses() {
     bg.setAttribute("fill", "#fff");
     bg.setAttribute("stroke", "#ddd");
     };
-
 
 
     // clicking on signates:
@@ -2809,7 +3008,7 @@ function redrawBuses() {
     const x = shilotToX.get(shilot);
     if (x === undefined) return;
     const trainId = getTrainIdValue(row);
-    if (!trainId) return;
+    const hasTrainId = !!trainId;
     const avgPassengers = row[KEY_AVG_PASSENGERS];
     const fontSize = (scaleFont(avgPassengers) * 3);
 
@@ -2818,6 +3017,7 @@ function redrawBuses() {
       x,
       y,
       trainId,
+      hasTrainId,
       fontSize,
       makat: getMakatValue(row),
       timeStr: extractHHMM(busTimeVal) || String(busTimeVal)
@@ -2826,7 +3026,7 @@ function redrawBuses() {
 
   // Draw each bus as circle at (x=signage column, y=timeToY)
   busItems.forEach(item => {
-    const { row, x, y, trainId, fontSize, makat, timeStr } = item;
+    const { row, x, y, trainId, hasTrainId, fontSize, makat, timeStr } = item;
     const dotX = x;
     const dotRadius = Math.max(0.5, fontSize * 0.05);
     const busKey = buildBusRowKey(row);
@@ -2838,7 +3038,9 @@ function redrawBuses() {
 
     // green if on time, red if not
     const onTime = Number(row[KEY_IS_BUS_ON_TIME]);
-    const busColor = (onTime === 1) ? "#13ba34" : "#ed0c0c";
+    const busColor = !hasTrainId
+        ? "#4b5563"
+        : (onTime === 1) ? "#13ba34" : "#ed0c0c";
     dot.setAttribute("fill", busColor);
 
     // building the bus dots:
@@ -2870,7 +3072,6 @@ function redrawBuses() {
         // popup
         const popup = document.querySelector(".manual-sync-popup");
         const popupBtn = document.querySelector(".manual-sync-popup-btn");
-        if (popup && !manualSyncPromptUsed) popup.classList.add("open");
 
         const historyPopup = document.querySelector(".manual-sync-history");
         if (historyPopup && !manualSyncPromptUsed) historyPopup.classList.add("open");
@@ -2889,6 +3090,9 @@ function redrawBuses() {
             linkModeConnectedTrainUid = getConnectedTrainUidForBusRow(row);
             applyLinkModeVisuals();
             manualSyncPromptUsed = true;
+            manualSyncActionButtonsActive = true;
+            renderSimulationBusTable();
+
             closeManualSyncPopups();
             const confirmPopup = document.querySelector(".manual-sync-confirm");
             if (confirmPopup) {
@@ -2916,6 +3120,7 @@ function redrawBuses() {
             alignTableScrollToRight(simIds);
 
             closeManualSyncPopups();
+            if (popup && !manualSyncPromptUsed) popup.classList.add("open");
           };
         }
     });
@@ -2998,7 +3203,8 @@ let manualSyncPromptUsed = false;
 const KEY_INTERNAL_TRAIN_STATION_CODE = "__train_station_code";
 const KEY_INTERNAL_FROM_TRAIN_NUMBER = "__from_train_number";
 const KEY_INTERNAL_FROM_TRAIN_ARRIVAL = "__from_train_rishui_train_arrival_time";
-
+const KEY_ORIGINAL_TRAIN_NUMBER = "__original_train_number";
+const KEY_ORIGINAL_TRAIN_ARRIVAL = "__original_train_arrival_time";
 
 function applyLinkModeVisuals() {
     const busEls = svg.querySelectorAll(".bus-item");
@@ -3031,6 +3237,27 @@ function exitLinkMode() {
     manualSyncPromptUsed = false;
 }
 
+function getOverrideToDepartureTime(sourceRow, targetRow) {
+  if (!sourceRow || !targetRow) return "";
+
+  const gap = (activeDirection === BUS_TO_RAIL_DIRECTION)
+      ? diffMinutes(
+          sourceRow[KEY_BUS_TIME_TO_STATION],
+          targetRow[KEY_TRAIN_ARRIVAL_RISHUI]
+      )
+      : diffMinutes(
+          targetRow[KEY_TRAIN_ARRIVAL_RISHUI],
+          sourceRow[KEY_BUS_DEPARTURE_TIME]
+      );
+
+  const recommendedMinutes = getRecommendedMinutesFromGap(gap);
+
+  return getProposedBusDepartureTime(
+      sourceRow[KEY_BUS_DEPARTURE_TIME],
+      recommendedMinutes
+  );
+}
+
 async function saveDraggedOverride(sourceRow, targetRow) {
     if (!sourceRow || !targetRow) return;
     if (!Number.isFinite(activeYear) || !Number.isFinite(activeMonth)) return;
@@ -3042,6 +3269,7 @@ async function saveDraggedOverride(sourceRow, targetRow) {
         changeReason = String(input).trim();
         if (!changeReason) window.alert("יש להזין סיבת שינוי");
     }
+    const toDepartureTime = getOverrideToDepartureTime(sourceRow, targetRow);
 
     const payload = {
         week_period: String(sourceRow[KEY_WEEK_PERIOD] ?? "").trim() || String(activeWeek ?? "").trim(),
@@ -3051,8 +3279,10 @@ async function saveDraggedOverride(sourceRow, targetRow) {
         alternative: String(sourceRow[KEY_ALTERNATIVE] ?? "").trim(),
         departure_time: String(sourceRow[KEY_BUS_DEPARTURE_TIME] ?? "").trim(),
         train_station_code: sourceRow[KEY_INTERNAL_TRAIN_STATION_CODE],
+
         from_train_number: sourceRow[KEY_INTERNAL_FROM_TRAIN_NUMBER],
         from_train_rishui_train_arrival_time: String(sourceRow[KEY_INTERNAL_FROM_TRAIN_ARRIVAL] ?? "").trim(),
+        to_departure_time: String(toDepartureTime ?? "").trim(),
         to_train_number: targetRow[KEY_TRAIN_ID],
         to_train_rishui_train_arrival_time: String(targetRow[KEY_TRAIN_ARRIVAL_RISHUI] ?? "").trim(),
         effective_month: String(activeYear) + "-" + String(activeMonth).padStart(2, "0"),
@@ -3072,7 +3302,8 @@ async function saveDraggedOverride(sourceRow, targetRow) {
         exitLinkMode();
         redrawBuses();
     } catch (e) {
-        window.alert("שמירת ההחלפה נכשלה");
+      console.error("override save failed:", e);
+      window.alert("שמירת ההחלפה נכשלה: " + (e && e.message ? e.message : String(e)));
     }
 }
 
