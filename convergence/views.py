@@ -230,7 +230,7 @@ def save_override(request):
         "effective_month": str(payload.get("effective_month") or "").strip(),
         "change_reason": str(payload.get("change_reason") or "").strip(),
         "changed_by": request.user.username,
-        "changed_at": timezone.now().replace(microsecond=0),
+        "changed_at": timezone.localtime(timezone.now()).replace(microsecond=0),
         "is_enabled": True,
         "disabled_at": None,
         "disabled_by": request.user.username,

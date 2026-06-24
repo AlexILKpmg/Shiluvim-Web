@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <title>היסטוריית שינויים</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            direction: rtl;
+            text-align: right;
+        }
+
+        #history_data_container table {
+            border-collapse: collapse;
+            width: 90%;
+            margin-top: 0;
+        }
+
+        #history_data_container table th,
+        #history_data_container table td {
+            border: none;
+            padding: 8px 12px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        #history_data_container table thead th {
+            background-color: #0077cc;
+            color: #ffffff;
+        }
+
+        #history_data_container table tbody td {
+            color: #0b3a66;
+            font-size: 12px;
+        }
+
+        #history_data_container table tbody tr:nth-child(even) {
+            background-color: #f7f7f7;
+        }
+
+        #history_data_container table tbody tr:hover {
+            background: #fce9dc;
+        }
+
+        .effective-month-group-row td {
+            background: #e7f1fb;
+            color: #0b3a66;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        #history_data_container table tbody tr.effective-month-group-row:hover {
+            background: #e7f1fb;
+        }
+
+        .effective-month-toggle {
+            width: 26px;
+            height: 26px;
+            margin-left: 8px;
+            border: 1px solid #0077cc;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #0b3a66;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .effective-month-toggle:hover {
+            background: #f9d2b2;
+        }
+    </style>
+</head>
+<body>
+    <h1>היסטוריית השינויים הידניים</h1>
+
+    <div id="history_data_container">
+      <table>
+        <thead>
+            <tr>
+                <th>תקופת שבוע</th>
+                <th>כיוון קישור</th>
+                <th>מק״ט</th>
+                <th>כיוון</th>
+                <th>חלופה</th>
+                <th>שעת יציאה מקורית</th>
+                <th>קוד תחנת רכבת</th>
+                <th>רכבת מקורית</th>
+                <th>שעת הגעת רכבת מקורית</th>
+                <th>שעת יציאה חדשה</th>
+                <th>רכבת חדשה</th>
+                <th>שעת הגעת רכבת חדשה</th>
+                <th>חודש תחולה</th>
+                <th>סיבת שינוי</th>
+                <th>שונה על ידי</th>
+                <th>תאריך שינוי</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for override in overrides %}
+                <tr class="history-data-row">
+                    <td>{{ override.week_period|default:"—" }}</td>
+                    <td>{{ override.link_direction|default:"—" }}</td>
+                    <td>{{ override.makat }}</td>
+                    <td>{{ override.direction }}</td>
+                    <td>{{ override.alternative|default:"—" }}</td>
+                    <td>{{ override.departure_time|default:"—" }}</td>
+                    <td>{{ override.train_station_code }}</td>
+                    <td>{{ override.from_train_number|default:"—" }}</td>
+                    <td>{{ override.from_train_rishui_train_arrival_time|default:"—" }}</td>
+                    <td>{{ override.to_departure_time|default:"—" }}</td>
+                    <td>{{ override.to_train_number|default:"—" }}</td>
+                    <td>{{ override.to_train_rishui_train_arrival_time|default:"—" }}</td>
+                    <td class="effective-month-cell">{{ override.effective_month|default:"—" }}</td>
+                    <td>{{ override.change_reason }}</td>
+                    <td>{{ override.changed_by|default:"—" }}</td>
+                    <td>{{ override.changed_at }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="16">לא נמצאו שינויים ידניים</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+      </table>
+    </div>
+<script>
+function buildEffectiveMonthGroups() {
+    const tbody = document.querySelector("#history_data_container tbody");
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll("tr.history-data-row"));
+    if (!rows.length) return;
+
+    const groups = new Map();
+    rows.forEach(row => {
+        const monthCell = row.querySelector(".effective-month-cell");
+        const month = (monthCell ? monthCell.textContent : "").trim() || "ללא חודש תחולה";
+        if (!groups.has(month)) groups.set(month, []);
+        groups.get(month).push(row);
+    });
+
+    tbody.innerHTML = "";
+
+    groups.forEach((groupRows, month) => {
+        const groupRow = document.createElement("tr");
+        groupRow.className = "effective-month-group-row";
+
+        const groupCell = document.createElement("td");
+        groupCell.colSpan = 16;
+
+        const toggleBtn = document.createElement("button");
+        toggleBtn.type = "button";
+        toggleBtn.className = "effective-month-toggle";
+        toggleBtn.textContent = "-";
+        toggleBtn.setAttribute("aria-label", "סגירת חודש תחולה " + month);
+
+        const label = document.createElement("span");
+        label.textContent = month;
+
+        toggleBtn.addEventListener("click", () => {
+            const shouldHide = toggleBtn.textContent === "-";
+            groupRows.forEach(row => {
+                row.style.display = shouldHide ? "none" : "";
+            });
+            toggleBtn.textContent = shouldHide ? "+" : "-";
+            toggleBtn.setAttribute(
+                "aria-label",
+                (shouldHide ? "פתיחת חודש תחולה " : "סגירת חודש תחולה ") + month
+            );
+        });
+
+        groupCell.appendChild(toggleBtn);
+        groupCell.appendChild(label);
+        groupRow.appendChild(groupCell);
+        tbody.appendChild(groupRow);
+
+        groupRows.forEach(row => tbody.appendChild(row));
+    });
+}
+
+buildEffectiveMonthGroups();
+</script>
+</body>
+</html>

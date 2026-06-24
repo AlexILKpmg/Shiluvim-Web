@@ -1,2 +1,7 @@
-id,week_period,link_direction,makat,direction,alternative,departure_time,train_station_code,from_train_number,from_train_rishui_train_arrival_time,to_train_number,to_train_rishui_train_arrival_time,effective_month,change_reason,changed_by,changed_at,is_enabled,disabled_at,disabled_by,disable_reason
-1,"יום חול",bus_to_rail,20021,1,#,07:20,5800,232,07:39:00,234,08:08:00,2026-02,סזב,ailyaev,"2026-05-12 11:56:32.000000",1,NULL,ailyaev,
+id,week_period,link_direction,makat,direction,alternative,departure_time,train_station_code,from_train_number,from_train_rishui_train_arrival_time,to_train_number,to_train_rishui_train_arrival_time,effective_month,change_reason,changed_by,changed_at,is_enabled,disabled_at,disabled_by,disable_reason,to_departure_time
+1,"יום חול",bus_to_rail,23044,1,0,05:45,4170,615,06:22:00,303,06:37:00,2026-05,"משנה רק רכבת – על שורת סימולציה",ailyaev,"2026-06-18 11:17:02.000000",1,NULL,ailyaev,,06:00
+2,"יום חול",bus_to_rail,23044,1,0,06:40,4170,619,07:22:00,619,07:22:00,2026-05,"משנה לאותו הרכבת – על שורת סימולציה",ailyaev,"2026-06-18 12:09:53.000000",1,NULL,ailyaev,,
+3,"יום חול",bus_to_rail,23044,1,0,06:20,4170,305,07:07:00,619,07:22,2026-05,"משנה רק זמן הגעה",ailyaev,"2026-06-18 12:13:52.000000",1,NULL,ailyaev,,06:40
+4,"יום חול",bus_to_rail,23044,1,0,08:20,4170,313,09:07:00,313,09:07,2026-05,"4.	משנה לאותו הזמן הגעה",ailyaev,"2026-06-18 12:14:41.000000",1,NULL,ailyaev,,
+5,"יום חול",bus_to_rail,23044,1,0,11:05,4170,637,11:52:00,639,12:22,2026-05,"7.	משנה 2 זמני הגעה אחד אחרי השני",ailyaev,"2026-06-18 12:18:20.000000",1,NULL,ailyaev,,11:35
+6,"יום חול",bus_to_rail,23044,1,0,14:35,4170,651,15:22:00,651,15:22:00,2026-05,"8.	משנה 2 גרירות של אותה הרכבת.",ailyaev,"2026-06-18 12:18:53.000000",1,NULL,ailyaev,,
