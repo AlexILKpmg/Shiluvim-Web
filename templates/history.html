@@ -12,9 +12,15 @@
         }
 
         #history_data_container table {
-            border-collapse: collapse;
-            width: 90%;
-            margin-top: 0;
+          border-collapse: collapse;
+          width: 90%;
+          margin-top: 0;
+          table-layout: fixed;
+        }
+
+        #history_data_container thead th:first-child,
+        #history_data_container tbody tr.history-data-row td:first-child {
+          display: none;
         }
 
         #history_data_container table th,
@@ -23,6 +29,8 @@
             padding: 8px 12px;
             text-align: center;
             font-size: 14px;
+            overflow-wrap: break-word;
+            word-break: break-word;
         }
 
         #history_data_container table thead th {
@@ -69,22 +77,55 @@
         .effective-month-toggle:hover {
             background: #f9d2b2;
         }
+
+        .history-actions {
+            width: 90%;
+            text-align: left;
+            margin-bottom: 8px;
+          }
+
+        #download-history-excel {
+          padding: 8px 14px;
+          border: 1px solid #0077cc;
+          border-radius: 6px;
+          background: #ffffff;
+          color: #0b3a66;
+          cursor: pointer;
+          font-weight: 700;
+        }
+
+        #download-history-excel:hover {
+          background: #f9d2b2;
+        }
+
+        #stationTitle {
+          font-family: Arial, sans-serif;
+          font-size: 24px;
+          font-weight: 700;
+          color: #000;
+          margin: 0 0 12px 0;
+          text-align: right;
+  }
     </style>
 </head>
 <body>
-    <h1>היסטוריית השינויים הידניים</h1>
+    <h2 id="stationTitle"></h2>
 
-    <div id="history_data_container">
-      <table>
+      <div id="history_data_container">
+        <div class="history-actions">
+            <button type="button" id="download-history-excel">הורד csv</button>
+        </div>
+
+        <table>
         <thead>
             <tr>
+                <th>שם תחנת רכבת</th>
                 <th>תקופת שבוע</th>
                 <th>כיוון קישור</th>
                 <th>מק״ט</th>
                 <th>כיוון</th>
                 <th>חלופה</th>
                 <th>שעת יציאה מקורית</th>
-                <th>קוד תחנת רכבת</th>
                 <th>רכבת מקורית</th>
                 <th>שעת הגעת רכבת מקורית</th>
                 <th>שעת יציאה חדשה</th>
@@ -100,13 +141,13 @@
         <tbody>
             {% for override in overrides %}
                 <tr class="history-data-row">
+                    <td>{{ override.station_name|default:"—" }}</td>
                     <td>{{ override.week_period|default:"—" }}</td>
                     <td>{{ override.link_direction|default:"—" }}</td>
                     <td>{{ override.makat }}</td>
                     <td>{{ override.direction }}</td>
                     <td>{{ override.alternative|default:"—" }}</td>
                     <td>{{ override.departure_time|default:"—" }}</td>
-                    <td>{{ override.train_station_code }}</td>
                     <td>{{ override.from_train_number|default:"—" }}</td>
                     <td>{{ override.from_train_rishui_train_arrival_time|default:"—" }}</td>
                     <td>{{ override.to_departure_time|default:"—" }}</td>
@@ -126,12 +167,30 @@
       </table>
     </div>
 <script>
+const params = new URLSearchParams(window.location.search);
+const station = (params.get("station") || "").trim();
+
+function updateTitleFromState() {
+    const titleEl = document.getElementById("stationTitle");
+    if (!titleEl) return;
+
+    titleEl.innerText = station
+        ? ("היסטוריית שינויים ידניים: " + station)
+        : "היסטוריית שינויים ידניים";
+  }
+
 function buildEffectiveMonthGroups() {
     const tbody = document.querySelector("#history_data_container tbody");
     if (!tbody) return;
 
     const rows = Array.from(tbody.querySelectorAll("tr.history-data-row"));
     if (!rows.length) return;
+
+    rows.sort((a, b) => {
+      const dateA = new Date(a.children[15].textContent.trim());
+      const dateB = new Date(b.children[15].textContent.trim());
+      return dateB - dateA;
+    });
 
     const groups = new Map();
     rows.forEach(row => {
@@ -148,12 +207,12 @@ function buildEffectiveMonthGroups() {
         groupRow.className = "effective-month-group-row";
 
         const groupCell = document.createElement("td");
-        groupCell.colSpan = 16;
+        groupCell.colSpan = 15;
 
         const toggleBtn = document.createElement("button");
         toggleBtn.type = "button";
         toggleBtn.className = "effective-month-toggle";
-        toggleBtn.textContent = "-";
+        toggleBtn.textContent = "+";
         toggleBtn.setAttribute("aria-label", "סגירת חודש תחולה " + month);
 
         const label = document.createElement("span");
@@ -176,11 +235,40 @@ function buildEffectiveMonthGroups() {
         groupRow.appendChild(groupCell);
         tbody.appendChild(groupRow);
 
-        groupRows.forEach(row => tbody.appendChild(row));
+        groupRows.forEach(row => {
+          row.style.display = "none";
+          tbody.appendChild(row);
+        });
     });
 }
 
+document.getElementById("download-history-excel").addEventListener("click", () => {
+      const table = document.querySelector("#history_data_container table");
+      const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.textContent.trim());
+      const rows = Array.from(table.querySelectorAll("tbody tr.history-data-row"));
+
+      const csvRows = [
+          headers,
+          ...rows.map(row => Array.from(row.children).map(cell => cell.textContent.trim()))
+      ];
+
+      const csv = csvRows
+          .map(row => row.map(value => `"${value.replaceAll('"', '""')}"`).join(","))
+          .join("\n");
+
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "history.csv";
+      link.click();
+
+      URL.revokeObjectURL(url);
+});
+updateTitleFromState();
 buildEffectiveMonthGroups();
+
 </script>
 </body>
 </html>

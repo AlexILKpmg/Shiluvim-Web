@@ -71,49 +71,6 @@
           background: #f9d2b2;
         }
 
-        .bus-dot-checkbox-filter {
-            cursor: default;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
-            margin: 12px 10px 8px 10px;
-            color: #5A4630;
-            font-size: 14px;
-            font-weight: 400;
-        }
-
-        .bus-dot-checkbox-filter label {
-            display: inline-flex;
-            gap: 3px;
-            cursor: default;
-            align-items: center;
-            font-size: 14px;
-            font-weight: 400;
-            border-radius: 6px;
-            padding: 2px 6px;
-            transition: background-color 120ms ease;
-        }
-
-        .bus-dot-checkbox-title {
-            color: #5A4630;
-            font-size: 16px;
-            font-weight: 600;
-            font-family: Arial, sans-serif;
-            margin-left: 4px;
-        }
-
-        .bus-dot-checkbox-filter label:hover {
-            background: #f9d2b2;
-        }
-
-        .bus-dot-checkbox-filter input[type="checkbox"] {
-            cursor: default;
-            width: 18px;
-            height: 18px;
-            accent-color: #5A4630;
-        }
-
         /* only for button press, not select dropdown values */
         button.filter-select:active {
             background: #f3ba8f;}
@@ -294,43 +251,24 @@
             color: #6b4f1d;
         }
 
-        #simulationTable th.sim-base-col {
-            background: #0077cc;
+        #simulationTable th.train-highlight-col {
+            background: #ffb36b;
             color: #ffffff;
         }
 
-        #simulationTable td.sim-base-col {
+        #simulationTable td.train-highlight-col {
+            background: #ffe8d1;
             color: #0b3a66;
         }
 
-        #simulationTable th.sim-input-col {
-            background: #e8a23a;
+        #simulationTable td.sim-warning-col {
+            background: #ffe1e1;
+            color: #7a1f1f;
+        }
+
+        #simulationTable th.sim-warning-col {
+            background: #f4a3a3;
             color: #ffffff;
-        }
-
-        #simulationTable td.sim-input-col {
-            background: #fff1d6;
-            color: #5A4630;
-        }
-
-        #simulationTable th.sim-calc-col {
-            background: #c98a9b;
-            color: #ffffff;
-        }
-
-        #simulationTable td.sim-calc-col {
-            background: #f7e5ea;
-            color: #5c2b38;
-        }
-
-        #simulationTable th.sim-result-col {
-            background: #2f7d6d;
-            color: #ffffff;
-        }
-
-        #simulationTable td.sim-result-col {
-            background: #e1f0ec;
-            color: #17483f;
         }
 
         #busTable tbody tr:nth-child(even) {
@@ -386,9 +324,7 @@
             background: #fff;
             border-radius: 6px;
         }
-        #closeTrainTrendBtn:hover {
-          background: #f9d2b2;
-        }
+
         #trainTrendChartHost {
             min-height: 120px;
         }
@@ -504,7 +440,7 @@
 
     <div class="viz-wrap" style="display:flex; justify-content:center;">
 
-        <svg id="arrowSVG" width="300" height="2450" viewBox="0 0 240 1960" style="margin-top:20px;">
+        <svg id="arrowSVG" width="240" height="1960" style="margin-top:20px;">
 
           <line x1="112" y1="30" x2="112" y2="1920" stroke="#3f3f3f" stroke-width="3"/>
           <line x1="128" y1="30" x2="128" y2="1920" stroke="#3f3f3f" stroke-width="3"/>
@@ -993,78 +929,6 @@ operatorSelect.addEventListener("change", () => {
 // endregion Operator filter
 
 
-// region Bus dot status filter
-const busDotFilterValues = new Set();
-
-const busDotFilterWrap = document.createElement("div");
-busDotFilterWrap.className = "bus-dot-checkbox-filter";
-
-const busDotFilterTitle = document.createElement("span");
-busDotFilterTitle.className = "bus-dot-checkbox-title";
-busDotFilterTitle.textContent = "סינון אוטובוסים:";
-busDotFilterWrap.appendChild(busDotFilterTitle);
-
-[
-  { value: "green", label: "מסונכרנים" },
-  { value: "red", label: "לא מסונכרנים" },
-  { value: "no_train", label: "ללא רכבת" },
-  { value: "large_window", label: "סטיית תקן גדולה" },
-].forEach(item => {
-  const label = document.createElement("label");
-
-  const input = document.createElement("input");
-  input.type = "checkbox";
-  input.value = item.value;
-
-  input.addEventListener("change", () => {
-      if (input.checked) {
-          busDotFilterValues.add(input.value);
-      } else {
-          busDotFilterValues.delete(input.value);
-      }
-
-      exitLinkMode();
-      activeBusRowKey = null;
-      activeSignage = null;
-      setActiveTrain(null);
-
-      redrawBuses();
-      renderBusTable();
-  });
-
-  label.appendChild(input);
-  label.appendChild(document.createTextNode(item.label));
-  busDotFilterWrap.appendChild(label);
-});
-
-function isBusOnTimeValue(row) {
-  const raw = row[KEY_IS_BUS_ON_TIME];
-  return raw === true ||
-      raw === 1 ||
-      String(raw).trim() === "1" ||
-      String(raw).toLowerCase().trim() === "true";
-}
-
-function rowMatchesBusDotFilter(row) {
-  if (busDotFilterValues.size === 0) return true;
-
-  const hasTrain = !!getTrainIdValue(row);
-  const isOnTime = isBusOnTimeValue(row);
-
-  return (
-      (busDotFilterValues.has("green") && hasTrain && isOnTime) ||
-      (busDotFilterValues.has("red") && hasTrain && !isOnTime) ||
-      (busDotFilterValues.has("no_train") && !hasTrain) ||
-      (busDotFilterValues.has("large_window") && hasLargeArrivalWindow(row))
-  );
-}
-
-function getBusDotStatusFiltered(rows) {
-  return rows.filter(rowMatchesBusDotFilter);
-}
-// endregion Bus dot status filter
-
-
 // region reset button
 //for ESC button:
 function clearMapAndTableFiltersOnly() {
@@ -1072,17 +936,12 @@ function clearMapAndTableFiltersOnly() {
     activeSignage = null;
     activeBusRowKey = null;
     setActiveTrain(null);
-    busDotFilterValues.clear();
-    busDotFilterWrap.querySelectorAll("input[type='checkbox']").forEach(cb => {
-      cb.checked = false;
-  });
-
     svg.querySelectorAll(".makat-trend-emoji, .makat-header-perc-item").forEach(el => {
         el.style.display = "none";
     });
     closeManualSyncPopups();
     updateBusHeaderSelectionVisuals();
-    redrawBuses();
+    applyBusFilter();
     renderBusTable();
     resetSimulationCapture();
 }
@@ -1113,6 +972,7 @@ resetBtn.parentNode.insertBefore(yearSelect, dirSelect.nextSibling);
 resetBtn.parentNode.insertBefore(monthSelect, yearSelect.nextSibling);
 resetBtn.parentNode.insertBefore(weekSelect, monthSelect.nextSibling);
 resetBtn.parentNode.insertBefore(operatorSelect, weekSelect.nextSibling);
+
 const stationHistoryChangesBtn = document.getElementById("stationHistoryChangesBtn");
 if (stationHistoryChangesBtn) {
     operatorSelect.parentNode.insertBefore(stationHistoryChangesBtn, operatorSelect.nextSibling);
@@ -1120,11 +980,6 @@ if (stationHistoryChangesBtn) {
     stationHistoryChangesBtn.addEventListener("click", () => {
         window.location.href = "{% url 'history:index' %}?station=" + encodeURIComponent(station);
     });
-}
-
-const layoutRow = document.querySelector(".layout-row");
-if (layoutRow && layoutRow.parentNode) {
-    layoutRow.parentNode.insertBefore(busDotFilterWrap, layoutRow);
 }
 
 
@@ -2286,39 +2141,6 @@ const simulationRows = []; // rows shown in simulation table
 
 let manualSyncActionButtonsActive = false;
 
-function getSimulationColumnClass(fieldKey) {
-    const baseKeys = new Set([
-        KEY_MAKAT,
-        KEY_DIRECTION,
-        KEY_ALTERNATIVE,
-        KEY_BUS_DEPARTURE_TIME,
-        KEY_BUS_TIME_TO_STATION,
-    ]);
-
-    const inputKeys = new Set([
-        KEY_TRAIN_ID,
-        KEY_TRAIN_ARRIVAL_RISHUI,
-    ]);
-
-    const calcKeys = new Set([]);
-
-    const resultKeys = new Set([
-        KEY_MINUTES_GAP_B2R,
-        KEY_MINUTES_GAP_R2B,
-        KEY_RECOMMENDED_MINUTES,
-        KEY_PROPOSED_BUS_DEPARTURE_TIME,
-        PERC_ON_TIME,
-        PERC_ON_TIME_AFTER_RECOMMENDATION,
-    ]);
-
-    if (baseKeys.has(fieldKey)) return "sim-base-col";
-    if (inputKeys.has(fieldKey)) return "sim-input-col";
-    if (calcKeys.has(fieldKey)) return "sim-calc-col";
-    if (resultKeys.has(fieldKey)) return "sim-result-col";
-
-    return "sim-base-col";
-}
-
 function renderSimulationBusTable() {
     const actionButtons = document.getElementById("simulationActionButtons");
     const headerRow = document.getElementById("simulationTableHeaderRow");
@@ -2333,10 +2155,22 @@ function renderSimulationBusTable() {
     if (actionButtons) {
       actionButtons.innerHTML = "";
     }
-    tableFields.forEach((f) => {
+    tableFields.forEach((f, idx) => {
         const th = document.createElement("th");
         th.textContent = f.label;
-        th.classList.add(getSimulationColumnClass(f.key));
+
+        if (idx < 2) {
+          th.classList.add("train-highlight-col");
+        }
+
+        if (
+          f.key === KEY_MINUTES_GAP_B2R ||
+          f.key === KEY_MINUTES_GAP_R2B ||
+          f.key === KEY_RECOMMENDED_MINUTES ||
+          f.key === KEY_PROPOSED_BUS_DEPARTURE_TIME
+        ) {
+            th.classList.add("sim-warning-col");
+        }
 
         headerRow.appendChild(th);
     });
@@ -2352,9 +2186,9 @@ function renderSimulationBusTable() {
     rows.forEach((r, rowIndex) => {
       const tr = document.createElement("tr");
 
-      tableFields.forEach((f) => {
+      tableFields.forEach((f, idx) => {
         const td = document.createElement("td");
-        td.classList.add(getSimulationColumnClass(f.key));
+        if (idx < 2) td.classList.add("train-highlight-col");
         if (
           f.key === KEY_MINUTES_GAP_B2R ||
           f.key === KEY_MINUTES_GAP_R2B ||
@@ -2553,8 +2387,6 @@ const KEY_ASCENDING_AMOUNT = "מספר עולים";
 const KEY_DESCENDING_AMOUNT = "מספר יורדים";
 
 const svg = document.getElementById("arrowSVG");
-const MAP_SCALE = 1.75;
-const MAP_BASE_HEIGHT = 1960;
 
 
 function applyBusFilter() {
@@ -2958,7 +2790,7 @@ function updateBusHeadersSticky() {
 
     let desiredY = baseY;
     if (window.scrollY > svgTopAbs) {
-        desiredY = baseY + ((window.scrollY - svgTopAbs) / MAP_SCALE) + topPad;
+      desiredY = baseY + (window.scrollY - svgTopAbs) + topPad;
     }
 
     desiredY = Math.min(desiredY, maxY);
@@ -3000,11 +2832,10 @@ function redrawBuses() {
 
   // filtering the dots: :
   const filteredTimes = getFilteredTimes(); // using operator and week period
-  const busRows = getBusDotStatusFiltered(
-      filteredTimes.filter(r =>
-          getBusTimeByDirection(r) && getMakatValue(r) !== "" //  if there is not getBusTimeByDirection(r) && getMakatValue(r) filter it out!
-      )
+  const busRows = filteredTimes.filter(r =>
+  getBusTimeByDirection(r) && getMakatValue(r) !== "" //  if there is not getBusTimeByDirection(r) && getMakatValue(r) filter it out!
   );
+
   // filtering the shilot header values - using only week period:
     // I do it so operator will not affect the values that are presented!
   const weekOnlyTimes = stationTimes.filter(r => String(r[KEY_WEEK_PERIOD] ?? "").trim() === activeWeek);
@@ -3030,11 +2861,8 @@ function redrawBuses() {
 
   // Resize SVG width if there are many signage columns
   const minSvgWidth = 240;
-  const neededWidth = Math.max(minSvgWidth, baseX + shilotValues.length * colW + rightPad);
-
-  svg.setAttribute("viewBox", "0 0 " + neededWidth + " " + MAP_BASE_HEIGHT);
-  svg.setAttribute("width", String(neededWidth * MAP_SCALE));
-  svg.setAttribute("height", String(MAP_BASE_HEIGHT * MAP_SCALE));
+  const neededWidth = baseX + shilotValues.length * colW + rightPad;
+  svg.setAttribute("width", String(Math.max(minSvgWidth, neededWidth)));
 
   // Map signage value -> x coordinate
   const shilotToX = new Map();
@@ -3256,11 +3084,6 @@ function redrawBuses() {
         ? "#4b5563"
         : (onTime === 1) ? "#13ba34" : "#ed0c0c";
     dot.setAttribute("fill", busColor);
-      // adding outline if its a manually changed bus
-    if (row.__is_overridden) {
-      dot.setAttribute("stroke", "#0b5fff");
-      dot.setAttribute("stroke-width", "2");
-  }
 
     // building the bus dots:
     dot.classList.add("bus-item");
@@ -3375,7 +3198,7 @@ function redrawBuses() {
       alert.setAttribute("dominant-baseline", "middle");
       alert.classList.add("bus-item");
       alert.classList.add("bus-alert");
-      alert.setAttribute("data-train-uid", connectedTrainUid);
+      alert.setAttribute("data-train", trainId);
       alert.setAttribute("data-signage", getSignageValue(row));
       alert.setAttribute("data-bus-key", busKey);
 
@@ -3402,6 +3225,7 @@ let linkModeConnectedTrainUid = null;
 
 let manualSyncPromptUsed = false;
 
+const KEY_INTERNAL_TRAIN_STATION_CODE = "__train_station_code";
 const KEY_INTERNAL_FROM_TRAIN_NUMBER = "__from_train_number";
 const KEY_INTERNAL_FROM_TRAIN_ARRIVAL = "__from_train_rishui_train_arrival_time";
 const KEY_ORIGINAL_TRAIN_NUMBER = "__original_train_number";
@@ -3485,8 +3309,7 @@ async function saveDraggedOverride(
         direction: sourceRow[KEY_DIRECTION],
         alternative: String(sourceRow[KEY_ALTERNATIVE] ?? "").trim(),
         departure_time: String(sourceRow[KEY_BUS_DEPARTURE_TIME] ?? "").trim(),
-        station_name: station,
-
+        train_station_code: sourceRow[KEY_INTERNAL_TRAIN_STATION_CODE],
 
         from_train_number: sourceRow[KEY_INTERNAL_FROM_TRAIN_NUMBER],
         from_train_rishui_train_arrival_time: String(sourceRow[KEY_INTERNAL_FROM_TRAIN_ARRIVAL] ?? "").trim(),

@@ -147,13 +147,13 @@ def _serialize_bus_to_rail_trend(row): #NOTE - for trend by station level i will
 # region override
 def _row_override_key(row):
     return (
+        str(row.get(COL_STATION) or "").strip(),
         str(row.get(COL_WEEK) or "").strip(),
         str(row.get(COL_LINK_DIRECTION) or "").strip(),
         _to_int_or_none(row.get('מק"ט')),
         _to_int_or_none(row.get("כיוון")),
         str(row.get("חלופה") or "").strip(),
         str(row.get("שעת יציאה מתחנת המוצא") or "").strip(),
-        _to_int_or_none(row.get(COL_TRAIN_STATION_CODE)),
         _to_int_or_none(row.get(COL_FROM_TRAIN_NUMBER)),
         str(row.get(COL_FROM_TRAIN_ARRIVAL) or "").strip(),
     )
@@ -164,17 +164,17 @@ def _build_override_lookup(effective_month):
     if not effective_month:
         return out
 
-    qs = OverrideConv.objects.filter(is_enabled=True, effective_month__lte=effective_month).order_by("changed_at")
+    qs = OverrideConv.objects.filter(effective_month__lte=effective_month).order_by("changed_at")
 
     for ov in qs:
         key = (
+            str(ov.station_name or "").strip(),
             str(ov.week_period or "").strip(),
             str(ov.link_direction or "").strip(),
             ov.makat,
             ov.direction,
             str(ov.alternative or "").strip(),
             str(ov.departure_time or "").strip(),
-            ov.train_station_code,
             ov.from_train_number,
             str(ov.from_train_rishui_train_arrival_time or "").strip(),
         )
@@ -209,7 +209,7 @@ def save_override(request):
         "link_direction",
         "makat",
         "direction",
-        "train_station_code",
+        "station_name",
         "from_train_number",
         "to_train_number",
         "to_train_rishui_train_arrival_time",
@@ -224,6 +224,7 @@ def save_override(request):
         return JsonResponse({"ok": False, "error": "invalid_link_direction"}, status=400)
 
     defaults = {
+        "station_name": str(payload.get("station_name")).strip(),
         "to_departure_time": str(payload.get("to_departure_time") or "").strip(),
         "to_train_number": _to_int_or_none(payload.get("to_train_number")),
         "to_train_rishui_train_arrival_time": str(payload.get("to_train_rishui_train_arrival_time") or "").strip(),
@@ -231,10 +232,6 @@ def save_override(request):
         "change_reason": str(payload.get("change_reason") or "").strip(),
         "changed_by": request.user.username,
         "changed_at": timezone.localtime(timezone.now()).replace(microsecond=0),
-        "is_enabled": True,
-        "disabled_at": None,
-        "disabled_by": request.user.username,
-        "disable_reason": "",
     }
 
     if defaults["to_train_number"] is None:
@@ -249,57 +246,17 @@ def save_override(request):
         "direction": _to_int_or_none(payload.get("direction")),
         "alternative": str(payload.get("alternative") or "").strip(),
         "departure_time": str(payload.get("departure_time") or "").strip(),
-        "train_station_code": _to_int_or_none(payload.get("train_station_code")),
+        "station_name": str(payload.get("station_name") or "").strip(),
         "from_train_number": _to_int_or_none(payload.get("from_train_number")),
         "from_train_rishui_train_arrival_time": str(payload.get("from_train_rishui_train_arrival_time") or "").strip(),
     }
-    must_exist = ("week_period", "link_direction", "makat", "direction", "train_station_code", "from_train_number")
+    must_exist = ("week_period", "link_direction", "makat", "direction", "station_name", "from_train_number")
     bad_lookup = [k for k in must_exist if lookup.get(k) in (None, "")]
     if bad_lookup:
         return JsonResponse({"ok": False, "error": "invalid_lookup_fields", "fields": bad_lookup}, status=400)
 
     obj, created = OverrideConv.objects.update_or_create(**lookup, defaults=defaults)
     return JsonResponse({"ok": True, "id": obj.id, "created": created})
-
-
-@require_POST
-@login_required
-@permission_required("convergence.can_manage_convergence_overrides", raise_exception=True)
-def disable_override(request):
-    try:
-        payload = json.loads((request.body or b"").decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return JsonResponse({"ok": False, "error": "invalid_json"}, status=400)
-
-    lookup = {
-        "week_period": str(payload.get("week_period") or "").strip(),
-        "link_direction": str(payload.get("link_direction") or "").strip(),
-        "makat": _to_int_or_none(payload.get("makat")),
-        "direction": _to_int_or_none(payload.get("direction")),
-        "alternative": str(payload.get("alternative") or "").strip(),
-        "departure_time": str(payload.get("departure_time") or "").strip(),
-        "train_station_code": _to_int_or_none(payload.get("train_station_code")),
-        "from_train_number": _to_int_or_none(payload.get("from_train_number")),
-        "from_train_rishui_train_arrival_time": str(payload.get("from_train_rishui_train_arrival_time") or "").strip(),
-    }
-
-    must_exist = ("week_period", "link_direction", "makat", "direction", "train_station_code", "from_train_number")
-    bad_lookup = [k for k in must_exist if lookup.get(k) in (None, "")]
-    if bad_lookup:
-        return JsonResponse({"ok": False, "error": "invalid_lookup_fields", "fields": bad_lookup}, status=400)
-
-    obj = OverrideConv.objects.filter(**lookup).first()
-    if obj is None:
-        return JsonResponse({"ok": False, "error": "not_found"}, status=404)
-
-    obj.is_enabled = False
-    obj.disabled_at = timezone.now().replace(microsecond=0)
-    obj.disabled_by = str(payload.get("disabled_by") or "").strip()
-    obj.disable_reason = str(payload.get("disable_reason") or "").strip()
-    obj.save(update_fields=("is_enabled", "disabled_at", "disabled_by", "disable_reason"))
-
-    return JsonResponse({"ok": True, "id": obj.id})
-
 
 # endregion override
 

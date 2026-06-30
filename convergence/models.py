@@ -133,7 +133,7 @@ class OverrideConv(models.Model):
     direction = models.IntegerField()
     alternative = models.CharField(max_length=255, blank=True)
     departure_time = models.CharField(max_length=32, blank=True)
-    train_station_code = models.IntegerField()
+    station_name = models.CharField(max_length=255, blank=True)
     from_train_number = models.IntegerField()
     from_train_rishui_train_arrival_time = models.CharField(max_length=32, blank=True)
     to_departure_time = models.CharField(max_length=32, blank=True)
@@ -143,10 +143,6 @@ class OverrideConv(models.Model):
     change_reason = models.TextField(blank=True)
     changed_by = models.CharField(max_length=255, blank=True)
     changed_at = models.DateTimeField(default=timezone.now)
-    is_enabled = models.BooleanField(default=True)
-    disabled_at = models.DateTimeField(null=True, blank=True)
-    disabled_by = models.CharField(max_length=255, blank=True)
-    disable_reason = models.TextField(blank=True)
 
     class Meta:
         db_table = "override_conv"
@@ -162,7 +158,7 @@ class OverrideConv(models.Model):
                     "direction",
                     "alternative",
                     "departure_time",
-                    "train_station_code",
+                    "station_name",
                     "from_train_number",
                     "from_train_rishui_train_arrival_time",
                 ),
