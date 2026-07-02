@@ -461,10 +461,62 @@
         }
           /* simulation popup */
         .manual-sync-popup.manual-sync-simulation {
-            left: 680px;
+            left: 1100px;
             transform: translateY(-120%);
             width: 220px;
         }
+
+        .manual-sync-popup.bus-line-history-popup {
+            left: 20px;
+            transform: translateY(-120%);
+            width: min(900px, calc(100vw - 40px));
+            max-height: calc(100vh - 40px);
+            overflow: auto;
+        }
+
+        .bus-line-history-popup.open {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .bus-line-history-table-wrap {
+            margin-top: 10px;
+            overflow: auto;
+            border: 1px solid #bbb;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .bus-line-history-table {
+            width: 100%;
+            border-collapse: collapse;
+            direction: rtl;
+            background: #fff;
+        }
+
+        .bus-line-history-table th,
+        .bus-line-history-table td {
+            padding: 7px 9px;
+            border-bottom: 1px solid #ddd;
+            white-space: nowrap;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .bus-line-history-table th {
+            background: #0077cc;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .bus-line-history-table tbody tr:nth-child(even) {
+            background: #f7f7f7;
+        }
+
+        .bus-line-history-status {
+            margin-top: 8px;
+        }
+
         /* keep same open animation behavior */
         .manual-sync-simulation.open {
               transform: translateY(0);
@@ -583,10 +635,36 @@
     <button id="manualSyncPopupBtn" class="manual-sync-popup-btn" type="button">הפעל</button>
 </div>
 
-  <div class="manual-sync-popup manual-sync-simulation">
-      <p class="manual-sync-popup-text">להפעלת הסימולציה - לחץ כאן</p>
-      <button class="manual-sync-popup-btn manual-sync-simulation-btn" type="button">הפעל סימולציה</button>
-  </div>
+<div id="busLineHistoryPopup" class="manual-sync-popup bus-line-history-popup">
+    <p class="manual-sync-popup-text">היסטוריית קו זה</p>
+    <button id="busLineHistoryPopupBtn" class="manual-sync-popup-btn" type="button">הצג</button>
+    <div id="busLineHistoryStatus" class="manual-sync-popup-text bus-line-history-status"></div>
+    <div id="busLineHistoryTableWrap" class="bus-line-history-table-wrap">
+        <table class="bus-line-history-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>תאריך</th>
+                    <th>תחנת רכבת</th>
+                    <th>כיוון קישור</th>
+                    <th>תקופת שבוע</th>
+                    <th>מק"ט</th>
+                    <th>כיוון</th>
+                    <th>חלופה</th>
+                    <th>שעת יציאה</th>
+                    <th>מספר הרכבת</th>
+                    <th>שעת הגעת הרכבת לתחנה (רישוי)</th>
+                </tr>
+            </thead>
+            <tbody id="busLineHistoryTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="manual-sync-popup manual-sync-simulation">
+    <p class="manual-sync-popup-text">להפעלת הסימולציה - לחץ כאן</p>
+    <button class="manual-sync-popup-btn manual-sync-simulation-btn" type="button">הפעל סימולציה</button>
+</div>
 <div class="manual-sync-popup manual-sync-confirm">
     <p class="manual-sync-popup-text">מצב סנכרון הופעל</p>
 </div>
@@ -683,9 +761,11 @@ function closeManualSyncPopups() {
     const popup = document.getElementById("manualSyncPopup");
     const simulationPopup = document.querySelector(".manual-sync-simulation");
     const confirmPopup = document.querySelector(".manual-sync-confirm");
+    const busLineHistoryPopup = document.getElementById("busLineHistoryPopup");
     if (popup) popup.classList.remove("open");
     if (simulationPopup) simulationPopup.classList.remove("open");
     if (confirmPopup) confirmPopup.classList.remove("open");
+    if (busLineHistoryPopup) busLineHistoryPopup.classList.remove("open");
 }
 // endregion Helpers and General
 
@@ -1069,6 +1149,8 @@ function getBusDotStatusFiltered(rows) {
 //for ESC button:
 function clearMapAndTableFiltersOnly() {
     exitLinkMode();
+    historySourceBusRow = null;
+    resetBusLineHistoryPopup();
     activeSignage = null;
     activeBusRowKey = null;
     setActiveTrain(null);
@@ -1801,6 +1883,8 @@ function getTableFields() {
 }
 
 let activeBusRowKey = null;
+let historySourceBusRow = null;
+
 function buildBusRowKey(row) {
     const trainId = getTrainIdValue(row);
     const makat = getMakatValue(row);
@@ -1809,6 +1893,99 @@ function buildBusRowKey(row) {
     const departure = extractHHMM(row[KEY_BUS_DEPARTURE_TIME] ?? "") || "";
     return trainId + "||" + makat + "||" + direction + "||" + alternative + "||" + departure;
   }
+
+function buildBusRowKey_history(row) {
+    const makat = getMakatValue(row);
+    const direction = String(row[KEY_DIRECTION] ?? "").trim();
+    const alternative = String(row[KEY_ALTERNATIVE] ?? "").trim();
+    const departure = extractHHMM(row[KEY_BUS_DEPARTURE_TIME] ?? "") || "";
+    return makat + "||" + direction + "||" + alternative + "||" + departure;
+  }
+
+function resetBusLineHistoryPopup() {
+    const status = document.getElementById("busLineHistoryStatus");
+    const tableWrap = document.getElementById("busLineHistoryTableWrap");
+    const body = document.getElementById("busLineHistoryTableBody");
+    if (status) status.textContent = "";
+    if (body) body.innerHTML = "";
+    if (tableWrap) tableWrap.style.display = "none";
+}
+
+function renderBusLineHistoryRows(rows) {
+    const status = document.getElementById("busLineHistoryStatus");
+    const tableWrap = document.getElementById("busLineHistoryTableWrap");
+    const body = document.getElementById("busLineHistoryTableBody");
+    if (!status || !tableWrap || !body) return;
+
+    body.innerHTML = "";
+    if (!rows || rows.length === 0) {
+        status.textContent = "לא נמצאה היסטוריה עבור קו זה";
+        tableWrap.style.display = "none";
+        return;
+    }
+
+    status.textContent = "";
+    const fields = [
+        "id",
+        "year_month",
+        "train_station",
+        "link_direction",
+        "week_period",
+        "makat",
+        "direction",
+        "alternative",
+        "departure_time",
+        "train_id",
+        "train_arrival_time_rishui",
+    ];
+
+    rows.forEach(row => {
+        const tr = document.createElement("tr");
+        fields.forEach(field => {
+            const td = document.createElement("td");
+            const value = row[field];
+            td.textContent = (value === null || value === undefined || String(value).trim() === "") ? "—" : String(value);
+            tr.appendChild(td);
+        });
+        body.appendChild(tr);
+    });
+
+    tableWrap.style.display = "block";
+}
+
+async function fetchBusLineHistory(row) {
+    const status = document.getElementById("busLineHistoryStatus");
+    if (!row) {
+        if (status) status.textContent = "לא נבחר קו";
+        return;
+    }
+
+    const qp = new URLSearchParams();
+    qp.set("station", station);
+    qp.set("link_direction", (activeDirection === BUS_TO_RAIL_DIRECTION) ? "bus_to_rail" : "rail_to_bus");
+    qp.set("week_period", String(row[KEY_WEEK_PERIOD] ?? activeWeek ?? "").trim());
+    qp.set("makat", getMakatValue(row));
+    qp.set("direction", String(row[KEY_DIRECTION] ?? "").trim());
+    qp.set("alternative", String(row[KEY_ALTERNATIVE] ?? "").trim());
+    qp.set("departure_time", extractHHMM(row[KEY_BUS_DEPARTURE_TIME] ?? "") || String(row[KEY_BUS_DEPARTURE_TIME] ?? "").trim());
+
+    if (status) status.textContent = "טוען...";
+
+    try {
+        const res = await fetch("/convergence/line-history/?" + qp.toString(), {
+            method: "GET",
+            headers: { "Accept": "application/json" },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+            throw new Error(data.error ? String(data.error) : ("http_" + res.status));
+        }
+        renderBusLineHistoryRows(data.rows || []);
+    } catch (e) {
+        if (status) status.textContent = "טעינת ההיסטוריה נכשלה";
+        console.error("line history load failed:", e);
+    }
+}
 
 function setActiveBusRow(rowOrNull) {
     activeBusRowKey = rowOrNull ? buildBusRowKey(rowOrNull) : null;
@@ -1995,6 +2172,14 @@ function renderBusTable() {
     tr.style.cursor = "pointer";
     tr.addEventListener("click", (e) => {
         e.stopPropagation();
+
+        const lockedSimulationBusKey = simulationSourceBusRow
+            ? buildBusRowKey(simulationSourceBusRow)
+            : null;
+
+        if (lockedSimulationBusKey && activeBusRowKey === lockedSimulationBusKey) {
+            return;
+        }
 
         const isSame = (activeBusRowKey === rowBusKey);
 
@@ -2864,6 +3049,10 @@ function redrawTrains() {
                 return;
             }
 
+            if (simulationCaptureActive) {
+                return;
+            }
+
             //cancel simulation effects:
             resetSimulationCapture();
             // cancel previous bus-dot selection
@@ -3285,10 +3474,23 @@ function redrawBuses() {
         });
         //simulation row activation
         simulationSourceBusRow = row;
+        historySourceBusRow = row;
+        resetBusLineHistoryPopup();
 
         // popup
         const popup = document.getElementById("manualSyncPopup");
         const popupBtn = document.getElementById("manualSyncPopupBtn");
+        const busLineHistoryPopup = document.getElementById("busLineHistoryPopup");
+        const busLineHistoryPopupBtn = document.getElementById("busLineHistoryPopupBtn");
+
+        if (busLineHistoryPopup) busLineHistoryPopup.classList.add("open");
+
+        if (busLineHistoryPopupBtn) {
+          busLineHistoryPopupBtn.onclick = async (ev) => {
+            ev.stopPropagation();
+            await fetchBusLineHistory(historySourceBusRow);
+          };
+        }
 
         const simulationPopup = document.querySelector(".manual-sync-simulation");
         if (simulationPopup && !manualSyncPromptUsed) simulationPopup.classList.add("open");

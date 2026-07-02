@@ -6,7 +6,7 @@ from django.db.models.functions import Trim
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from convergence.models import ConvergenceBusToRail, ConvergenceRailToBus, OverrideConv, RawBusData
 
@@ -35,6 +35,37 @@ def _to_int_or_none(value):
     except (TypeError, ValueError):
         return None
 # endregion helpers
+
+def _extract_hhmm(value):
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    if "T" in text:
+        text = text.split("T")[-1]
+    if " " in text:
+        text = text.split(" ")[-1]
+    if "+" in text:
+        text = text.split("+")[0]
+    if "." in text:
+        text = text.split(".")[0]
+    parts = text.split(":")
+    if len(parts) < 2:
+        return text
+    try:
+        hh = int(float(parts[0])) % 24
+        mm = int(float(parts[1]))
+    except (TypeError, ValueError):
+        return text
+    return f"{hh:02d}:{mm:02d}"
+
+
+def _row_year_month(row):
+    try:
+        return f"{int(row.year):04d}-{int(row.month):02d}"
+    except (TypeError, ValueError):
+        return f"{row.year}-{row.month}"
 
 # region organizing the data from DB
 COL_STATION = "שם תחנת הרכבת"
@@ -257,6 +288,106 @@ def save_override(request):
 
     obj, created = OverrideConv.objects.update_or_create(**lookup, defaults=defaults)
     return JsonResponse({"ok": True, "id": obj.id, "created": created})
+
+
+@require_GET
+def line_history(request):
+    station = (request.GET.get("station") or "").strip()
+    link_direction = (request.GET.get("link_direction") or "").strip()
+    week_period = (request.GET.get("week_period") or "").strip()
+    makat = _to_int_or_none(request.GET.get("makat"))
+    direction = _to_int_or_none(request.GET.get("direction"))
+    alternative = (request.GET.get("alternative") or "").strip()
+    departure_time = _extract_hhmm(request.GET.get("departure_time"))
+
+    required_missing = []
+    if not station:
+        required_missing.append("station")
+    if link_direction not in ("bus_to_rail", "rail_to_bus"):
+        required_missing.append("link_direction")
+    if not week_period:
+        required_missing.append("week_period")
+    if makat is None:
+        required_missing.append("makat")
+    if direction is None:
+        required_missing.append("direction")
+    if not departure_time:
+        required_missing.append("departure_time")
+    if required_missing:
+        return JsonResponse({"ok": False, "error": "missing_or_invalid_fields", "fields": required_missing}, status=400)
+
+    model = ConvergenceBusToRail if link_direction == "bus_to_rail" else ConvergenceRailToBus
+    qs = (
+        model.objects
+        .annotate(_station_trim=Trim("train_station_name"))
+        .filter(
+            _station_trim=station,
+            week_period=week_period,
+            makat=makat,
+            direction=direction,
+            alternative=alternative,
+        )
+        .order_by("year", "month", "train_number", "rishui_train_arrival_time")
+    )
+
+    base_rows = [
+        row for row in qs
+        if _extract_hhmm(row.departure_time) == departure_time
+    ]
+
+    rows = []
+    for row in base_rows:
+        year_month = _row_year_month(row)
+        original_train_number = row.train_number
+        original_arrival = _extract_hhmm(row.rishui_train_arrival_time)
+        original_departure = str(row.departure_time or "").strip()
+
+        override = (
+            OverrideConv.objects
+            .filter(
+                station_name=station,
+                week_period=week_period,
+                link_direction=link_direction,
+                makat=makat,
+                direction=direction,
+                alternative=alternative,
+                departure_time__in=[departure_time, original_departure],
+                from_train_number=original_train_number,
+                from_train_rishui_train_arrival_time__in=[
+                    str(row.rishui_train_arrival_time or "").strip(),
+                    original_arrival,
+                ],
+                effective_month__lte=year_month,
+            )
+            .order_by("changed_at")
+            .last()
+        )
+
+        train_id = original_train_number
+        train_arrival_time = original_arrival
+        if override is not None:
+            if override.to_train_number is not None:
+                train_id = override.to_train_number
+            train_arrival_time = _extract_hhmm(override.to_train_rishui_train_arrival_time)
+
+        rows.append({
+            "year_month": year_month,
+            "train_station": row.train_station_name,
+            "link_direction": link_direction,
+            "week_period": row.week_period,
+            "makat": row.makat,
+            "direction": row.direction,
+            "alternative": row.alternative,
+            "departure_time": departure_time,
+            "train_id": train_id,
+            "train_arrival_time_rishui": train_arrival_time,
+        })
+
+    rows.sort(key=lambda item: (item["year_month"], str(item["train_id"] or ""), item["train_arrival_time_rishui"]))
+    for idx, row in enumerate(rows, start=1):
+        row["id"] = idx
+
+    return JsonResponse({"ok": True, "rows": rows})
 
 # endregion override
 
