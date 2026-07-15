@@ -379,24 +379,6 @@
             font-size: 18px;
         }
 
-        #trendGraphNav {
-            display: flex;
-            gap: 6px;
-            margin-inline-start: auto;
-        }
-
-        .trend-graph-nav-btn {
-            padding: 6px 10px;
-            cursor: pointer;
-            border: 1px solid #999;
-            background: #fff;
-            border-radius: 6px;
-            min-width: 34px;
-        }
-        .trend-graph-nav-btn:hover {
-          background: #f9d2b2;
-        }
-
         #closeTrainTrendBtn {
             padding: 6px 10px;
             cursor: pointer;
@@ -631,9 +613,6 @@
     <div class="table-wrap">
 
         <h3 id="tableTitle">טבלת נסיעות אוטובוסים</h3>
-        <div class="bus-line-history-actions">
-            <button type="button" id="download-bus-line-history-csv">הורד csv</button>
-        </div>
 
         <div id="busTableTopScroll" class="table-scroll-top">
             <div id="busTableTopScrollInner"></div>
@@ -680,6 +659,9 @@
     <button id="busLineHistoryPopupBtn" class="manual-sync-popup-btn" type="button">הצג</button>
     <div id="busLineHistoryStatus" class="manual-sync-popup-text bus-line-history-status"></div>
     <div id="busLineHistoryTableWrap" class="bus-line-history-table-wrap">
+            <div class="bus-line-history-actions">
+              <button type="button" id="download-bus-line-history-csv">הורד csv</button>
+            </div>
         <table class="bus-line-history-table">
             <thead>
                 <tr>
@@ -712,10 +694,6 @@
     <div class="modal-content">
         <div id="trainTrendHeader">
             <h3 id="trainTrendTitle">מגמת אחוזי עמידה בזמנים</h3>
-            <div id="trendGraphNav">
-                <button id="trendGraphPrevBtn" class="trend-graph-nav-btn" type="button" aria-label="גרף אחוזי צבע">&lt;</button>
-                <button id="trendGraphNextBtn" class="trend-graph-nav-btn" type="button" aria-label="גרף אחוזים גולמי">&gt;</button>
-            </div>
             <button id="closeTrainTrendBtn" type="button">סגירה</button>
         </div>
         <div id="trainTrendChartHost"></div>
@@ -725,8 +703,6 @@
 
 {{ bus_to_rail_df|json_script:"bus-to-rail-data" }}
 {{ bus_to_rail_trend_df|json_script:"bus-to-rail-trend-data" }}
-{{ bus_to_rail_dot_color_percentages_df|json_script:"bus-dot-color-percentages-data" }}
-{{ bus_to_rail_dot_color_percentages_df|json_script:"rail-to-bus-dot-color-percentages-data" }}
 {{ rail_to_bus_df|json_script:"rail-to-bus-data" }}
 {{ year_month_pairs|json_script:"year-month-pairs-data" }}
 {{ raw_bus_data_df|json_script:"raw-bus-data" }}
@@ -827,10 +803,6 @@ const RAIL_TO_BUS_JSON = JSON.parse(
 
 const BUS_TO_RAIL_TREND_JSON = JSON.parse(
     document.getElementById("bus-to-rail-trend-data").textContent
-  );
-
-const BUS_DOT_COLOR_PERCENTAGES_JSON = JSON.parse(
-    document.getElementById("bus-dot-color-percentages-data").textContent
   );
 
 
@@ -1167,12 +1139,19 @@ busDotFilterWrap.appendChild(busDotFilterTitle);
   busDotFilterWrap.appendChild(label);
 });
 
+function isBusOnTimeValue(row) {
+  const raw = row[KEY_IS_BUS_ON_TIME];
+  return raw === true ||
+      raw === 1 ||
+      String(raw).trim() === "1" ||
+      String(raw).toLowerCase().trim() === "true";
+}
 
 function rowMatchesBusDotFilter(row) {
   if (busDotFilterValues.size === 0) return true;
 
   const hasTrain = !!getTrainIdValue(row);
-  const isOnTime = isBusRailGapOnTime(calcBusRailGap(row));
+  const isOnTime = isBusOnTimeValue(row);
 
   return (
       (busDotFilterValues.has("green") && hasTrain && isOnTime) ||
@@ -1265,57 +1244,6 @@ const trendTitle = document.getElementById("trainTrendTitle");
 const trendModal = document.getElementById("trainTrendModal");
 const trendHost = document.getElementById("trainTrendChartHost");
 const closeTrendBtn = document.getElementById("closeTrainTrendBtn");
-const trendGraphPrevBtn = document.getElementById("trendGraphPrevBtn");
-const trendGraphNextBtn = document.getElementById("trendGraphNextBtn");
-let activeTrendPopup = null;
-
-function buildColorSeries(rows) {
-    const byYm = new Map();
-    for (const r of rows || []) {
-        const y = parseInt(r.year, 10);
-        const m = parseInt(r.month, 10);
-        const p = toPercentNumber(r.green_percentage);
-        if (!Number.isFinite(y) || !Number.isFinite(m) || p === null) continue;
-
-        const ymKey = `${y}-${String(m).padStart(2, "0")}`;
-        if (!byYm.has(ymKey)) {
-            byYm.set(ymKey, { year: y, month: m, perc: Math.max(0, Math.min(100, p)) });
-        }
-    }
-    return Array.from(byYm.values()).sort(
-        (a, b) => (a.year - b.year) || (a.month - b.month)
-    );
-}
-
-function setTrendMode(mode) {
-    if (!activeTrendPopup) return;
-    activeTrendPopup.mode = mode;
-
-    if (trendTitle) {
-        trendTitle.textContent = mode === "raw"
-            ? activeTrendPopup.rawTitle
-            : activeTrendPopup.colorTitle;
-    }
-    if (trendGraphPrevBtn) trendGraphPrevBtn.style.display = mode === "raw" ? "" : "none";
-    if (trendGraphNextBtn) trendGraphNextBtn.style.display = mode === "color" ? "" : "none";
-
-    const render = mode === "raw" ? activeTrendPopup.renderRaw : activeTrendPopup.renderColor;
-    if (render) render();
-}
-
-function openTrendPopup(config) {
-    if (!trendModal || !trendHost || !trendTitle) return;
-    activeTrendPopup = { ...config, mode: "color" };
-    setTrendMode("color");
-    trendModal.classList.add("open");
-}
-
-if (trendGraphPrevBtn) {
-    trendGraphPrevBtn.addEventListener("click", () => setTrendMode("color"));
-}
-if (trendGraphNextBtn) {
-    trendGraphNextBtn.addEventListener("click", () => setTrendMode("raw"));
-}
 
 function buildTrendKey(trainId, row) {
       const dir = String(row[KEY_RAIL_DIRECTION] ?? "").trim().replace(/\s+/g, " ");
@@ -1324,27 +1252,19 @@ function buildTrendKey(trainId, row) {
       return String(trainId).trim() + "||" + normalizedTime + "||" + dir;
   }
 
-function buildColorTrainTrendKey(row) {
-      const trainId = String(row.train_number ?? "").trim();
-      const normalizedTime = extractHHMM(row.train_arrival_time ?? "") || String(row.train_arrival_time ?? "").trim();
-      const dir = String(row.rail_direction ?? "").trim().replace(/\s+/g, " ");
-      if (!trainId || !normalizedTime || !dir) return null;
-      return trainId + "||" + normalizedTime + "||" + dir;
-  }
-
 
 function closeTrainTrendModal() {
     if (!trendModal) return;
     trendModal.classList.remove("open");
 }
 
-function renderTrainTrendChart(series, emptyText = "אין נתונים עבור רכבת זו.") {
+function renderTrainTrendChart(series) {
     if (!trendHost) return;
     trendHost.innerHTML = "";
 
     if (!series || !series.length) {
         const empty = document.createElement("div");
-        empty.textContent = emptyText;
+        empty.textContent = "אין נתונים עבור רכבת זו.";
         trendHost.appendChild(empty);
         return;
     }
@@ -1468,57 +1388,43 @@ function openTrainTrendModal(trainId, row) {
 
   const trendKey = buildTrendKey(trainId, row);
   if (!trendKey) {
-      openTrendPopup({
-          colorTitle: "אחוזי סנכרון עבור רכבת " + trainId,
-          rawTitle: "אחוזי סנכרון נסיעות (ברמה הגולמית) עבור רכבת " + trainId,
-          renderColor: () => renderTrainTrendChart([]),
-          renderRaw: () => renderTrainTrendChart([]),
-      });
+      renderTrainTrendChart([]);
+      trendModal.classList.add("open");
       return;
   }
 
   // Keep trend within the selected week period
   const selectedWeek = String(activeWeek ?? "").trim();
 
-  function buildRawSeries() {
-      const byYm = new Map();
-      for (const r of BUS_TO_RAIL_TREND_JSON) {
-          const rid = getTrainIdValue(r);
-          const rk = buildTrendKey(rid, r);
-          if (!rk || rk !== trendKey) continue;
+  const byYm = new Map();
+  for (const r of BUS_TO_RAIL_TREND_JSON) {
+      const rid = getTrainIdValue(r);
+      const rk = buildTrendKey(rid, r);
+      if (!rk || rk !== trendKey) continue;
 
-          const week = String(r[KEY_WEEK_PERIOD] ?? "").trim();
-          if (selectedWeek && week !== selectedWeek) continue;
+      const week = String(r[KEY_WEEK_PERIOD] ?? "").trim();
+      if (selectedWeek && week !== selectedWeek) continue;
 
-          const y = parseInt(r[KEY_YEAR], 10);
-          const m = parseInt(r[KEY_MONTH], 10);
-          const p = toPercentNumber(r[KEY_ON_TIME_PERCENT_BY_TRAIN]);
-          if (!Number.isFinite(y) || !Number.isFinite(m) || p === null) continue;
+      const y = parseInt(r[KEY_YEAR], 10);
+      const m = parseInt(r[KEY_MONTH], 10);
+      const p = toPercentNumber(r[KEY_ON_TIME_PERCENT_BY_TRAIN]);
+      if (!Number.isFinite(y) || !Number.isFinite(m) || p === null) continue;
 
-          const ymKey = `${y}-${String(m).padStart(2, "0")}`;
-          if (!byYm.has(ymKey)) {
-              byYm.set(ymKey, { year: y, month: m, perc: p });
-          }
+      const ymKey = `${y}-${String(m).padStart(2, "0")}`;
+      if (!byYm.has(ymKey)) {
+          byYm.set(ymKey, { year: y, month: m, perc: p });
       }
-      return Array.from(byYm.values()).sort(
-          (a, b) => (a.year - b.year) || (a.month - b.month)
-      );
   }
 
-  const colorRows = (BUS_DOT_COLOR_PERCENTAGES_JSON.train || []).filter(r => {
-      const rk = buildColorTrainTrendKey(r);
-      const week = String(r.week_period ?? "").trim();
-      return rk === trendKey && (!selectedWeek || week === selectedWeek);
-  });
-  const colorSeries = buildColorSeries(colorRows);
-  const titleSuffix = selectedWeek ? " | " + selectedWeek : "";
+  const series = Array.from(byYm.values()).sort(
+      (a, b) => (a.year - b.year) || (a.month - b.month)
+  );
 
-  openTrendPopup({
-      colorTitle: "אחוזי סנכרון עבור רכבת " + trainId + titleSuffix,
-      rawTitle: "אחוזי סנכרון נסיעות (ברמה הגולמית) עבור רכבת " + trainId + titleSuffix,
-      renderColor: () => renderTrainTrendChart(colorSeries),
-      renderRaw: () => renderTrainTrendChart(buildRawSeries()),
-  });
+  trendTitle.textContent =
+      "אחוזי סנכרון עבור רכבת " + trainId + (selectedWeek ? " | " + selectedWeek : "");
+
+  renderTrainTrendChart(series);
+  trendModal.classList.add("open");
 }
 
 if (closeTrendBtn) {
@@ -1680,18 +1586,11 @@ function renderStationTrendChart(rows) {
 function openStationTrendModal() {
     if (!trendModal || !trendHost || !trendTitle) return;
 
-    const rawRows = BUS_TO_RAIL_TREND_JSON;
-    const colorRows = (BUS_DOT_COLOR_PERCENTAGES_JSON.station || []).filter(
-      r => String(r.station ?? "").trim() === station
-    );
-    const colorSeries = buildColorSeries(colorRows);
+    const rows = BUS_TO_RAIL_TREND_JSON;
 
-    openTrendPopup({
-        colorTitle: "אחוזי סנכרון עבור תחנת " + station,
-        rawTitle: "אחוזי סנכרון נסיעות (ברמה הגולמית) עבור תחנת " + station,
-        renderColor: () => renderTrainTrendChart(colorSeries, "אין נתונים ברמת תחנה."),
-        renderRaw: () => renderStationTrendChart(rawRows),
-    });
+    trendTitle.textContent = "אחוזי סנכרון עבור תחנת " + station;
+    renderStationTrendChart(rows);
+    trendModal.classList.add("open");
 }
 
 if (openStationTrendBtn) {
@@ -1872,24 +1771,13 @@ function openMakatTrendModal() {
     if (!activeSignage) return; // no selected signage -> don't open
 
     const signageValue = String(activeSignage).trim();
-    const selectedWeek = String(activeWeek ?? "").trim();
-    const rawRows = BUS_TO_RAIL_TREND_JSON.filter(
-      r => String(r[KEY_SIGNAGE] ?? "").trim() === signageValue &&
-        (!selectedWeek || String(r[KEY_WEEK_PERIOD] ?? "").trim() === selectedWeek)
+    const rows = BUS_TO_RAIL_TREND_JSON.filter(
+      r => String(r[KEY_SIGNAGE] ?? "").trim() === signageValue
     );
-    const colorRows = (BUS_DOT_COLOR_PERCENTAGES_JSON.signage || []).filter(
-      r => String(r.signage ?? "").trim() === signageValue &&
-        (!selectedWeek || String(r.week_period ?? "").trim() === selectedWeek)
-    );
-    const colorSeries = buildColorSeries(colorRows);
-    const titleSuffix = selectedWeek ? " | " + selectedWeek : "";
 
-    openTrendPopup({
-        colorTitle: "אחוזי סנכרון עבור קו " + signageValue + titleSuffix,
-        rawTitle: "אחוזי סנכרון נסיעות (ברמה הגולמית) עבור קו " + signageValue + titleSuffix,
-        renderColor: () => renderTrainTrendChart(colorSeries, "אין נתונים ברמת קו."),
-        renderRaw: () => renderMakatTrendChart(rawRows),
-    });
+    trendTitle.textContent = "אחוזי סנכרון עבור קו " + signageValue + " (כולל את כל תקופות השבוע)";
+    renderMakatTrendChart(rows);
+    trendModal.classList.add("open");
 }
 
 
@@ -1940,10 +1828,9 @@ function getArrivalWindowInt(row) {
     return Number.isFinite(n) ? Math.round(n) : null;
 }
 const KEY_MINUTES_GAP_B2R = "הפרש בדקות (מאוטובוס לרכבת)";
-const KEY_CALCULATED_MINUTES_GAP_B2R = "calculated_minutes_gap_bus_to_rail";
 const KEY_RECOMMENDED_MINUTES = "המלצה (דקות)";
-const KEY_CALCULATED_RECOMMENDED_MINUTES_B2R = "calculated_recommended_minutes_bus_to_rail";
-const KEY_CALCULATED_ON_TIME_PERCENT = "calculated_on_time_percentage";
+const KEY_ON_TIME_PERCENT = "אחוז הנסיעות שעמדו בזמנים";
+const KEY_IS_BUS_ON_TIME = "האם האוטובוס מגיע בזמן";
 const PERC_ON_TIME = "אחוז הנסיעות שעמדו בזמנים (סימולציה)"; //from the Raw Bus Data json
 const PERC_ON_TIME_AFTER_RECOMMENDATION = "אחוז הנסיעות שיעמדו בזמנים לאחר קבלת ההמלצה (סימולציה)";
 const KEY_PROPOSED_BUS_DEPARTURE_TIME = "שעת יציאה מתחנת המוצא - מוצעת"; // new empty column
@@ -1957,27 +1844,9 @@ const TABLE_FIELDS_BUS_TO_RAIL = [
     { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
     { key: KEY_BUS_TIME_TO_STATION, label: "שעת הגעה לתחנה (בממוצע)" },
     { key: KEY_ARRIVAL_TIME_WINDOW,label: "סטיית תקן משעת ההגעה לתחנה"},
-    {
-      key: KEY_CALCULATED_MINUTES_GAP_B2R,
-      label: "הפרש בדקות (מאוטובוס לרכבת)",
-      getValue: row => calcBusRailGap(row)
-    },
-    {
-      key: KEY_CALCULATED_RECOMMENDED_MINUTES_B2R,
-      label: "המלצה בדקות",
-      getValue: row => {
-      if (!getTrainIdValue(row)) return "";
-      return getRecommendedMinutesFromGap(calcBusRailGap(row));
-  }
-    },
-    {
-      key: KEY_CALCULATED_ON_TIME_PERCENT,
-      label: "אחוז הנסיעות שעמדו בזמנים",
-      getValue: row => calcSimulationOnTimePercent(
-        row[KEY_TRAIN_ARRIVAL_RISHUI],
-        getMatchedRawRowsForBusRow(row)
-      )
-    },
+    { key: KEY_MINUTES_GAP_B2R, label: "הפרש בדקות (מאוטובוס לרכבת)" },
+    { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
+    { key: KEY_ON_TIME_PERCENT, label: "אחוז הנסיעות שעמדו בזמנים" },
 ];
 
 const SIMULATION_TABLE_FIELDS_BUS_TO_RAIL = [
@@ -2005,13 +1874,8 @@ const TABLE_FIELDS_RAIL_TO_BUS = [
     { key: KEY_DIRECTION, label: "כיוון" },
     { key: KEY_ALTERNATIVE, label: "חלופה" },
     { key: KEY_BUS_DEPARTURE_TIME, label: "שעת יציאה מתחנת המוצא" },
-    { key: KEY_MINUTES_GAP_R2B, label: "הפרש בדקות (מרכבת לאוטובוס)",
-        getValue: row => calcBusRailGap(row)},
-    { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות",
-        getValue: row => {
-      if (!getTrainIdValue(row)) return "";
-      return getRecommendedMinutesFromGap(calcBusRailGap(row));
-  }},
+    { key: KEY_MINUTES_GAP_R2B, label: "הפרש בדקות (מרכבת לאוטובוס)" },
+    { key: KEY_RECOMMENDED_MINUTES, label: "המלצה בדקות" },
 ];
 
 const SIMULATION_TABLE_FIELDS_RAIL_TO_BUS = [
@@ -2052,6 +1916,13 @@ function buildBusRowKey(row) {
     return trainId + "||" + makat + "||" + direction + "||" + alternative + "||" + departure;
   }
 
+function buildBusRowKey_history(row) {
+    const makat = getMakatValue(row);
+    const direction = String(row[KEY_DIRECTION] ?? "").trim();
+    const alternative = String(row[KEY_ALTERNATIVE] ?? "").trim();
+    const departure = extractHHMM(row[KEY_BUS_DEPARTURE_TIME] ?? "") || "";
+    return makat + "||" + direction + "||" + alternative + "||" + departure;
+  }
 
 function resetBusLineHistoryPopup() {
     const status = document.getElementById("busLineHistoryStatus");
@@ -2111,12 +1982,11 @@ function renderBusLineHistoryRows(rows) {
 const downloadBusLineHistoryCsvBtn = document.getElementById("download-bus-line-history-csv");
 if (downloadBusLineHistoryCsvBtn) {
     downloadBusLineHistoryCsvBtn.addEventListener("click", () => {
-        const table = document.getElementById("busTable");
+        const table = document.querySelector(".bus-line-history-table");
         if (!table) return;
 
         const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.textContent.trim());
-        const rows = Array.from(table.querySelectorAll("tbody tr"))
-            .filter(row => row.style.display !== "none");
+        const rows = Array.from(table.querySelectorAll("tbody tr"));
 
         const csvRows = [
             headers,
@@ -2132,8 +2002,7 @@ if (downloadBusLineHistoryCsvBtn) {
 
         const link = document.createElement("a");
         link.href = url;
-        const directionName = activeDirection === BUS_TO_RAIL_DIRECTION ? "bus_to_rail" : "rail_to_bus";
-        link.download = `convergence_${directionName}_${station || "station"}_${activeYear || ""}_${activeMonth || ""}.csv`;
+        link.download = "bus_line_history.csv";
         link.click();
 
         URL.revokeObjectURL(url);
@@ -2314,10 +2183,16 @@ function renderBusTable() {
 
       let v = "";
 
-      v = f.getValue ? f.getValue(r) : r[f.key];
+      v = r[f.key];
       if (f.key === KEY_ARRIVAL_TIME_WINDOW) {
         const intVal = getArrivalWindowInt(r);
         v = (intVal === null) ? "—" : `${intVal} דק`;
+      }
+      if (f.key === KEY_ON_TIME_PERCENT) {
+        const rawPerc = String(v ?? "").trim();
+        const normalizedPerc = rawPerc.replace("%", "").replace(",", ".");
+        const percNum = Number(normalizedPerc);
+        v = Number.isFinite(percNum) ? `${Math.trunc(percNum)}%` : "—";
       }
       if (v === null || v === undefined || String(v).trim() === "") {
         v = "—";
@@ -2340,11 +2215,11 @@ function renderBusTable() {
       } else {
         td.textContent = v;
       }
-      if (f.key === KEY_RECOMMENDED_MINUTES || f.key === KEY_CALCULATED_RECOMMENDED_MINUTES_B2R) {
+      if (f.key === "המלצה (דקות)") {
         td.style.direction = "ltr";
         td.style.unicodeBidi = "plaintext";
       }
-      if (f.key === KEY_MINUTES_GAP_B2R || f.key === KEY_CALCULATED_MINUTES_GAP_B2R) {
+      if (f.key === "הפרש בדקות (מאוטובוס לרכבת)") {
         td.style.direction = "ltr";
         td.style.unicodeBidi = "plaintext";
       }
@@ -2460,79 +2335,31 @@ function diffMinutes(startVal, endVal) {
     let d = e - s;
     if (d < -720) d += 1440;
     if (d > 720) d -= 1440;
-    return Math.round(d * 10) / 10;
-}
-
-const ON_TIME_GAP_MINUTES_LOWER_LIMIT = 8;
-const ON_TIME_GAP_MINUTES_UPPER_LIMIT = 15;
-
-function calcBusRailGap(row) {
-      if (!row) return null;
-
-      if (activeDirection === BUS_TO_RAIL_DIRECTION) {
-          return diffMinutes(
-              row[KEY_BUS_TIME_TO_STATION],
-              row[KEY_TRAIN_ARRIVAL_RISHUI]
-          );
-      }
-
-      if (activeDirection === RAIL_TO_BUS_DIRECTION) {
-          return diffMinutes(
-              row[KEY_TRAIN_ARRIVAL_RISHUI],
-              row[KEY_BUS_DEPARTURE_TIME]
-          );
-      }
-
-      return null;
-  }
-
-function isBusRailGapOnTime(gap) {
-    return Number.isFinite(gap) &&
-      gap >= ON_TIME_GAP_MINUTES_LOWER_LIMIT &&
-      gap <= ON_TIME_GAP_MINUTES_UPPER_LIMIT;
+    return Math.round(d * 100) / 100;
 }
 
 function getRecommendedMinutesFromGap(gapValue) {
     const gap = Number(gapValue);
     if (!Number.isFinite(gap)) return "";
 
+    const LowerLimit = 8;
+    const UpperLimit = 15;
     const Step = 5;
 
-    // for bus to rail
     // If gap is too small: recommend negative movement
-    if (activeDirection === BUS_TO_RAIL_DIRECTION) {
-        if (gap < ON_TIME_GAP_MINUTES_LOWER_LIMIT) {
-            const delta = Math.ceil((ON_TIME_GAP_MINUTES_LOWER_LIMIT - gap) / Step) * Step * -1;
-            return `${delta}`;
-        }
-
-        // If gap is too large: recommend positive movement
-        if (gap > ON_TIME_GAP_MINUTES_UPPER_LIMIT) {
-            const delta = Math.ceil((gap - ON_TIME_GAP_MINUTES_UPPER_LIMIT) / Step) * Step;
-            return `+${delta}`;
-        }
-
-        // If gap is between 8 and 15: no recommendation
-        return "—";
+    if (gap < LowerLimit) {
+        const delta = Math.ceil((LowerLimit - gap) / Step) * Step * -1;
+        return `${delta}`;
     }
-    // for rail to bus
-    // If gap is too small: recommend negative movement
-    if (activeDirection === RAIL_TO_BUS_DIRECTION) {
-        if (gap < ON_TIME_GAP_MINUTES_LOWER_LIMIT) {
-            const delta = Math.ceil((ON_TIME_GAP_MINUTES_LOWER_LIMIT - gap) / Step) * Step;
-            return `+${delta}`;
-        }
 
-        // If gap is too large: recommend positive movement
-        if (gap > ON_TIME_GAP_MINUTES_UPPER_LIMIT) {
-            const delta = Math.ceil((gap - ON_TIME_GAP_MINUTES_UPPER_LIMIT) / Step) * Step * -1;
-            return `${delta}`;
-        }
-
-        // If gap is between 8 and 15: no recommendation
-        return "—";
+    // If gap is too large: recommend positive movement
+    if (gap > UpperLimit) {
+        const delta = Math.ceil((gap - UpperLimit) / Step) * Step;
+        return `+${delta}`;
     }
-    return "";
+
+    // If gap is between 8 and 15: no recommendation
+    return "—";
 }
 
 
@@ -2587,26 +2414,6 @@ function getMatchedRawRowsForSimulationSource() {
     });
 }
 
-function getMatchedRawRowsForBusRow(row) {
-    if (!row) return [];
-
-    const makat = String(getMakatValue(row) ?? "").trim();
-    const dir = String(row[KEY_DIRECTION] ?? "").trim();
-    const alt = String(row[KEY_ALTERNATIVE] ?? "").trim();
-    const dep = extractHHMM(row[KEY_BUS_DEPARTURE_TIME] ?? "") ||
-      String(row[KEY_BUS_DEPARTURE_TIME] ?? "").trim();
-
-    return filteredRawBusData.filter((rawRow) => {
-      const rawMakat = String(rawRow[RAW_KEY_MAKAT] ?? "").trim();
-      const rawDir = String(rawRow[RAW_KEY_DIRECTION] ?? "").trim();
-      const rawAlt = String(rawRow[RAW_KEY_ALTERNATIVE] ?? "").trim();
-      const rawDep = extractHHMM(rawRow[RAW_KEY_DEPARTURE] ?? "") ||
-        String(rawRow[RAW_KEY_DEPARTURE] ?? "").trim();
-
-      return rawMakat === makat && rawDir === dir && rawAlt === alt && rawDep === dep;
-    });
-}
-
 
 function calcSimulationOnTimePercent(trainArrivalRishui, rawRows) {
     const groups = new Map();
@@ -2628,7 +2435,7 @@ function calcSimulationOnTimePercent(trainArrivalRishui, rawRows) {
       if (!Number.isFinite(arrMin) || !Number.isFinite(trainMin)) return;
 
       const gap = trainMin - arrMin;
-      const isTrue = isBusRailGapOnTime(gap);
+      const isTrue = gap >= 8 && gap <= 15;
 
       if (!groups.has(groupKey)) {
         groups.set(groupKey, {
@@ -2683,7 +2490,7 @@ function calcSimulationOnTimePercentAfterRecommendation(trainArrivalRishui, rawR
         const adjustedArrMin = arrMin + rec;
 
         const gap = trainMin - adjustedArrMin;
-        const isTrue = isBusRailGapOnTime(gap);
+        const isTrue = gap >= 8 && gap <= 15;
 
         if (!groups.has(groupKey)) {
           groups.set(groupKey, {
@@ -3171,7 +2978,7 @@ function redrawTrains() {
                     percText.textContent = percValueText;
 
                     const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-                    pTitle.textContent = "אחוז הנסיעות (ברמה הגולמית) המסונכרנות";
+                    pTitle.textContent = "אחוז הנסיעות המסונכרנות";
                     percText.appendChild(pTitle);
 
                     svg.appendChild(percText);
@@ -3572,7 +3379,7 @@ function redrawBuses() {
 
     // hover tooltip text
     const pTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-    pTitle.textContent = "אחוז הנסיעות (ברמה הגולמית) המסונכרנות";
+    pTitle.textContent = "אחוז הנסיעות המסונכרנות ברמת תקופת שבוע";
     makatPercText.appendChild(pTitle);
 
     // add to DOM first, then measure and size the wrapper
@@ -3688,11 +3495,11 @@ function redrawBuses() {
     dot.setAttribute("cy", y);
     dot.setAttribute("r", String(dotRadius));
 
-    // green if the calculated gap is in range, red if not
-    const busRailGap = calcBusRailGap(row);
+    // green if on time, red if not
+    const onTime = Number(row[KEY_IS_BUS_ON_TIME]);
     const busColor = !hasTrainId
         ? "#4b5563"
-        : isBusRailGapOnTime(busRailGap) ? "#13ba34" : "#ed0c0c";
+        : (onTime === 1) ? "#13ba34" : "#ed0c0c";
     dot.setAttribute("fill", busColor);
       // adding outline if its a manually changed bus
     if (row.__is_overridden) {

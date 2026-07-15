@@ -336,6 +336,9 @@ class Command(BaseCommand):
                 "raw_bus_data",
                 row_number,
             ),
+            "rail_direction": self._clean_text(
+                pick("rail_direction", "RailDirection", "כיוון נסיעת הרכבת", "is_to_tlv")
+            ),
             "makat": self._to_int_or_none(pick("makat", "OfficeLineID", 'מק"ט')),
             "direction": self._to_int_or_none(pick("direction", "Direction", "כיוון")),
             "alternative": self._clean_text(pick("alternative", "Alternative", "חלופה")),

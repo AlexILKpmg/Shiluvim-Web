@@ -1,4 +1,5 @@
 ﻿import json
+from collections import defaultdict
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required, permission_required
@@ -86,6 +87,10 @@ COL_GOLD_TRAIN = "רכבת זהב"
 COL_EXPRESS_TRAIN = "סוג רכבת"
 COL_BUS_ON_TIME = "האם האוטובוס מגיע בזמן"
 COL_LICENSED_TRAIN_ARRIVAL = "שעת הגעת הרכבת לתחנה (רישוי)"
+COL_BUS_ARRIVAL_TO_STATION = "שעת הגעה לתחנה (בממוצע)"
+RAIL_DIRECTION_TO_TLV = "לכיוון תל אביב"
+ON_TIME_GAP_MINUTES_LOWER_LIMIT = 8
+ON_TIME_GAP_MINUTES_UPPER_LIMIT = 15
 
 COL_TRAIN_STATION_CODE = "__train_station_code"
 COL_FROM_TRAIN_NUMBER = "__from_train_number"
@@ -123,9 +128,6 @@ def _serialize_bus_to_rail(row):
         "המלצה (דקות)": row.recommended_minutes,
         COL_N: row.observations_count,
         COL_N_POSITIVE_FLAGGED: row.on_time_count,
-        COL_PERC: _format_percentage(row.on_time_percentage),
-        COL_PERC_BY_TRAIN: _format_percentage(row.on_time_percentage_by_train),
-        COL_PERC_BY_MAKAT: _format_percentage(row.on_time_percentage_by_makat),
     }
 
 
@@ -165,13 +167,21 @@ def _serialize_bus_to_rail_trend(row): #NOTE - for trend by station level i will
         COL_YEAR: row.year,
         COL_MONTH: row.month,
         COL_WEEK: row.week_period,
+        COL_STATION: row.train_station_name,
         COL_TRAIN_ID: row.train_number,
         COL_LICENSED_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
         COL_SIGNAGE: row.signage,
-        COL_PERC_BY_MAKAT_FOR_TREND: _format_percentage(row.on_time_percentage_by_makat),
-        COL_PERC_BY_TRAIN: _format_percentage(row.on_time_percentage_by_train),
-        COL_PERC_BY_TRAIN_STATION: _format_percentage(row.on_time_percentage_by_train_station),
+        COL_FROM_TRAIN_NUMBER: row.train_number,
+        COL_FROM_TRAIN_ARRIVAL: row.rishui_train_arrival_time,
+        COL_LINK_DIRECTION: "bus_to_rail",
+        'מק"ט': row.makat,
+        "כיוון": row.direction,
+        "חלופה": row.alternative,
+        "שעת יציאה מתחנת המוצא": row.departure_time,
+        COL_BUS_ARRIVAL_TO_STATION: row.arrival_time_to_station,
     }
+
+
 
 # endregion organizing the data from DB
 
@@ -224,6 +234,450 @@ def _apply_overrides_to_rows(rows, override_lookup):
         row[COL_LICENSED_TRAIN_ARRIVAL] = ov.to_train_rishui_train_arrival_time or ""
         row["__is_overridden"] = True
     return rows
+
+
+def _row_year_month_from_mapping(row):
+    try:
+        return f"{int(row.get(COL_YEAR)):04d}-{int(row.get(COL_MONTH)):02d}"
+    except (TypeError, ValueError):
+        return ""
+
+
+def _apply_overrides_to_rows_by_effective_month(rows):
+    overrides = list(OverrideConv.objects.order_by("changed_at"))
+    if not overrides:
+        return rows
+
+    for row in rows:
+        row_month = _row_year_month_from_mapping(row)
+        if not row_month:
+            continue
+
+        key = _row_override_key(row)
+        chosen = None
+        for ov in overrides:
+            if not ov.effective_month or ov.effective_month > row_month:
+                continue
+            ov_key = (
+                str(ov.station_name or "").strip(),
+                str(ov.week_period or "").strip(),
+                str(ov.link_direction or "").strip(),
+                ov.makat,
+                ov.direction,
+                str(ov.alternative or "").strip(),
+                str(ov.departure_time or "").strip(),
+                ov.from_train_number,
+                str(ov.from_train_rishui_train_arrival_time or "").strip(),
+            )
+            if ov_key == key:
+                chosen = ov
+
+        if chosen is None:
+            continue
+        if chosen.to_train_number is not None:
+            row[COL_TRAIN_ID] = chosen.to_train_number
+        row[COL_LICENSED_TRAIN_ARRIVAL] = chosen.to_train_rishui_train_arrival_time or ""
+        row["__is_overridden"] = True
+
+    return rows
+# endregion override
+
+# region calculating raw percentages (only for bus to rail)
+def _hhmmss_to_minutes(value):
+    text = str(value or "").strip()
+    if not text:
+        return None
+    parts = text.split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        hours = int(float(parts[0]))
+        minutes = int(float(parts[1]))
+        seconds = float(parts[2]) if len(parts) > 2 else 0
+    except (TypeError, ValueError):
+        return None
+    return hours * 60 + minutes + seconds / 60
+
+
+def _diff_minutes(start_value, end_value):
+    start = _hhmmss_to_minutes(start_value)
+    end = _hhmmss_to_minutes(end_value)
+    if start is None or end is None:
+        return None
+    diff = end - start
+    if diff < -720:
+        diff += 1440
+    if diff > 720:
+        diff -= 1440
+    return round(diff, 2)
+
+
+def _raw_lookup_key_from_raw(row):
+    return (
+        str(row.get("year") or "").strip(),
+        _to_int_or_none(row.get("month")),
+        str(row.get("train_station_name") or "").strip(),
+        str(row.get("week_period") or "").strip(),
+        str(row.get("rail_direction") or "").strip(),
+        _to_int_or_none(row.get("makat")),
+        _to_int_or_none(row.get("direction")),
+        str(row.get("alternative") or "").strip(),
+        _extract_hhmm(row.get("departure_time")),
+    )
+
+
+def _raw_lookup_key_from_convergence_row(row):
+    return (
+        str(row.get(COL_YEAR) or "").strip(),
+        _to_int_or_none(row.get(COL_MONTH)),
+        str(row.get(COL_STATION) or "").strip(),
+        str(row.get(COL_WEEK) or "").strip(),
+        str(row.get(COL_RAIL_DIR) or "").strip(),
+        _to_int_or_none(row.get('מק"ט')),
+        _to_int_or_none(row.get("כיוון")),
+        str(row.get("חלופה") or "").strip(),
+        _extract_hhmm(row.get("שעת יציאה מתחנת המוצא")),
+    )
+
+
+def _add_counts(group, good, total):
+    group["good"] += good
+    group["total"] += total
+
+
+def _format_group_percentage(group):
+    total = group["total"]
+    if total <= 0:
+        return ""
+    return _format_percentage((group["good"] / total) * 100)
+
+
+def _attach_calculated_bus_to_rail_percentages(rows, raw_rows):
+    raw_lookup = defaultdict(list)
+    for raw in raw_rows:
+        raw_lookup[_raw_lookup_key_from_raw(raw)].append(raw)
+
+    line_groups = defaultdict(lambda: {"good": 0, "total": 0})
+    train_groups = defaultdict(lambda: {"good": 0, "total": 0})
+    station_groups = defaultdict(lambda: {"good": 0, "total": 0})
+    row_keys = []
+
+    for row in rows:
+        matched_raw_rows = raw_lookup.get(_raw_lookup_key_from_convergence_row(row), [])
+        train_arrival = row.get(COL_LICENSED_TRAIN_ARRIVAL)
+        good = 0
+        total = 0
+
+        for raw in matched_raw_rows:
+            rides = _to_int_or_none(raw.get("ride_counts"))
+            if not rides or rides <= 0:
+                continue
+            gap = _diff_minutes(raw.get("bus_arrival_time_to_station"), train_arrival)
+            if gap is None:
+                continue
+            total += rides
+            if 8 <= gap <= 15:
+                good += rides
+
+        line_key = (
+            str(row.get(COL_YEAR) or "").strip(),
+            _to_int_or_none(row.get(COL_MONTH)),
+            str(row.get(COL_STATION) or "").strip(),
+            str(row.get(COL_WEEK) or "").strip(),
+            str(row.get(COL_RAIL_DIR) or "").strip(),
+            _to_int_or_none(row.get(COL_SIGNAGE)),
+        )
+        train_key = (
+            str(row.get(COL_YEAR) or "").strip(),
+            _to_int_or_none(row.get(COL_MONTH)),
+            str(row.get(COL_STATION) or "").strip(),
+            str(row.get(COL_WEEK) or "").strip(),
+            str(row.get(COL_RAIL_DIR) or "").strip(),
+            _to_int_or_none(row.get(COL_TRAIN_ID)),
+            _extract_hhmm(row.get(COL_LICENSED_TRAIN_ARRIVAL)),
+        )
+        station_key = (
+            str(row.get(COL_YEAR) or "").strip(),
+            _to_int_or_none(row.get(COL_MONTH)),
+            str(row.get(COL_STATION) or "").strip(),
+            str(row.get(COL_RAIL_DIR) or "").strip(),
+        )
+
+        _add_counts(line_groups[line_key], good, total)
+        _add_counts(train_groups[train_key], good, total)
+        _add_counts(station_groups[station_key], good, total)
+        row_keys.append((row, line_key, train_key, station_key, good, total))
+
+    for row, line_key, train_key, station_key, good, total in row_keys:
+        row[COL_N] = total
+        row[COL_N_POSITIVE_FLAGGED] = good
+        row[COL_PERC] = _format_group_percentage({"good": good, "total": total})
+        line_pct = _format_group_percentage(line_groups[line_key])
+        row[COL_PERC_BY_MAKAT] = line_pct
+        row[COL_PERC_BY_MAKAT_FOR_TREND] = line_pct
+        row[COL_PERC_BY_TRAIN] = _format_group_percentage(train_groups[train_key])
+        row[COL_PERC_BY_TRAIN_STATION] = _format_group_percentage(station_groups[station_key])
+
+    return rows
+# endregion calculating raw percentages (only for bus to rail)
+
+# region color perc for BUS TO RAIL
+def _format_color_percentage(green_count, total_count):
+    if total_count <= 0:
+        return ""
+    return f"{(green_count / total_count) * 100:.2f}%"
+
+
+def _new_color_group():
+    return {"green": 0, "total": 0}
+
+
+def _add_color_count(group, is_green):
+    group["total"] += 1
+    if is_green:
+        group["green"] += 1
+
+
+def _build_bus_to_rail_dot_color_percentages(rows):
+    station_groups = defaultdict(_new_color_group)
+    train_groups = defaultdict(_new_color_group)
+    signage_groups = defaultdict(_new_color_group)
+
+    for row in rows:
+        rail_direction = str(row.get(COL_RAIL_DIR) or "").strip()
+        if rail_direction != RAIL_DIRECTION_TO_TLV:
+            continue
+
+        train_number = _to_int_or_none(row.get(COL_TRAIN_ID))
+        has_train = train_number is not None
+        gap = _diff_minutes(row.get(COL_BUS_ARRIVAL_TO_STATION), row.get(COL_LICENSED_TRAIN_ARRIVAL))
+        is_green = (
+            has_train
+            and gap is not None
+            and ON_TIME_GAP_MINUTES_LOWER_LIMIT <= gap <= ON_TIME_GAP_MINUTES_UPPER_LIMIT
+        )
+
+        station_key = (
+            str(row.get(COL_YEAR) or "").strip(),
+            _to_int_or_none(row.get(COL_MONTH)),
+            str(row.get(COL_STATION) or "").strip(),
+            rail_direction,
+        )
+        signage_key = (
+            str(row.get(COL_YEAR) or "").strip(),
+            _to_int_or_none(row.get(COL_MONTH)),
+            str(row.get(COL_STATION) or "").strip(),
+            str(row.get(COL_WEEK) or "").strip(),
+            rail_direction,
+            _to_int_or_none(row.get(COL_SIGNAGE)),
+        )
+
+        _add_color_count(station_groups[station_key], is_green)
+        _add_color_count(signage_groups[signage_key], is_green)
+
+        if has_train:
+            train_key = (
+                str(row.get(COL_YEAR) or "").strip(),
+                _to_int_or_none(row.get(COL_MONTH)),
+                str(row.get(COL_STATION) or "").strip(),
+                str(row.get(COL_WEEK) or "").strip(),
+                rail_direction,
+                train_number,
+                _extract_hhmm(row.get(COL_LICENSED_TRAIN_ARRIVAL)),
+            )
+            _add_color_count(train_groups[train_key], is_green)
+
+    station_rows = [
+        {
+            "level": "station",
+            "year": year,
+            "month": month,
+            "station": station,
+            "week_period": "",
+            "rail_direction": rail_direction,
+            "train_number": None,
+            "train_arrival_time": "",
+            "signage": None,
+            "green_count": group["green"],
+            "total_count": group["total"],
+            "green_percentage": _format_color_percentage(group["green"], group["total"]),
+        }
+        for (year, month, station, rail_direction), group in station_groups.items()
+    ]
+    train_rows = [
+        {
+            "level": "train",
+            "year": year,
+            "month": month,
+            "station": station,
+            "week_period": week_period,
+            "rail_direction": rail_direction,
+            "train_number": train_number,
+            "train_arrival_time": train_arrival_time,
+            "signage": None,
+            "green_count": group["green"],
+            "total_count": group["total"],
+            "green_percentage": _format_color_percentage(group["green"], group["total"]),
+        }
+        for (year, month, station, week_period, rail_direction, train_number, train_arrival_time), group in train_groups.items()
+    ]
+    signage_rows = [
+        {
+            "level": "signage",
+            "year": year,
+            "month": month,
+            "station": station,
+            "week_period": week_period,
+            "rail_direction": rail_direction,
+            "train_number": None,
+            "train_arrival_time": "",
+            "signage": signage,
+            "green_count": group["green"],
+            "total_count": group["total"],
+            "green_percentage": _format_color_percentage(group["green"], group["total"]),
+        }
+        for (year, month, station, week_period, rail_direction, signage), group in signage_groups.items()
+    ]
+
+    def sort_key(item):
+        return (
+            str(item["year"] or ""),
+            item["month"] if item["month"] is not None else -1,
+            str(item["station"] or ""),
+            str(item["week_period"] or ""),
+            item["train_number"] if item["train_number"] is not None else -1,
+            item["signage"] if item["signage"] is not None else -1,
+            str(item["train_arrival_time"] or ""),
+        )
+
+    return {
+        "station": sorted(station_rows, key=sort_key),
+        "train": sorted(train_rows, key=sort_key),
+        "signage": sorted(signage_rows, key=sort_key),
+    }
+
+# endregion color perc for BUS TO RAIL
+
+# region color perc for RAIL TO BUS
+def _build_rail_to_bus_dot_color_percentages(rows):
+    station_groups = defaultdict(_new_color_group)
+    train_groups = defaultdict(_new_color_group)
+    signage_groups = defaultdict(_new_color_group)
+
+    for row in rows:
+        rail_direction = str(row.get(COL_RAIL_DIR) or "").strip()
+        if rail_direction == RAIL_DIRECTION_TO_TLV:
+            continue
+
+        train_number = _to_int_or_none(row.get(COL_TRAIN_ID))
+        has_train = train_number is not None
+        gap = _diff_minutes(row.get("שעת יציאה מתחנת המוצא"), row.get(COL_LICENSED_TRAIN_ARRIVAL))
+        is_green = (
+            has_train
+            and gap is not None
+            and ON_TIME_GAP_MINUTES_LOWER_LIMIT <= gap <= ON_TIME_GAP_MINUTES_UPPER_LIMIT
+        )
+
+        station_key = (
+            str(row.get(COL_YEAR) or "").strip(),
+            _to_int_or_none(row.get(COL_MONTH)),
+            str(row.get(COL_STATION) or "").strip(),
+            rail_direction,
+        )
+        signage_key = (
+            str(row.get(COL_YEAR) or "").strip(),
+            _to_int_or_none(row.get(COL_MONTH)),
+            str(row.get(COL_STATION) or "").strip(),
+            str(row.get(COL_WEEK) or "").strip(),
+            rail_direction,
+            _to_int_or_none(row.get(COL_SIGNAGE)),
+        )
+
+        _add_color_count(station_groups[station_key], is_green)
+        _add_color_count(signage_groups[signage_key], is_green)
+
+        if has_train:
+            train_key = (
+                str(row.get(COL_YEAR) or "").strip(),
+                _to_int_or_none(row.get(COL_MONTH)),
+                str(row.get(COL_STATION) or "").strip(),
+                str(row.get(COL_WEEK) or "").strip(),
+                rail_direction,
+                train_number,
+                _extract_hhmm(row.get(COL_LICENSED_TRAIN_ARRIVAL)),
+            )
+            _add_color_count(train_groups[train_key], is_green)
+
+    station_rows = [
+        {
+            "level": "station",
+            "year": year,
+            "month": month,
+            "station": station,
+            "week_period": "",
+            "rail_direction": rail_direction,
+            "train_number": None,
+            "train_arrival_time": "",
+            "signage": None,
+            "green_count": group["green"],
+            "total_count": group["total"],
+            "green_percentage": _format_color_percentage(group["green"], group["total"]),
+        }
+        for (year, month, station, rail_direction), group in station_groups.items()
+    ]
+    train_rows = [
+        {
+            "level": "train",
+            "year": year,
+            "month": month,
+            "station": station,
+            "week_period": week_period,
+            "rail_direction": rail_direction,
+            "train_number": train_number,
+            "train_arrival_time": train_arrival_time,
+            "signage": None,
+            "green_count": group["green"],
+            "total_count": group["total"],
+            "green_percentage": _format_color_percentage(group["green"], group["total"]),
+        }
+        for (year, month, station, week_period, rail_direction, train_number, train_arrival_time), group in train_groups.items()
+    ]
+    signage_rows = [
+        {
+            "level": "signage",
+            "year": year,
+            "month": month,
+            "station": station,
+            "week_period": week_period,
+            "rail_direction": rail_direction,
+            "train_number": None,
+            "train_arrival_time": "",
+            "signage": signage,
+            "green_count": group["green"],
+            "total_count": group["total"],
+            "green_percentage": _format_color_percentage(group["green"], group["total"]),
+        }
+        for (year, month, station, week_period, rail_direction, signage), group in signage_groups.items()
+    ]
+
+    def sort_key(item):
+        return (
+            str(item["year"] or ""),
+            item["month"] if item["month"] is not None else -1,
+            str(item["station"] or ""),
+            str(item["week_period"] or ""),
+            item["train_number"] if item["train_number"] is not None else -1,
+            item["signage"] if item["signage"] is not None else -1,
+            str(item["train_arrival_time"] or ""),
+        )
+
+    return {
+        "station": sorted(station_rows, key=sort_key),
+        "train": sorted(train_rows, key=sort_key),
+        "signage": sorted(signage_rows, key=sort_key),
+    }
+# endregion color perc for RAIL TO BUS
+
 
 
 @require_POST
@@ -429,6 +883,7 @@ def convergence(request):
                 "month": "",
                 "bus_to_rail_df": [],
                 "bus_to_rail_trend_df": [],
+                "bus_to_rail_dot_color_percentages_df": {"station": [], "train": [], "signage": []},
                 "rail_to_bus_df": [],
                 "raw_bus_data_df": [],
                 "year_month_pairs": [],
@@ -445,6 +900,8 @@ def convergence(request):
         raw_qs = RawBusData.objects.filter(train_station_name__icontains=station)
 
     bus_qs_for_trend = bus_qs
+    raw_qs_for_trend = raw_qs
+    rail_qs_for_trend = rail_qs
 
     year_month_pairs_set = set()
     for yv, mv in bus_qs.values_list("year", "month"):
@@ -481,9 +938,11 @@ def convergence(request):
         raw_qs = raw_qs.filter(month=month)
 
     bus_to_rail_trend_rows = [_serialize_bus_to_rail_trend(row) for row in bus_qs_for_trend]
+    rail_to_bus_trend_rows = [_serialize_rail_to_bus(row) for row in rail_qs_for_trend]
     bus_to_rail_rows = [_serialize_bus_to_rail(row) for row in bus_qs]
     rail_to_bus_rows = [_serialize_rail_to_bus(row) for row in rail_qs]
     raw_bus_data_rows = [_serialize_raw_bus_data(row) for row in raw_qs]
+    raw_bus_data_trend_rows = [_serialize_raw_bus_data(row) for row in raw_qs_for_trend]
 
     effective_month = ""
     if year is not None and month is not None:
@@ -492,6 +951,12 @@ def convergence(request):
     overrides = _build_override_lookup(effective_month)
     _apply_overrides_to_rows(bus_to_rail_rows, overrides)
     _apply_overrides_to_rows(rail_to_bus_rows, overrides)
+    _apply_overrides_to_rows_by_effective_month(bus_to_rail_trend_rows)
+    _apply_overrides_to_rows_by_effective_month(rail_to_bus_trend_rows)
+    _attach_calculated_bus_to_rail_percentages(bus_to_rail_rows, raw_bus_data_rows)
+    _attach_calculated_bus_to_rail_percentages(bus_to_rail_trend_rows, raw_bus_data_trend_rows)
+    bus_to_rail_dot_color_percentages = _build_bus_to_rail_dot_color_percentages(bus_to_rail_trend_rows)
+    rail_to_bus_dot_color_percentages = _build_rail_to_bus_dot_color_percentages(rail_to_bus_trend_rows)
 
 
     debug_message = ""
@@ -505,9 +970,10 @@ def convergence(request):
         "month": month or "",
         "bus_to_rail_df": bus_to_rail_rows,
         "bus_to_rail_trend_df": bus_to_rail_trend_rows,
+        "bus_to_rail_dot_color_percentages_df": bus_to_rail_dot_color_percentages,
+        "rail_to_bus_dot_color_percentages_df": rail_to_bus_dot_color_percentages,
         "rail_to_bus_df": rail_to_bus_rows,
         "raw_bus_data_df": raw_bus_data_rows,
         "year_month_pairs": year_month_pairs,
     }
     return render(request, "convergence.html", context)
-
