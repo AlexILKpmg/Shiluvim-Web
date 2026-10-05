@@ -86,13 +86,15 @@ WSGI_APPLICATION = 'shiluvim.wsgi.application'
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.mysql",
+        "ENGINE": "mssql",
         "NAME": "shiluvim_db",
-        "USER": "django_user",
-        "PASSWORD": "StrongPassword123!",
-        "HOST": "127.0.0.1",
-        "PORT": "3306",
-        "OPTIONS": {"init_command": "SET sql_mode='STRICT_TRANS_TABLES'"},
+        "HOST": r"localhost\SQLEXPRESS",
+        "PORT": "",
+        "Trusted_Connection": "yes",
+        "OPTIONS": {
+            "driver": "ODBC Driver 18 for SQL Server",
+            "extra_params": "Encrypt=yes;TrustServerCertificate=yes",
+        },
     }
 }
 
